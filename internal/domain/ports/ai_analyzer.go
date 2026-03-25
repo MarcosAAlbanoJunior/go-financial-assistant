@@ -9,6 +9,7 @@ const (
 	ExpenseTypeInstallment     ExpenseType = "INSTALLMENT"
 	ExpenseTypeRecurring       ExpenseType = "RECURRING"
 	ExpenseTypeCancelRecurring ExpenseType = "CANCEL_RECURRING"
+	ExpenseTypeQuery           ExpenseType = "QUERY"
 )
 
 type AIAnalyzer interface {
@@ -28,6 +29,7 @@ type ExpenseAnalysis struct {
 	Installments  *InstallmentInfo
 	RecurringInfo *RecurringInfo
 	CancelInfo    *CancelInfo
+	QueryInfo     *QueryInfo
 }
 
 type InstallmentInfo struct {
@@ -41,4 +43,9 @@ type RecurringInfo struct {
 
 type CancelInfo struct {
 	Description string
+}
+
+type QueryInfo struct {
+	Month int
+	Year  int
 }

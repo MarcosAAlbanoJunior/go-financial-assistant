@@ -8,6 +8,11 @@ import (
 	"github.com/google/uuid"
 )
 
+type CategorySummary struct {
+	Category string
+	Total    float64
+}
+
 type PurchaseRepository interface {
 	Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error
 	FindActiveRecurring(ctx context.Context) ([]domain.Purchase, error)
@@ -15,4 +20,5 @@ type PurchaseRepository interface {
 	Update(ctx context.Context, purchase *domain.Purchase) error
 	SavePayment(ctx context.Context, payment *domain.Payment) error
 	HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
+	FindPaymentsByMonth(ctx context.Context, month time.Time) ([]CategorySummary, error)
 }

@@ -24,11 +24,11 @@ func TestExecuteText_Success(t *testing.T) {
 	if out.Amount != 50.0 {
 		t.Errorf("amount esperado 50.0, got %v", out.Amount)
 	}
-	if out.Payment != "PIX" {
-		t.Errorf("payment esperado PIX, got %s", out.Payment)
+	if out.Payment != "Pix" {
+		t.Errorf("payment esperado Pix, got %s", out.Payment)
 	}
-	if out.Category != "FOOD" {
-		t.Errorf("category esperada FOOD, got %s", out.Category)
+	if out.Category != "Alimentação" {
+		t.Errorf("category esperada Alimentação, got %s", out.Category)
 	}
 	if out.Confidence != 0.95 {
 		t.Errorf("confidence esperada 0.95, got %v", out.Confidence)
@@ -136,11 +136,11 @@ func TestExecuteImage_Success(t *testing.T) {
 	if out.Amount != 120.0 {
 		t.Errorf("amount esperado 120.0, got %v", out.Amount)
 	}
-	if out.Payment != "CREDIT_CARD" {
-		t.Errorf("payment esperado CREDIT_CARD, got %s", out.Payment)
+	if out.Payment != "Cartão de Crédito" {
+		t.Errorf("payment esperado Cartão de Crédito, got %s", out.Payment)
 	}
-	if out.Category != "SHOPPING" {
-		t.Errorf("category esperada SHOPPING, got %s", out.Category)
+	if out.Category != "Compras" {
+		t.Errorf("category esperada Compras, got %s", out.Category)
 	}
 }
 

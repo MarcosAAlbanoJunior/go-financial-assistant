@@ -198,3 +198,30 @@ func (r *PostgresPurchaseRepository) HasPaymentForMonth(ctx context.Context, pur
 	}
 	return exists, nil
 }
+
+func (r *PostgresPurchaseRepository) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.CategorySummary, error) {
+	query := `
+		SELECT p.category, SUM(pay.amount) AS total
+		FROM payments pay
+		JOIN purchases p ON p.id = pay.purchase_id
+		WHERE DATE_TRUNC('month', COALESCE(pay.due_date, pay.reference_month, pay.created_at)) = DATE_TRUNC('month', $1::timestamptz)
+		  AND pay.status != 'CANCELLED'
+		GROUP BY p.category
+		ORDER BY total DESC
+	`
+	rows, err := r.db.Pool.Query(ctx, query, month)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar despesas do mês: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ports.CategorySummary
+	for rows.Next() {
+		var s ports.CategorySummary
+		if err := rows.Scan(&s.Category, &s.Total); err != nil {
+			return nil, fmt.Errorf("erro ao escanear resumo: %w", err)
+		}
+		result = append(result, s)
+	}
+	return result, rows.Err()
+}

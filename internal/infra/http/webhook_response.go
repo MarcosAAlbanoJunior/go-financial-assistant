@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
@@ -39,6 +40,8 @@ func (h *webhookHandler) handleError(w http.ResponseWriter, err error) {
 
 func formatReply(output *usecase.ExpenseOutput) string {
 	switch output.Type {
+	case "QUERY":
+		return formatQueryReply(output)
 	case "INSTALLMENT":
 		return fmt.Sprintf(
 			"✅ Compra parcelada registrada!\n💰 Total: R$ %.2f\n📅 %dx de R$ %.2f\n📝 %s\n🏷️ %s\n💳 %s",
@@ -56,6 +59,20 @@ func formatReply(output *usecase.ExpenseOutput) string {
 		return fmt.Sprintf("✅ Despesa registrada!\n💰 R$ %.2f\n📝 %s\n🏷️ %s\n💳 %s",
 			output.Amount, output.Description, output.Category, output.Payment)
 	}
+}
+
+func formatQueryReply(output *usecase.ExpenseOutput) string {
+	if output.QueryEmpty {
+		return fmt.Sprintf("📊 Sem despesas registradas em %s.", output.QueryMonth)
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("📊 Despesas de %s\n", output.QueryMonth))
+	sb.WriteString(fmt.Sprintf("💰 Total: R$ %.2f\n\n", output.QueryTotal))
+	for _, c := range output.QueryCategories {
+		sb.WriteString(fmt.Sprintf("  • %s: R$ %.2f\n", c.Category, c.Total))
+	}
+	return sb.String()
 }
 
 var (
