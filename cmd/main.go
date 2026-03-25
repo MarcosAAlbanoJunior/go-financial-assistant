@@ -45,11 +45,9 @@ func main() {
 	}
 	defer geminiClient.Close()
 
-	expenseRepo := db.NewExpenseRepository(postgresDB)
-	installmentRepo := db.NewInstallmentRepository(postgresDB)
-	recurringRepo := db.NewRecurringExpenseRepository(postgresDB)
+	purchaseRepo := db.NewPurchaseRepository(postgresDB)
 
-	analyzeExpense := usecase.NewAnalyzeExpense(expenseRepo, installmentRepo, recurringRepo, geminiClient, logger)
+	analyzeExpense := usecase.NewAnalyzeExpense(purchaseRepo, geminiClient, logger)
 
 	go func() {
 		for {

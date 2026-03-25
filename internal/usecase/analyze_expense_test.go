@@ -67,8 +67,10 @@ func TestExecuteText_AmountNil(t *testing.T) {
 }
 
 func TestExecuteText_RepoSaveError(t *testing.T) {
-	repo := &mockRepo{
-		saveFn: func(_ context.Context, _ *domain.Expense) error { return errors.New("db down") },
+	repo := &mockPurchaseRepo{
+		saveFn: func(_ context.Context, _ *domain.Purchase, _ []domain.Payment) error {
+			return errors.New("db down")
+		},
 	}
 	uc := newUC(
 		repo,
@@ -161,9 +163,9 @@ func TestExecuteImage_RawInputFormat(t *testing.T) {
 	analysis.Description = nil
 
 	var capturedRawInput string
-	repo := &mockRepo{
-		saveFn: func(_ context.Context, e *domain.Expense) error {
-			capturedRawInput = e.RawInput
+	repo := &mockPurchaseRepo{
+		saveFn: func(_ context.Context, p *domain.Purchase, _ []domain.Payment) error {
+			capturedRawInput = p.RawInput
 			return nil
 		},
 	}
@@ -182,8 +184,6 @@ func TestExecuteImage_RawInputFormat(t *testing.T) {
 		t.Errorf("rawInput esperado '[imagem: image/png]', got '%s'", capturedRawInput)
 	}
 }
-
-// ---- parse helpers ----
 
 func TestInferPaymentMethod(t *testing.T) {
 	cases := []struct {

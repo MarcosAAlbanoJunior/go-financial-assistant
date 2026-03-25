@@ -26,35 +26,35 @@ func (uc *AnalyzeExpense) processAnalysis(
 		return nil, err
 	}
 
-	category := parseCategory(analysis.Category)
-
-	description := rawInput
-	if analysis.Description != nil && *analysis.Description != "" {
-		description = *analysis.Description
-	}
-
-	expense, err := domain.NewExpense(
+	purchase, err := domain.NewPurchase(
 		*analysis.Amount,
-		description,
-		category,
+		extractDescription(analysis.Description),
+		parseCategory(analysis.Category),
 		payment,
+		domain.PurchaseTypeSingle,
 		rawInput,
-		nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("despesa inválida: %w", err)
 	}
 
-	if err := uc.repo.Save(ctx, expense); err != nil {
+	status := domain.PaymentStatusPending
+	if payment != domain.PaymentMethodCreditCard {
+		status = domain.PaymentStatusPaid
+	}
+
+	pmt := domain.NewPayment(purchase.ID, *analysis.Amount, status)
+
+	if err := uc.repo.Save(ctx, purchase, []domain.Payment{*pmt}); err != nil {
 		return nil, fmt.Errorf("erro ao salvar despesa: %w", err)
 	}
 
 	return &ExpenseOutput{
-		ID:          expense.ID.String(),
-		Amount:      expense.Amount,
-		Description: expense.Description,
-		Category:    string(expense.Category),
-		Payment:     string(expense.Payment),
+		ID:          purchase.ID.String(),
+		Amount:      purchase.TotalAmount,
+		Description: descriptionOrFallback(purchase.Description, rawInput),
+		Category:    string(purchase.Category),
+		Payment:     string(purchase.PaymentMethod),
 		Confidence:  analysis.Confidence,
 		Type:        string(ports.ExpenseTypeSingle),
 	}, nil

@@ -12,8 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./migrations/001_create_expenses.sql:/docker-entrypoint-initdb.d/001_create_expenses.sql
-      - ./migrations/002_add_installments_and_recurring.sql:/docker-entrypoint-initdb.d/002_add_installments_and_recurring.sql
+      - ./migrations/001_create_purchases_and_payments.sql:/docker-entrypoint-initdb.d/001_create_purchases_and_payments.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U finassist -d finassist"]
       interval: 5s
@@ -35,6 +34,7 @@ services:
       WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
       WEBHOOK_RETRY_USE_EXPONENTIAL_BACKOFF: "true"
       WEBHOOK_BASE64: "true"
+      GROUPS_IGNORE: "true"
 
       WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
       WEBHOOK_EVENTS_MESSAGES_UPDATE: "false"

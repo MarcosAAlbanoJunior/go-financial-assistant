@@ -46,6 +46,20 @@ func parsePaymentMethod(s string) (domain.PaymentMethod, error) {
 	}
 }
 
+func extractDescription(s *string) *string {
+	if s == nil || *s == "" {
+		return nil
+	}
+	return s
+}
+
+func descriptionOrFallback(d *string, fallback string) string {
+	if d != nil && *d != "" {
+		return *d
+	}
+	return fallback
+}
+
 func parseCategory(s *string) domain.Category {
 	if s == nil {
 		return domain.CategoryOther

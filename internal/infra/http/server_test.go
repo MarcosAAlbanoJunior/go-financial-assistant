@@ -88,13 +88,13 @@ func TestHandle_TextMessage_Success(t *testing.T) {
 	}
 }
 
-func TestHandle_TextMessage_FromMe(t *testing.T) {
+func TestHandle_TextMessage_AllowedNumber(t *testing.T) {
 	analyzer := &mockAnalyzer{
 		executeTextFn: func(_ context.Context, _ usecase.TextInput) (*usecase.ExpenseOutput, error) {
 			return defaultOutput(), nil
 		},
 	}
-	body := buildPayload("inst", "qualquer@s.whatsapp.net", "MSG-FM", true,
+	body := buildPayload("inst", "5511888888888@s.whatsapp.net", "MSG-FM", false,
 		evolutionMessage{Conversation: "50 pix"}, "")
 	rr := doRequest(newHandler(analyzer, &mockMessenger{}), body)
 	if rr.Code != 201 {

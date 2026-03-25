@@ -24,50 +24,42 @@ func (uc *AnalyzeExpense) processRecurring(
 		return nil, err
 	}
 
-	category := parseCategory(analysis.Category)
-	description := rawInput
-	if analysis.Description != nil && *analysis.Description != "" {
-		description = *analysis.Description
-	}
-
-	dayOfMonth := 1
-	if analysis.RecurringInfo != nil && analysis.RecurringInfo.DayOfMonth >= 1 && analysis.RecurringInfo.DayOfMonth <= 28 {
+	dayOfMonth := time.Now().UTC().Day()
+	if analysis.RecurringInfo != nil && analysis.RecurringInfo.DayOfMonth >= 1 && analysis.RecurringInfo.DayOfMonth <= 31 {
 		dayOfMonth = analysis.RecurringInfo.DayOfMonth
 	}
 
-	recurring, err := domain.NewRecurringExpense(description, *analysis.Amount, category, payment, dayOfMonth, rawInput)
+	purchase, err := domain.NewPurchase(
+		*analysis.Amount,
+		extractDescription(analysis.Description),
+		parseCategory(analysis.Category),
+		payment,
+		domain.PurchaseTypeRecurring,
+		rawInput,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("despesa recorrente inválida: %w", err)
 	}
+	purchase.DayOfMonth = &dayOfMonth
 
-	if err := uc.recurringRepo.Save(ctx, recurring); err != nil {
+	now := time.Now().UTC()
+	firstOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	firstPayment := domain.NewPayment(purchase.ID, *analysis.Amount, domain.PaymentStatusPaid)
+	firstPayment.ReferenceMonth = &firstOfMonth
+
+	if err := uc.repo.Save(ctx, purchase, []domain.Payment{*firstPayment}); err != nil {
 		return nil, fmt.Errorf("erro ao salvar despesa recorrente: %w", err)
 	}
 
-	expense, err := recurring.GenerateExpense()
-	if err != nil {
-		return nil, fmt.Errorf("erro ao gerar primeira despesa recorrente: %w", err)
-	}
-
-	if err := uc.repo.Save(ctx, expense); err != nil {
-		return nil, fmt.Errorf("erro ao salvar primeira despesa recorrente: %w", err)
-	}
-
-	now := time.Now().UTC()
-	recurring.LastGeneratedDate = &now
-	if err := uc.recurringRepo.Update(ctx, recurring); err != nil {
-		uc.logger.Error("erro ao atualizar data de geração da despesa recorrente", "recurring_id", recurring.ID, "error", err)
-	}
-
 	return &ExpenseOutput{
-		ID:          recurring.ID.String(),
-		Amount:      recurring.Amount,
-		Description: recurring.Description,
-		Category:    string(recurring.Category),
-		Payment:     string(recurring.Payment),
+		ID:          purchase.ID.String(),
+		Amount:      purchase.TotalAmount,
+		Description: descriptionOrFallback(purchase.Description, rawInput),
+		Category:    string(purchase.Category),
+		Payment:     string(purchase.PaymentMethod),
 		Confidence:  analysis.Confidence,
 		Type:        string(ports.ExpenseTypeRecurring),
-		DayOfMonth:  recurring.DayOfMonth,
+		DayOfMonth:  dayOfMonth,
 	}, nil
 }
 
@@ -83,7 +75,7 @@ func (uc *AnalyzeExpense) processCancel(ctx context.Context, analysis *ports.Exp
 		return nil, fmt.Errorf("não foi possível identificar qual despesa recorrente cancelar")
 	}
 
-	matches, err := uc.recurringRepo.FindByDescription(ctx, searchDesc)
+	matches, err := uc.repo.FindByDescription(ctx, searchDesc)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao buscar despesa recorrente: %w", err)
 	}
@@ -94,22 +86,23 @@ func (uc *AnalyzeExpense) processCancel(ctx context.Context, analysis *ports.Exp
 		uc.logger.Warn("múltiplas despesas recorrentes encontradas, cancelando a primeira", "description", searchDesc, "count", len(matches))
 	}
 
-	recurring := matches[0]
-	recurring.Cancel("cancelado pelo usuário")
+	purchase := matches[0]
+	purchase.Cancel("cancelado pelo usuário")
 
-	if err := uc.recurringRepo.Update(ctx, &recurring); err != nil {
+	if err := uc.repo.Update(ctx, &purchase); err != nil {
 		return nil, fmt.Errorf("erro ao cancelar despesa recorrente: %w", err)
 	}
 
+	cancelledDesc := descriptionOrFallback(purchase.Description, purchase.RawInput)
 	return &ExpenseOutput{
-		ID:                   recurring.ID.String(),
-		Amount:               recurring.Amount,
-		Description:          recurring.Description,
-		Category:             string(recurring.Category),
-		Payment:              string(recurring.Payment),
+		ID:                   purchase.ID.String(),
+		Amount:               purchase.TotalAmount,
+		Description:          cancelledDesc,
+		Category:             string(purchase.Category),
+		Payment:              string(purchase.PaymentMethod),
 		Confidence:           analysis.Confidence,
 		Type:                 string(ports.ExpenseTypeCancelRecurring),
 		Cancelled:            true,
-		CancelledDescription: recurring.Description,
+		CancelledDescription: cancelledDesc,
 	}, nil
 }

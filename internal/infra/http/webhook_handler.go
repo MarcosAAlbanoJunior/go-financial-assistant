@@ -108,7 +108,6 @@ func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("webhook recebido",
 		"instance", payload.Instance,
 		"from", from,
-		"fromMe", payload.Data.Key.FromMe,
 		"id", msgID,
 	)
 
@@ -124,9 +123,8 @@ func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, isAllowed := h.allowedNumbers[from]
-	if !payload.Data.Key.FromMe || !isAllowed {
-		h.logger.Info("mensagem ignorada", "from", from, "fromMe", payload.Data.Key.FromMe)
+	if _, isAllowed := h.allowedNumbers[from]; !isAllowed {
+		h.logger.Info("mensagem ignorada", "from", from)
 		w.WriteHeader(http.StatusOK)
 		return
 	}

@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"testing"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -20,22 +19,20 @@ func TestExecuteText_Installment_Success(t *testing.T) {
 		Installments: &ports.InstallmentInfo{Total: 12, AmountPerInstallment: 100.0},
 	}
 
-	var savedPurchase *domain.InstallmentPurchase
-	var savedInstallments []domain.Installment
+	var savedPurchase *domain.Purchase
+	var savedPayments []domain.Payment
 
-	installRepo := &mockInstallRepo{
-		savePurchaseFn: func(_ context.Context, p *domain.InstallmentPurchase, insts []domain.Installment) error {
+	repo := &mockPurchaseRepo{
+		saveFn: func(_ context.Context, p *domain.Purchase, pmts []domain.Payment) error {
 			savedPurchase = p
-			savedInstallments = insts
+			savedPayments = pmts
 			return nil
 		},
 	}
 
-	uc := NewAnalyzeExpense(successRepo(), installRepo, noopRecurringRepo(),
-		&mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
-			return analysis, nil
-		}}, slog.Default(),
-	)
+	uc := newUC(repo, &mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
+		return analysis, nil
+	}})
 
 	out, err := uc.ExecuteText(context.Background(), TextInput{Text: "comprei iPhone 15 em 12x de 100"})
 	if err != nil {
@@ -56,8 +53,11 @@ func TestExecuteText_Installment_Success(t *testing.T) {
 	if savedPurchase == nil {
 		t.Fatal("purchase não foi salvo")
 	}
-	if len(savedInstallments) != 12 {
-		t.Errorf("esperava 12 parcelas salvas, got %d", len(savedInstallments))
+	if savedPurchase.Type != domain.PurchaseTypeInstallment {
+		t.Errorf("type esperado INSTALLMENT, got %s", savedPurchase.Type)
+	}
+	if len(savedPayments) != 12 {
+		t.Errorf("esperava 12 pagamentos salvos, got %d", len(savedPayments))
 	}
 }
 
@@ -69,11 +69,9 @@ func TestExecuteText_Installment_AmountNil(t *testing.T) {
 		Installments: &ports.InstallmentInfo{Total: 6, AmountPerInstallment: 50},
 	}
 
-	uc := NewAnalyzeExpense(successRepo(), noopInstallRepo(), noopRecurringRepo(),
-		&mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
-			return analysis, nil
-		}}, slog.Default(),
-	)
+	uc := newUC(successRepo(), &mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
+		return analysis, nil
+	}})
 
 	_, err := uc.ExecuteText(context.Background(), TextInput{Text: "comprei parcelado"})
 	if err == nil {
@@ -116,17 +114,15 @@ func TestExecuteText_Installment_RepoError(t *testing.T) {
 		Installments: &ports.InstallmentInfo{Total: 6, AmountPerInstallment: 100},
 	}
 
-	installRepo := &mockInstallRepo{
-		savePurchaseFn: func(_ context.Context, _ *domain.InstallmentPurchase, _ []domain.Installment) error {
+	repo := &mockPurchaseRepo{
+		saveFn: func(_ context.Context, _ *domain.Purchase, _ []domain.Payment) error {
 			return errors.New("db error")
 		},
 	}
 
-	uc := NewAnalyzeExpense(successRepo(), installRepo, noopRecurringRepo(),
-		&mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
-			return analysis, nil
-		}}, slog.Default(),
-	)
+	uc := newUC(repo, &mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
+		return analysis, nil
+	}})
 
 	_, err := uc.ExecuteText(context.Background(), TextInput{Text: "compra parcelada"})
 	if err == nil {
@@ -135,7 +131,6 @@ func TestExecuteText_Installment_RepoError(t *testing.T) {
 }
 
 func TestExecuteText_Installment_InstallmentAmountCalculated_WhenZero(t *testing.T) {
-	// When amount_per_installment is 0, should be calculated from total / total_installments.
 	analysis := &ports.ExpenseAnalysis{
 		Amount:       ptr(300.0),
 		Description:  ptr("Produto"),
@@ -145,25 +140,66 @@ func TestExecuteText_Installment_InstallmentAmountCalculated_WhenZero(t *testing
 		Installments: &ports.InstallmentInfo{Total: 3, AmountPerInstallment: 0},
 	}
 
-	var savedPurchase *domain.InstallmentPurchase
-	installRepo := &mockInstallRepo{
-		savePurchaseFn: func(_ context.Context, p *domain.InstallmentPurchase, _ []domain.Installment) error {
+	var savedPurchase *domain.Purchase
+	repo := &mockPurchaseRepo{
+		saveFn: func(_ context.Context, p *domain.Purchase, _ []domain.Payment) error {
 			savedPurchase = p
 			return nil
 		},
 	}
 
-	uc := NewAnalyzeExpense(successRepo(), installRepo, noopRecurringRepo(),
-		&mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
-			return analysis, nil
-		}}, slog.Default(),
-	)
+	uc := newUC(repo, &mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
+		return analysis, nil
+	}})
 
 	_, err := uc.ExecuteText(context.Background(), TextInput{Text: "compra em 3x"})
 	if err != nil {
 		t.Fatalf("esperava sucesso, got: %v", err)
 	}
-	if savedPurchase.InstallmentAmount != 100.0 {
-		t.Errorf("installment_amount calculado esperado 100.0, got %v", savedPurchase.InstallmentAmount)
+	if savedPurchase.InstallmentAmount == nil || *savedPurchase.InstallmentAmount != 100.0 {
+		var got interface{}
+		if savedPurchase.InstallmentAmount != nil {
+			got = *savedPurchase.InstallmentAmount
+		}
+		t.Errorf("installment_amount calculado esperado 100.0, got %v", got)
+	}
+}
+
+func TestExecuteText_Installment_PaymentsHaveDueDates(t *testing.T) {
+	analysis := &ports.ExpenseAnalysis{
+		Amount:       ptr(300.0),
+		Description:  ptr("Notebook"),
+		Category:     ptr("SHOPPING"),
+		Confidence:   0.9,
+		Type:         ports.ExpenseTypeInstallment,
+		Installments: &ports.InstallmentInfo{Total: 3, AmountPerInstallment: 100},
+	}
+
+	var savedPayments []domain.Payment
+	repo := &mockPurchaseRepo{
+		saveFn: func(_ context.Context, _ *domain.Purchase, pmts []domain.Payment) error {
+			savedPayments = pmts
+			return nil
+		},
+	}
+
+	uc := newUC(repo, &mockAnalyzer{analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
+		return analysis, nil
+	}})
+
+	_, err := uc.ExecuteText(context.Background(), TextInput{Text: "notebook 3x"})
+	if err != nil {
+		t.Fatalf("esperava sucesso, got: %v", err)
+	}
+	for i, p := range savedPayments {
+		if p.DueDate == nil {
+			t.Errorf("pagamento %d sem due_date", i+1)
+		}
+		if p.InstallmentNumber == nil || *p.InstallmentNumber != i+1 {
+			t.Errorf("parcela %d com installment_number errado", i+1)
+		}
+		if p.Status != domain.PaymentStatusPending {
+			t.Errorf("parcela %d esperava status PENDING, got %s", i+1, p.Status)
+		}
 	}
 }
