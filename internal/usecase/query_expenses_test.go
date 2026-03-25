@@ -15,9 +15,9 @@ func TestProcessQuery_CurrentMonth(t *testing.T) {
 
 	var capturedMonth time.Time
 	repo := &mockPurchaseRepo{
-		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.CategorySummary, error) {
+		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 			capturedMonth = month
-			return []ports.CategorySummary{
+			return []ports.PaymentSummary{
 				{Category: "FOOD", Total: 250.00},
 				{Category: "TRANSPORT", Total: 80.00},
 			}, nil
@@ -57,9 +57,9 @@ func TestProcessQuery_CurrentMonth(t *testing.T) {
 func TestProcessQuery_SpecificMonthYear(t *testing.T) {
 	var capturedMonth time.Time
 	repo := &mockPurchaseRepo{
-		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.CategorySummary, error) {
+		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 			capturedMonth = month
-			return []ports.CategorySummary{
+			return []ports.PaymentSummary{
 				{Category: "SHOPPING", Total: 500.00},
 			}, nil
 		},
@@ -92,7 +92,7 @@ func TestProcessQuery_SpecificMonthYear(t *testing.T) {
 
 func TestProcessQuery_EmptyResult(t *testing.T) {
 	repo := &mockPurchaseRepo{
-		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.CategorySummary, error) {
+		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentSummary, error) {
 			return nil, nil
 		},
 	}
@@ -123,7 +123,7 @@ func TestProcessQuery_EmptyResult(t *testing.T) {
 
 func TestProcessQuery_RepoError(t *testing.T) {
 	repo := &mockPurchaseRepo{
-		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.CategorySummary, error) {
+		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentSummary, error) {
 			return nil, errors.New("db error")
 		},
 	}
@@ -146,7 +146,7 @@ func TestProcessQuery_NoQueryInfo_UsesCurrentMonth(t *testing.T) {
 
 	var capturedMonth time.Time
 	repo := &mockPurchaseRepo{
-		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.CategorySummary, error) {
+		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 			capturedMonth = month
 			return nil, nil
 		},

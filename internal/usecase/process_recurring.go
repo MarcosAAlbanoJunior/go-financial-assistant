@@ -24,7 +24,9 @@ func (uc *AnalyzeExpense) processRecurring(
 		return nil, err
 	}
 
-	dayOfMonth := time.Now().UTC().Day()
+	now := time.Now().UTC()
+
+	dayOfMonth := now.Day()
 	if analysis.RecurringInfo != nil && analysis.RecurringInfo.DayOfMonth >= 1 && analysis.RecurringInfo.DayOfMonth <= 31 {
 		dayOfMonth = analysis.RecurringInfo.DayOfMonth
 	}
@@ -42,7 +44,6 @@ func (uc *AnalyzeExpense) processRecurring(
 	}
 	purchase.DayOfMonth = &dayOfMonth
 
-	now := time.Now().UTC()
 	firstOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	firstPayment := domain.NewPayment(purchase.ID, *analysis.Amount, domain.PaymentStatusPaid)
 	firstPayment.ReferenceMonth = &firstOfMonth

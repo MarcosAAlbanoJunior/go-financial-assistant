@@ -199,7 +199,7 @@ func (r *PostgresPurchaseRepository) HasPaymentForMonth(ctx context.Context, pur
 	return exists, nil
 }
 
-func (r *PostgresPurchaseRepository) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.CategorySummary, error) {
+func (r *PostgresPurchaseRepository) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 	query := `
 		SELECT p.category, SUM(pay.amount) AS total
 		FROM payments pay
@@ -215,9 +215,9 @@ func (r *PostgresPurchaseRepository) FindPaymentsByMonth(ctx context.Context, mo
 	}
 	defer rows.Close()
 
-	var result []ports.CategorySummary
+	var result []ports.PaymentSummary
 	for rows.Next() {
-		var s ports.CategorySummary
+		var s ports.PaymentSummary
 		if err := rows.Scan(&s.Category, &s.Total); err != nil {
 			return nil, fmt.Errorf("erro ao escanear resumo: %w", err)
 		}
