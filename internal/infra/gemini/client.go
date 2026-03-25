@@ -104,6 +104,11 @@ type geminiCancelRecurring struct {
 	Description string `json:"description"`
 }
 
+type geminiQuery struct {
+	Month *int `json:"month"`
+	Year  *int `json:"year"`
+}
+
 type geminiResponse struct {
 	Type            string                 `json:"type"`
 	Amount          *float64               `json:"amount"`
@@ -114,6 +119,7 @@ type geminiResponse struct {
 	Installments    *geminiInstallments    `json:"installments"`
 	Recurring       *geminiRecurring       `json:"recurring"`
 	CancelRecurring *geminiCancelRecurring `json:"cancel_recurring"`
+	Query           *geminiQuery           `json:"query"`
 }
 
 func (g *geminiResponse) toAnalysis(rawJSON string) *ports.ExpenseAnalysis {
@@ -146,6 +152,17 @@ func (g *geminiResponse) toAnalysis(rawJSON string) *ports.ExpenseAnalysis {
 		}
 	}
 
+	if g.Query != nil {
+		info := &ports.QueryInfo{}
+		if g.Query.Month != nil {
+			info.Month = *g.Query.Month
+		}
+		if g.Query.Year != nil {
+			info.Year = *g.Query.Year
+		}
+		analysis.QueryInfo = info
+	}
+
 	return analysis
 }
 
@@ -157,6 +174,8 @@ func toExpenseType(s string) ports.ExpenseType {
 		return ports.ExpenseTypeRecurring
 	case "CANCEL_RECURRING":
 		return ports.ExpenseTypeCancelRecurring
+	case "QUERY":
+		return ports.ExpenseTypeQuery
 	default:
 		return ports.ExpenseTypeSingle
 	}

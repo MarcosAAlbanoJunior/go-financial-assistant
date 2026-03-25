@@ -35,6 +35,11 @@ type ImageInput struct {
 	Caption   string
 }
 
+type CategorySummary struct {
+	Category string  `json:"category"`
+	Total    float64 `json:"total"`
+}
+
 type ExpenseOutput struct {
 	ID          string  `json:"id"`
 	Amount      float64 `json:"amount"`
@@ -51,6 +56,11 @@ type ExpenseOutput struct {
 
 	Cancelled            bool   `json:"cancelled,omitempty"`
 	CancelledDescription string `json:"cancelled_description,omitempty"`
+
+	QueryMonth      string            `json:"query_month,omitempty"`
+	QueryTotal      float64           `json:"query_total,omitempty"`
+	QueryCategories []CategorySummary `json:"query_categories,omitempty"`
+	QueryEmpty      bool              `json:"query_empty,omitempty"`
 }
 
 func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*ExpenseOutput, error) {
@@ -62,6 +72,8 @@ func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*Ex
 	payment := resolvePaymentMethod(analysis.PaymentMethod, inferPaymentMethod(input.Text))
 
 	switch analysis.Type {
+	case ports.ExpenseTypeQuery:
+		return uc.processQuery(ctx, analysis)
 	case ports.ExpenseTypeInstallment:
 		return uc.processInstallment(ctx, analysis, payment, input.Text)
 	case ports.ExpenseTypeRecurring:

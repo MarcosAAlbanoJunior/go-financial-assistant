@@ -53,8 +53,8 @@ func (uc *AnalyzeExpense) processAnalysis(
 		ID:          purchase.ID.String(),
 		Amount:      purchase.TotalAmount,
 		Description: descriptionOrFallback(purchase.Description, rawInput),
-		Category:    string(purchase.Category),
-		Payment:     string(purchase.PaymentMethod),
+		Category:    purchase.Category.Label(),
+		Payment:     purchase.PaymentMethod.Label(),
 		Confidence:  analysis.Confidence,
 		Type:        string(ports.ExpenseTypeSingle),
 	}, nil
