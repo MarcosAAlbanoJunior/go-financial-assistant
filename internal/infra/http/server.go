@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
@@ -54,7 +55,9 @@ func (s *Server) Start(ctx context.Context) error {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
-		return s.http.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return s.http.Shutdown(shutdownCtx)
 	}
 }
 

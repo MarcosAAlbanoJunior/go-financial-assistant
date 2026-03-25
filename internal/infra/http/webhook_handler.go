@@ -89,12 +89,17 @@ type evolutionExtendedText struct {
 func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("Webhook call")
 
+	if r.Method != http.MethodPost {
+		h.writeError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	defer r.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
 	if err != nil {
 		h.writeError(w, "erro ao ler body", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
 	var payload evolutionPayload
 	if err := json.Unmarshal(body, &payload); err != nil {

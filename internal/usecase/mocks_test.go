@@ -30,7 +30,7 @@ type mockPurchaseRepo struct {
 	updateFn                func(ctx context.Context, purchase *domain.Purchase) error
 	savePaymentFn           func(ctx context.Context, payment *domain.Payment) error
 	hasPaymentForMonthFn    func(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
-	findPaymentsByMonthFn   func(ctx context.Context, month time.Time) ([]ports.CategorySummary, error)
+	findPaymentsByMonthFn   func(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error)
 }
 
 func (m *mockPurchaseRepo) Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error {
@@ -75,7 +75,7 @@ func (m *mockPurchaseRepo) HasPaymentForMonth(ctx context.Context, purchaseID uu
 	return false, nil
 }
 
-func (m *mockPurchaseRepo) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.CategorySummary, error) {
+func (m *mockPurchaseRepo) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 	if m.findPaymentsByMonthFn != nil {
 		return m.findPaymentsByMonthFn(ctx, month)
 	}
