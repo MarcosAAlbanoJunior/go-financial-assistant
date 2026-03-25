@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
@@ -15,27 +16,13 @@ type ExpenseAnalyzer interface {
 }
 
 type AnalyzeExpense struct {
-	repo          ports.ExpenseRepository
-	installRepo   ports.InstallmentRepository
-	recurringRepo ports.RecurringExpenseRepository
-	analyzer      ports.AIAnalyzer
-	logger        *slog.Logger
+	repo     ports.PurchaseRepository
+	analyzer ports.AIAnalyzer
+	logger   *slog.Logger
 }
 
-func NewAnalyzeExpense(
-	repo ports.ExpenseRepository,
-	installRepo ports.InstallmentRepository,
-	recurringRepo ports.RecurringExpenseRepository,
-	analyzer ports.AIAnalyzer,
-	logger *slog.Logger,
-) *AnalyzeExpense {
-	return &AnalyzeExpense{
-		repo:          repo,
-		installRepo:   installRepo,
-		recurringRepo: recurringRepo,
-		analyzer:      analyzer,
-		logger:        logger,
-	}
+func NewAnalyzeExpense(repo ports.PurchaseRepository, analyzer ports.AIAnalyzer, logger *slog.Logger) *AnalyzeExpense {
+	return &AnalyzeExpense{repo: repo, analyzer: analyzer, logger: logger}
 }
 
 type TextInput struct {
@@ -108,31 +95,28 @@ func (uc *AnalyzeExpense) ExecuteImage(ctx context.Context, input ImageInput) (*
 }
 
 func (uc *AnalyzeExpense) GenerateRecurringExpenses(ctx context.Context) error {
-	actives, err := uc.recurringRepo.FindActive(ctx)
+	actives, err := uc.repo.FindActiveRecurring(ctx)
 	if err != nil {
 		return fmt.Errorf("erro ao buscar despesas recorrentes: %w", err)
 	}
 
 	now := time.Now().UTC()
-	year, month, _ := now.Date()
+	firstOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	for i := range actives {
-		r := &actives[i]
-		if !r.ShouldGenerateForMonth(year, month) {
-			continue
-		}
-		expense, err := r.GenerateExpense()
+		p := &actives[i]
+		has, err := uc.repo.HasPaymentForMonth(ctx, p.ID, firstOfMonth)
 		if err != nil {
-			uc.logger.Error("erro ao gerar despesa recorrente", "recurring_id", r.ID, "error", err)
+			uc.logger.Error("erro ao verificar pagamento mensal", "purchase_id", p.ID, "error", err)
 			continue
 		}
-		if err := uc.repo.Save(ctx, expense); err != nil {
-			uc.logger.Error("erro ao salvar despesa recorrente gerada", "recurring_id", r.ID, "error", err)
+		if has {
 			continue
 		}
-		r.LastGeneratedDate = &now
-		if err := uc.recurringRepo.Update(ctx, r); err != nil {
-			uc.logger.Error("erro ao atualizar data de geração da despesa recorrente", "recurring_id", r.ID, "error", err)
+		payment := domain.NewPayment(p.ID, p.TotalAmount, domain.PaymentStatusPaid)
+		payment.ReferenceMonth = &firstOfMonth
+		if err := uc.repo.SavePayment(ctx, payment); err != nil {
+			uc.logger.Error("erro ao salvar pagamento recorrente", "purchase_id", p.ID, "error", err)
 		}
 	}
 

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
@@ -26,44 +27,51 @@ func (uc *AnalyzeExpense) processInstallment(
 		return nil, err
 	}
 
-	category := parseCategory(analysis.Category)
-	description := rawInput
-	if analysis.Description != nil && *analysis.Description != "" {
-		description = *analysis.Description
-	}
-
+	n := analysis.Installments.Total
 	totalAmount := *analysis.Amount
 	installmentAmount := analysis.Installments.AmountPerInstallment
 	if installmentAmount <= 0 {
-		installmentAmount = totalAmount / float64(analysis.Installments.Total)
+		installmentAmount = totalAmount / float64(n)
 	}
 
-	purchase, installments, err := domain.NewInstallmentPurchase(
-		description,
+	purchase, err := domain.NewPurchase(
 		totalAmount,
-		installmentAmount,
-		analysis.Installments.Total,
-		category,
+		extractDescription(analysis.Description),
+		parseCategory(analysis.Category),
 		payment,
+		domain.PurchaseTypeInstallment,
 		rawInput,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("compra parcelada inválida: %w", err)
 	}
+	purchase.InstallmentCount = &n
+	purchase.InstallmentAmount = &installmentAmount
 
-	if err := uc.installRepo.SavePurchase(ctx, purchase, installments); err != nil {
+	now := time.Now().UTC()
+	payments := make([]domain.Payment, n)
+	for i := range n {
+		p := domain.NewPayment(purchase.ID, installmentAmount, domain.PaymentStatusPending)
+		num := i + 1
+		p.InstallmentNumber = &num
+		due := now.AddDate(0, i, 0)
+		p.DueDate = &due
+		payments[i] = *p
+	}
+
+	if err := uc.repo.Save(ctx, purchase, payments); err != nil {
 		return nil, fmt.Errorf("erro ao salvar compra parcelada: %w", err)
 	}
 
 	return &ExpenseOutput{
 		ID:                purchase.ID.String(),
 		Amount:            purchase.TotalAmount,
-		Description:       purchase.Description,
+		Description:       descriptionOrFallback(purchase.Description, rawInput),
 		Category:          string(purchase.Category),
-		Payment:           string(purchase.Payment),
+		Payment:           string(purchase.PaymentMethod),
 		Confidence:        analysis.Confidence,
 		Type:              string(ports.ExpenseTypeInstallment),
-		TotalInstallments: purchase.TotalInstallments,
-		InstallmentAmount: purchase.InstallmentAmount,
+		TotalInstallments: n,
+		InstallmentAmount: installmentAmount,
 	}, nil
 }
