@@ -17,8 +17,7 @@ type Config struct {
 
 	GeminiAPIKey string
 
-	EvolutionWebhookSecret string
-	EvolutionAPIURL        string
+	EvolutionAPIURL string
 	EvolutionInstance      string
 	EvolutionAPIKey        string
 	OwnerPhone             string
@@ -28,7 +27,9 @@ type Config struct {
 
 func Load() (*Config, error) {
 
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("erro ao carregar .env: %w", err)
+	}
 
 	cfg := &Config{}
 	var errs []error
@@ -48,11 +49,6 @@ func Load() (*Config, error) {
 	cfg.GeminiAPIKey = getEnv("GEMINI_API_KEY", "")
 	if cfg.GeminiAPIKey == "" {
 		errs = append(errs, errors.New("GEMINI_API_KEY é obrigatória"))
-	}
-
-	cfg.EvolutionWebhookSecret = getEnv("EVOLUTION_WEBHOOK_SECRET", "")
-	if cfg.EvolutionWebhookSecret == "" {
-		errs = append(errs, errors.New("EVOLUTION_WEBHOOK_SECRET é obrigatória"))
 	}
 
 	cfg.EvolutionAPIURL = getEnv("EVOLUTION_API_URL", "http://evolution:8080")
