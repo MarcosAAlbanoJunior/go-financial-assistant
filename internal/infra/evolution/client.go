@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type Client struct {
@@ -23,7 +24,7 @@ func NewClient(baseURL, instance, apiKey string) *Client {
 		baseURL:    baseURL,
 		instance:   instance,
 		apiKey:     apiKey,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -66,7 +67,10 @@ func (c *Client) SendText(ctx context.Context, to string, text string) (string, 
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("erro ao ler resposta: %w", err)
+	}
 
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("evolution API retornou status %d: %s", resp.StatusCode, string(respBody))
@@ -74,7 +78,7 @@ func (c *Client) SendText(ctx context.Context, to string, text string) (string, 
 
 	var result sendTextResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", nil
+		return "", fmt.Errorf("erro ao deserializar resposta: %w", err)
 	}
 
 	return result.Key.ID, nil
@@ -110,7 +114,10 @@ func (c *Client) FetchImageBase64(ctx context.Context, remoteJid string, fromMe 
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("erro ao ler resposta: %w", err)
+	}
 
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("evolution API retornou status %d: %s", resp.StatusCode, string(respBody))

@@ -67,12 +67,9 @@ func TestSendText_InvalidJSONResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	id, err := newTestClient(srv).SendText(context.Background(), "5511999", "oi")
-	if err != nil {
-		t.Fatalf("JSON inválido na resposta deve retornar '', nil — got erro: %v", err)
-	}
-	if id != "" {
-		t.Errorf("esperava id vazio, got '%s'", id)
+	_, err := newTestClient(srv).SendText(context.Background(), "5511999", "oi")
+	if err == nil {
+		t.Fatal("esperava erro para JSON inválido na resposta")
 	}
 }
 

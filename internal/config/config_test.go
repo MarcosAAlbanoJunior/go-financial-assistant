@@ -15,9 +15,8 @@ func validEnv() map[string]string {
 	return map[string]string{
 		"PORT":                     "8080",
 		"DATABASE_URL":             "postgres://user:pass@localhost/db",
-		"GEMINI_API_KEY":           "gemini-key",
-		"EVOLUTION_WEBHOOK_SECRET": "secret",
-		"EVOLUTION_API_URL":        "http://evolution:8080",
+		"GEMINI_API_KEY":    "gemini-key",
+		"EVOLUTION_API_URL": "http://evolution:8080",
 		"EVOLUTION_INSTANCE":       "my-instance",
 		"EVOLUTION_API_KEY":        "evo-key",
 		"OWNER_PHONE":              "5511999999999",
@@ -39,9 +38,6 @@ func TestLoad_Success(t *testing.T) {
 	}
 	if cfg.GeminiAPIKey != "gemini-key" {
 		t.Errorf("GeminiAPIKey incorreta: %s", cfg.GeminiAPIKey)
-	}
-	if cfg.EvolutionWebhookSecret != "secret" {
-		t.Errorf("EvolutionWebhookSecret incorreta: %s", cfg.EvolutionWebhookSecret)
 	}
 	if cfg.EvolutionAPIURL != "http://evolution:8080" {
 		t.Errorf("EvolutionAPIURL incorreta: %s", cfg.EvolutionAPIURL)
@@ -115,17 +111,6 @@ func TestLoad_MissingGeminiAPIKey(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Fatal("esperava erro de GEMINI_API_KEY obrigatória")
-	}
-}
-
-func TestLoad_MissingEvolutionWebhookSecret(t *testing.T) {
-	env := validEnv()
-	delete(env, "EVOLUTION_WEBHOOK_SECRET")
-	setEnv(t, env)
-
-	_, err := Load()
-	if err == nil {
-		t.Fatal("esperava erro de EVOLUTION_WEBHOOK_SECRET obrigatória")
 	}
 }
 
