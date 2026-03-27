@@ -37,7 +37,6 @@ func NewClient(ctx context.Context, apiKey string) (*Client, error) {
 	return &Client{client: client, config: config}, nil
 }
 
-// Close satisfaz a interface — o genai.Client não requer encerramento explícito.
 func (c *Client) Close() error {
 	return nil
 }

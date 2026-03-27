@@ -24,12 +24,18 @@ type webhookHandler struct {
 }
 
 func newWebhookHandler(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer, messenger ports.Messenger, logger *slog.Logger) *webhookHandler {
+	allowed := make(map[string]struct{}, len(cfg.AllowedNumbers)+1)
+	for k := range cfg.AllowedNumbers {
+		allowed[k] = struct{}{}
+	}
+	allowed[cfg.OwnerPhone+"@s.whatsapp.net"] = struct{}{}
+
 	return &webhookHandler{
 		analyzeExpense: analyzeExpense,
 		messenger:      messenger,
 		ownerPhone:     cfg.OwnerPhone,
 		logger:         logger,
-		allowedNumbers: cfg.AllowedNumbers,
+		allowedNumbers: allowed,
 	}
 }
 
@@ -46,6 +52,12 @@ func (h *webhookHandler) startCleanup(ctx context.Context) {
 			h.processedIDs.Range(func(key, value any) bool {
 				if t, ok := value.(time.Time); ok && t.Before(cutoff) {
 					h.processedIDs.Delete(key)
+				}
+				return true
+			})
+			h.sentIDs.Range(func(key, value any) bool {
+				if t, ok := value.(time.Time); ok && t.Before(cutoff) {
+					h.sentIDs.Delete(key)
 				}
 				return true
 			})
@@ -87,8 +99,6 @@ type evolutionExtendedText struct {
 }
 
 func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	h.logger.Info("Webhook call")
-
 	if r.Method != http.MethodPost {
 		h.writeError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -146,7 +156,7 @@ func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if sentID, msgErr := h.messenger.SendText(r.Context(), h.ownerPhone, reply); msgErr != nil {
 		h.logger.Error("erro ao enviar resposta", "error", msgErr)
 	} else if sentID != "" {
-		h.sentIDs.Store(sentID, struct{}{})
+		h.sentIDs.Store(sentID, time.Now())
 	}
 
 	h.writeJSON(w, http.StatusCreated, output)
@@ -157,7 +167,7 @@ func (h *webhookHandler) notifyError(ctx context.Context, err error) {
 	if sentID, msgErr := h.messenger.SendText(ctx, h.ownerPhone, msg); msgErr != nil {
 		h.logger.Error("erro ao enviar notificação de erro", "error", msgErr)
 	} else if sentID != "" {
-		h.sentIDs.Store(sentID, struct{}{})
+		h.sentIDs.Store(sentID, time.Now())
 	}
 }
 
