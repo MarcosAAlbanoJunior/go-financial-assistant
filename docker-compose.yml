@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -29,7 +27,7 @@ services:
 
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
 
-      WEBHOOK_GLOBAL_URL: http://host.docker.internal:3000/webhook
+      WEBHOOK_GLOBAL_URL: http://app:3000/webhook
       WEBHOOK_GLOBAL_ENABLED: "true"
       WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
       WEBHOOK_RETRY_USE_EXPONENTIAL_BACKOFF: "true"
@@ -55,6 +53,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
     volumes:
       - evolution_data:/evolution/instances
 
@@ -82,7 +86,6 @@ services:
       PORT: 3000
       DATABASE_URL: postgres://finassist:finassist@postgres:5432/finassist?sslmode=disable
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
       EVOLUTION_API_URL: http://evolution:8080
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE}
@@ -91,6 +94,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      evolution:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 6s
+      timeout: 3s
+      retries: 15
+      start_period: 20s
     restart: unless-stopped
 
 volumes:

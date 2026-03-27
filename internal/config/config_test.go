@@ -160,8 +160,8 @@ func TestLoad_MultipleErrors(t *testing.T) {
 
 func TestParseAllowedNumbers_Single(t *testing.T) {
 	result := parseAllowedNumbers("5511999999999")
-	if _, ok := result["5511999999999"]; !ok {
-		t.Error("número não encontrado no mapa")
+	if _, ok := result["5511999999999@s.whatsapp.net"]; !ok {
+		t.Error("número não encontrado no mapa com sufixo @s.whatsapp.net")
 	}
 	if len(result) != 1 {
 		t.Errorf("esperava 1 entrada, got %d", len(result))
@@ -170,13 +170,23 @@ func TestParseAllowedNumbers_Single(t *testing.T) {
 
 func TestParseAllowedNumbers_Multiple(t *testing.T) {
 	result := parseAllowedNumbers("111, 222, 333")
-	for _, n := range []string{"111", "222", "333"} {
+	for _, n := range []string{"111@s.whatsapp.net", "222@s.whatsapp.net", "333@s.whatsapp.net"} {
 		if _, ok := result[n]; !ok {
 			t.Errorf("número '%s' não encontrado", n)
 		}
 	}
 	if len(result) != 3 {
 		t.Errorf("esperava 3 entradas, got %d", len(result))
+	}
+}
+
+func TestParseAllowedNumbers_AlreadyHasSuffix(t *testing.T) {
+	result := parseAllowedNumbers("5511999999999@s.whatsapp.net")
+	if _, ok := result["5511999999999@s.whatsapp.net"]; !ok {
+		t.Error("número com sufixo existente não deve ser duplicado")
+	}
+	if len(result) != 1 {
+		t.Errorf("esperava 1 entrada, got %d", len(result))
 	}
 }
 

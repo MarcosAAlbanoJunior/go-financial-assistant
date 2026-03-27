@@ -30,6 +30,9 @@ func NewServer(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer, messeng
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/webhook", handler.Handle)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
 	return &Server{
 		http: &http.Server{

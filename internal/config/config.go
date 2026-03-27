@@ -86,9 +86,13 @@ func parseAllowedNumbers(raw string) map[string]struct{} {
 	allowed := make(map[string]struct{})
 	for _, n := range strings.Split(raw, ",") {
 		n = strings.TrimSpace(n)
-		if n != "" {
-			allowed[n] = struct{}{}
+		if n == "" {
+			continue
 		}
+		if !strings.Contains(n, "@") {
+			n = n + "@s.whatsapp.net"
+		}
+		allowed[n] = struct{}{}
 	}
 	return allowed
 }

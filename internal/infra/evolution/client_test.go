@@ -131,6 +131,94 @@ func TestFetchImageBase64_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestFetchConnectionState_Open(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"instance": map[string]string{"state": "open"},
+		})
+	}))
+	defer srv.Close()
+
+	state, err := newTestClient(srv).FetchConnectionState(context.Background())
+	if err != nil {
+		t.Fatalf("esperava sucesso, got: %v", err)
+	}
+	if state != "open" {
+		t.Errorf("esperava state 'open', got '%s'", state)
+	}
+}
+
+func TestFetchConnectionState_Close(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"instance": map[string]string{"state": "close"},
+		})
+	}))
+	defer srv.Close()
+
+	state, err := newTestClient(srv).FetchConnectionState(context.Background())
+	if err != nil {
+		t.Fatalf("esperava sucesso, got: %v", err)
+	}
+	if state != "close" {
+		t.Errorf("esperava state 'close', got '%s'", state)
+	}
+}
+
+func TestFetchConnectionState_HTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	_, err := newTestClient(srv).FetchConnectionState(context.Background())
+	if err == nil {
+		t.Fatal("esperava erro para status 4xx")
+	}
+}
+
+func TestEnsureInstance_Created(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	created, err := newTestClient(srv).EnsureInstance(context.Background(), "5511999999999")
+	if err != nil {
+		t.Fatalf("esperava sucesso, got: %v", err)
+	}
+	if !created {
+		t.Error("esperava created=true para status 201")
+	}
+}
+
+func TestEnsureInstance_AlreadyExists(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	created, err := newTestClient(srv).EnsureInstance(context.Background(), "5511999999999")
+	if err != nil {
+		t.Fatalf("esperava sucesso para instância já existente, got: %v", err)
+	}
+	if created {
+		t.Error("esperava created=false para status 403")
+	}
+}
+
+func TestEnsureInstance_UnexpectedStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	_, err := newTestClient(srv).EnsureInstance(context.Background(), "5511999999999")
+	if err == nil {
+		t.Fatal("esperava erro para status 500")
+	}
+}
+
 func TestFetchImageBase64_HeadersAndEndpoint(t *testing.T) {
 	var capturedAPIKey, capturedPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

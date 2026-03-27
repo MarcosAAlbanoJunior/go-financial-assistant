@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/mdp/qrterminal/v3"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/config"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/db"
@@ -65,6 +68,39 @@ func main() {
 	}()
 
 	evolutionClient := evolution.NewClient(cfg.EvolutionAPIURL, cfg.EvolutionInstance, cfg.EvolutionAPIKey)
+
+	for {
+		_, err := evolutionClient.EnsureInstance(ctx, cfg.OwnerPhone)
+		if err == nil {
+			break
+		}
+		slog.Warn("Evolution API não disponível, aguardando...", "error", err)
+		select {
+		case <-ctx.Done():
+			os.Exit(0)
+		case <-time.After(5 * time.Second):
+		}
+	}
+
+	time.Sleep(2 * time.Second)
+
+	state, err := evolutionClient.FetchConnectionState(ctx)
+	if err != nil {
+		slog.Warn("não foi possível verificar estado da conexão", "error", err)
+	} else if state != "open" {
+		code, err := evolutionClient.FetchConnectCode(ctx)
+		if err != nil {
+			slog.Warn("não foi possível buscar QR code, acesse manualmente",
+				"url", fmt.Sprintf("%s/instance/connect/%s", cfg.EvolutionAPIURL, cfg.EvolutionInstance))
+		} else {
+			qrterminal.GenerateWithConfig(code, qrterminal.Config{
+				Level:      qrterminal.L,
+				Writer:     os.Stdout,
+				HalfBlocks: true,
+			})
+			fmt.Println("Escaneie o QR code acima com o WhatsApp para conectar.")
+		}
+	}
 
 	server := httpserver.NewServer(
 		httpserver.ServerConfig{
