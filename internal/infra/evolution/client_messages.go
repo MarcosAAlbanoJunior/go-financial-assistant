@@ -95,7 +95,6 @@ func (c *Client) FetchImageBase64(ctx context.Context, remoteJid string, fromMe 
 	return result.Base64, nil
 }
 
-// postAndExtractID executa um POST e retorna o ID da mensagem enviada.
 func (c *Client) postAndExtractID(ctx context.Context, endpoint string, body []byte, kind string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {

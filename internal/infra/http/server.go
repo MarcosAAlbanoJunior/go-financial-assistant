@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
@@ -13,9 +14,11 @@ import (
 )
 
 type ServerConfig struct {
-	Port           int
-	OwnerPhone     string
-	AllowedNumbers map[string]struct{}
+	Port            int
+	OwnerPhone      string
+	AllowedNumbers  map[string]struct{}
+	EvolutionAPIURL string
+	AdminSecret     string
 }
 
 type Server struct {
@@ -23,13 +26,25 @@ type Server struct {
 	handler *webhookHandler
 }
 
-func NewServer(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter, messenger ports.Messenger, logger *slog.Logger) *Server {
+func NewServer(
+	cfg ServerConfig,
+	analyzeExpense usecase.ExpenseAnalyzer,
+	csvExporter usecase.CSVExporter,
+	messenger ports.Messenger,
+	qrProvider QRProvider,
+	logger *slog.Logger,
+) *Server {
 	logger.Info("iniciando servidor HTTP", "port", cfg.Port)
 
 	handler := newWebhookHandler(cfg, analyzeExpense, csvExporter, messenger, logger)
+	qrHandler := &qrcodeHandler{secret: cfg.AdminSecret, qrProvider: qrProvider}
+	qrLimiter := newIPRateLimiter(10, time.Minute)
+
+	evolutionHost := extractHost(cfg.EvolutionAPIURL)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/webhook", handler.Handle)
+	mux.Handle("/webhook", webhookSourceMiddleware(evolutionHost, logger, http.HandlerFunc(handler.Handle)))
+	mux.Handle("/admin/qrcode", adminRateLimitMiddleware(qrLimiter, http.HandlerFunc(qrHandler.Handle)))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -64,3 +79,10 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 }
 
+func extractHost(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return rawURL
+	}
+	return u.Hostname()
+}

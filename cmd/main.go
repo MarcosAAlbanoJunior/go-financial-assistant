@@ -100,7 +100,7 @@ func main() {
 	if err != nil {
 		slog.Warn("não foi possível verificar estado da conexão", "error", err)
 	} else if state != "open" {
-		code, err := evolutionClient.FetchConnectCode(ctx)
+		code, _, err := evolutionClient.FetchConnectCode(ctx)
 		if err != nil {
 			slog.Warn("não foi possível buscar QR code, acesse manualmente",
 				"url", fmt.Sprintf("%s/instance/connect/%s", cfg.EvolutionAPIURL, cfg.EvolutionInstance))
@@ -116,12 +116,15 @@ func main() {
 
 	server := httpserver.NewServer(
 		httpserver.ServerConfig{
-			Port:           cfg.Port,
-			OwnerPhone:     cfg.OwnerPhone,
-			AllowedNumbers: cfg.AllowedNumbers,
+			Port:            cfg.Port,
+			OwnerPhone:      cfg.OwnerPhone,
+			AllowedNumbers:  cfg.AllowedNumbers,
+			EvolutionAPIURL: cfg.EvolutionAPIURL,
+			AdminSecret:     cfg.AdminSecret,
 		},
 		analyzeExpense,
 		exportCSV,
+		evolutionClient,
 		evolutionClient,
 		logger,
 	)

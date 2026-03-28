@@ -28,7 +28,6 @@ func recurringPurchase(dayOfMonth int) domain.Purchase {
 
 func TestGenerateRecurringExpenses_SkipsWhenNotTargetDay(t *testing.T) {
 	today := time.Now().UTC().Day()
-	// configura dia diferente do hoje
 	differentDay := today%28 + 1
 	if differentDay == today {
 		differentDay = differentDay%28 + 1
@@ -89,7 +88,7 @@ func TestGenerateRecurringExpenses_SkipsAlreadyPaidMonth(t *testing.T) {
 			return []domain.Purchase{recurringPurchase(today)}, nil
 		},
 		hasPaymentForMonthFn: func(_ context.Context, _ uuid.UUID, _ time.Time) (bool, error) {
-			return true, nil // já tem pagamento este mês
+			return true, nil
 		},
 		savePaymentFn: func(_ context.Context, _ *domain.Payment) error {
 			paymentSaved = true
@@ -114,7 +113,6 @@ func TestLastValidDay_NormalDay(t *testing.T) {
 }
 
 func TestLastValidDay_DayExceedsMonth(t *testing.T) {
-	// Fevereiro 2025 tem 28 dias
 	got := lastValidDay(2025, time.February, 31)
 	if got != 28 {
 		t.Errorf("esperava 28 (último dia de fev/2025), got %d", got)
@@ -122,7 +120,6 @@ func TestLastValidDay_DayExceedsMonth(t *testing.T) {
 }
 
 func TestLastValidDay_LeapYear(t *testing.T) {
-	// Fevereiro 2024 tem 29 dias (ano bissexto)
 	got := lastValidDay(2024, time.February, 30)
 	if got != 29 {
 		t.Errorf("esperava 29 (último dia de fev/2024 bissexto), got %d", got)
@@ -130,7 +127,6 @@ func TestLastValidDay_LeapYear(t *testing.T) {
 }
 
 func TestLastValidDay_Day31InMonth30(t *testing.T) {
-	// Abril tem 30 dias
 	got := lastValidDay(2025, time.April, 31)
 	if got != 30 {
 		t.Errorf("esperava 30 (último dia de abril), got %d", got)

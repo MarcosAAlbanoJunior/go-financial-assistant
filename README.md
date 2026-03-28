@@ -56,12 +56,15 @@ DATABASE_URL=postgres://finassist:finassist@localhost:5432/finassist?sslmode=dis
 GEMINI_API_KEY=sua-chave-do-gemini
 
 EVOLUTION_API_KEY=uma-chave-qualquer-para-proteger-a-api
-EVOLUTION_API_URL=http://localhost:8080
+EVOLUTION_API_URL=http://localhost:8082
 EVOLUTION_INSTANCE=Financial Assistant
 OWNER_PHONE=5511999999999
 
 # Opcional — adicione aqui se o Evolution API usar um numero diferente do seu número (bug conhecido)
 ALLOWED_NUMBERS=
+
+# Senha para o endpoint /admin/qrcode (obrigatório para usar o endpoint em produção)
+ADMIN_SECRET=sua-senha-segura
 ```
 
 | Variável | Descrição |
@@ -71,6 +74,7 @@ ALLOWED_NUMBERS=
 | `EVOLUTION_INSTANCE` | Nome da instância no Evolution API |
 | `OWNER_PHONE` | Seu número de WhatsApp com código do país e DDD, sem `+` ou espaços (ex: `5511999999999`) |
 | `ALLOWED_NUMBERS` | Opcional — número alternativo caso o Evolution API entregue seu número em formato diferente |
+| `ADMIN_SECRET` | Senha para acessar o endpoint `/admin/qrcode` — defina um valor forte em produção |
 
 ### 3. Suba o projeto
 
@@ -146,6 +150,23 @@ No primeiro dia de cada mês, o assistente envia automaticamente a planilha CSV 
 
 ### Enviar recibo ou nota fiscal
 Tire uma foto ou encaminhe a imagem do recibo diretamente no WhatsApp.
+
+## Segurança e gerenciamento remoto
+
+### Gerar QR Code para conectar o WhatsApp
+
+Abra no navegador substituindo pelo IP da sua VPS ou `localhost` se estiver rodando localmente:
+
+```
+http://<IP-DA-VPS-OU-LOCALHOST>:3000/admin/qrcode?token=sua-senha
+```
+
+Se o WhatsApp já estiver conectado, exibe uma mensagem de confirmação. Se não, exibe o QR code para escanear — a página atualiza automaticamente a cada 30 segundos.
+
+**Proteções implementadas:**
+- Requer `ADMIN_SECRET` configurado (retorna `503` se vazio)
+- Rate limit de 10 requisições por minuto por IP
+- `/webhook` aceita conexões apenas do container Evolution API (verificação por IP via DNS interno do Docker)
 
 ## Comandos úteis
 

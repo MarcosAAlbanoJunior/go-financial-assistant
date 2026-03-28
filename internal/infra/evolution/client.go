@@ -27,7 +27,6 @@ func NewClient(baseURL, instance, apiKey string) *Client {
 	}
 }
 
-// response types compartilhados entre os arquivos do pacote
 type sendTextResponse struct {
 	Key struct {
 		ID string `json:"id"`
@@ -45,7 +44,9 @@ type connectionStateResponse struct {
 }
 
 type connectResponse struct {
-	Code string `json:"code"`
+	Code   string `json:"code"`
+	Base64 string `json:"base64"`
+	Count  int    `json:"count"`
 }
 
 func (c *Client) EnsureInstance(ctx context.Context, ownerPhone string) (bool, error) {
@@ -125,35 +126,35 @@ func (c *Client) FetchConnectionState(ctx context.Context) (string, error) {
 	return result.Instance.State, nil
 }
 
-func (c *Client) FetchConnectCode(ctx context.Context) (string, error) {
+func (c *Client) FetchConnectCode(ctx context.Context) (code, base64 string, err error) {
 	endpoint := fmt.Sprintf("%s/instance/connect/%s", c.baseURL, url.PathEscape(c.instance))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return "", fmt.Errorf("erro ao criar request: %w", err)
+		return "", "", fmt.Errorf("erro ao criar request: %w", err)
 	}
 
 	req.Header.Set("apikey", c.apiKey)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("erro ao buscar QR code: %w", err)
+		return "", "", fmt.Errorf("erro ao buscar QR code: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("erro ao ler resposta: %w", err)
+		return "", "", fmt.Errorf("erro ao ler resposta: %w", err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("evolution API retornou status %d: %s", resp.StatusCode, string(respBody))
+		return "", "", fmt.Errorf("evolution API retornou status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var result connectResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("erro ao deserializar resposta: %w", err)
+		return "", "", fmt.Errorf("erro ao deserializar resposta: %w", err)
 	}
 
-	return result.Code, nil
+	return result.Code, result.Base64, nil
 }

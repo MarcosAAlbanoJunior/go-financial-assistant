@@ -208,7 +208,6 @@ func TestExportCSV_TotalRow(t *testing.T) {
 	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	records := parseCSV(t, data)
-	// header + 2 linhas + total = 4
 	if len(records) != 4 {
 		t.Fatalf("esperava 4 linhas, got %d", len(records))
 	}
@@ -243,8 +242,6 @@ func TestExportCSV_NilDescription(t *testing.T) {
 	}
 }
 
-// helpers
-
 var errSentinel = errors.New("repo error")
 
 func strPtr(s string) *string { return &s }
@@ -271,7 +268,6 @@ func repoWithOneDetail(d ports.PaymentDetail) *mockPurchaseRepo {
 
 func parseCSV(t *testing.T, data []byte) [][]string {
 	t.Helper()
-	// Remove BOM before parsing
 	content := strings.TrimPrefix(string(data), "\xEF\xBB\xBF")
 	r := csv.NewReader(strings.NewReader(content))
 	records, err := r.ReadAll()

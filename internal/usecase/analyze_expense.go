@@ -169,8 +169,6 @@ func processExportCSV(analysis *ports.ExpenseAnalysis) (*ExpenseOutput, error) {
 	}, nil
 }
 
-// lastValidDay retorna o menor valor entre day e o último dia do mês.
-// Garante que dia 31 em fevereiro, por exemplo, vira dia 28/29.
 func lastValidDay(year int, month time.Month, day int) int {
 	lastDay := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
 	if day > lastDay {
