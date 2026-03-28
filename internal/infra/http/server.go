@@ -23,10 +23,10 @@ type Server struct {
 	handler *webhookHandler
 }
 
-func NewServer(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer, messenger ports.Messenger, logger *slog.Logger) *Server {
+func NewServer(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter, messenger ports.Messenger, logger *slog.Logger) *Server {
 	logger.Info("iniciando servidor HTTP", "port", cfg.Port)
 
-	handler := newWebhookHandler(cfg, analyzeExpense, messenger, logger)
+	handler := newWebhookHandler(cfg, analyzeExpense, csvExporter, messenger, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/webhook", handler.Handle)

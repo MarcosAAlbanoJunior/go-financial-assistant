@@ -8,10 +8,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// PaymentSummary representa o resultado agregado do banco de dados: categoria raw + total.
 type PaymentSummary struct {
 	Category string
 	Total    float64
+}
+
+type PaymentDetail struct {
+	Description       *string
+	Category          string
+	PaymentMethod     string
+	Amount            float64
+	Status            string
+	PurchaseType      string
+	InstallmentNumber *int
+	DueDate           *time.Time
+	ReferenceMonth    *time.Time
+	CreatedAt         time.Time
 }
 
 type PurchaseRepository interface {
@@ -22,4 +34,5 @@ type PurchaseRepository interface {
 	SavePayment(ctx context.Context, payment *domain.Payment) error
 	HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
 	FindPaymentsByMonth(ctx context.Context, month time.Time) ([]PaymentSummary, error)
+	FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]PaymentDetail, error)
 }

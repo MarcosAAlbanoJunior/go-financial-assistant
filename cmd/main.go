@@ -51,6 +51,15 @@ func main() {
 	purchaseRepo := db.NewPurchaseRepository(postgresDB)
 
 	analyzeExpense := usecase.NewAnalyzeExpense(purchaseRepo, geminiClient, logger)
+	exportCSV := usecase.NewExportCSV(purchaseRepo)
+
+	evolutionClient := evolution.NewClient(cfg.EvolutionAPIURL, cfg.EvolutionInstance, cfg.EvolutionAPIKey)
+
+	monthlyReport := usecase.NewMonthlyReport(exportCSV, evolutionClient, cfg.OwnerPhone, logger)
+
+	if err := analyzeExpense.GenerateRecurringExpenses(ctx); err != nil {
+		slog.Error("erro ao gerar despesas recorrentes no startup", "error", err)
+	}
 
 	go func() {
 		for {
@@ -63,11 +72,14 @@ func main() {
 				if err := analyzeExpense.GenerateRecurringExpenses(ctx); err != nil {
 					slog.Error("erro ao gerar despesas recorrentes", "error", err)
 				}
+				if time.Now().UTC().Day() == 1 {
+					if err := monthlyReport.Send(ctx); err != nil {
+						slog.Error("erro ao enviar relatório mensal", "error", err)
+					}
+				}
 			}
 		}
 	}()
-
-	evolutionClient := evolution.NewClient(cfg.EvolutionAPIURL, cfg.EvolutionInstance, cfg.EvolutionAPIKey)
 
 	for {
 		_, err := evolutionClient.EnsureInstance(ctx, cfg.OwnerPhone)
@@ -109,6 +121,7 @@ func main() {
 			AllowedNumbers: cfg.AllowedNumbers,
 		},
 		analyzeExpense,
+		exportCSV,
 		evolutionClient,
 		logger,
 	)

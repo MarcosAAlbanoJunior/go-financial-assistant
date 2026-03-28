@@ -10,6 +10,7 @@ const (
 	ExpenseTypeRecurring       ExpenseType = "RECURRING"
 	ExpenseTypeCancelRecurring ExpenseType = "CANCEL_RECURRING"
 	ExpenseTypeQuery           ExpenseType = "QUERY"
+	ExpenseTypeExportCSV       ExpenseType = "EXPORT_CSV"
 )
 
 type AIAnalyzer interface {
@@ -30,6 +31,7 @@ type ExpenseAnalysis struct {
 	RecurringInfo *RecurringInfo
 	CancelInfo    *CancelInfo
 	QueryInfo     *QueryInfo
+	ExportInfo    *QueryInfo
 }
 
 type InstallmentInfo struct {

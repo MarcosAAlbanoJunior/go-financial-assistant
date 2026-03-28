@@ -15,6 +15,7 @@ import (
 
 type webhookHandler struct {
 	analyzeExpense usecase.ExpenseAnalyzer
+	csvExporter    usecase.CSVExporter
 	messenger      ports.Messenger
 	ownerPhone     string
 	logger         *slog.Logger
@@ -23,7 +24,7 @@ type webhookHandler struct {
 	processedIDs   sync.Map
 }
 
-func newWebhookHandler(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer, messenger ports.Messenger, logger *slog.Logger) *webhookHandler {
+func newWebhookHandler(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter, messenger ports.Messenger, logger *slog.Logger) *webhookHandler {
 	allowed := make(map[string]struct{}, len(cfg.AllowedNumbers)+1)
 	for k := range cfg.AllowedNumbers {
 		allowed[k] = struct{}{}
@@ -32,6 +33,7 @@ func newWebhookHandler(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer,
 
 	return &webhookHandler{
 		analyzeExpense: analyzeExpense,
+		csvExporter:    csvExporter,
 		messenger:      messenger,
 		ownerPhone:     cfg.OwnerPhone,
 		logger:         logger,
@@ -65,39 +67,6 @@ func (h *webhookHandler) startCleanup(ctx context.Context) {
 	}
 }
 
-type evolutionPayload struct {
-	Instance string        `json:"instance"`
-	Data     evolutionData `json:"data"`
-}
-
-type evolutionData struct {
-	Message evolutionMessage `json:"message"`
-	Key     evolutionKey     `json:"key"`
-	Base64  string           `json:"base64"`
-}
-
-type evolutionKey struct {
-	RemoteJID string `json:"remoteJid"`
-	FromMe    bool   `json:"fromMe"`
-	ID        string `json:"id"`
-}
-
-type evolutionMessage struct {
-	Conversation        string                 `json:"conversation,omitempty"`
-	ImageMessage        *evolutionImageMessage `json:"imageMessage,omitempty"`
-	ExtendedTextMessage *evolutionExtendedText `json:"extendedTextMessage,omitempty"`
-}
-
-type evolutionImageMessage struct {
-	Mimetype string `json:"mimetype"`
-	Caption  string `json:"caption"`
-	URL      string `json:"url"`
-}
-
-type evolutionExtendedText struct {
-	Text string `json:"text"`
-}
-
 func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.writeError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -111,8 +80,21 @@ func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var envelope evolutionEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		h.writeError(w, "payload inválido", http.StatusBadRequest)
+		return
+	}
+
+	if envelope.Event != "" && envelope.Event != "messages.upsert" {
+		h.logger.Info("evento ignorado", "event", envelope.Event)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	var payload evolutionPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
+	payload.Instance = envelope.Instance
+	if err := json.Unmarshal(envelope.Data, &payload.Data); err != nil {
 		h.writeError(w, "payload inválido", http.StatusBadRequest)
 		return
 	}
@@ -120,11 +102,7 @@ func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	msgID := payload.Data.Key.ID
 	from := payload.Data.Key.RemoteJID
 
-	h.logger.Info("webhook recebido",
-		"instance", payload.Instance,
-		"from", maskPhone(from),
-		"id", msgID,
-	)
+	h.logger.Info("webhook recebido", "instance", payload.Instance, "from", maskPhone(from), "id", msgID)
 
 	if _, isSentByBot := h.sentIDs.LoadAndDelete(msgID); isSentByBot {
 		w.WriteHeader(http.StatusOK)
@@ -151,6 +129,11 @@ func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if output.Type == "EXPORT_CSV" {
+		h.handleExportCommand(r.Context(), w, output.ExportMonthTime)
+		return
+	}
+
 	reply := formatReply(output)
 
 	if sentID, msgErr := h.messenger.SendText(r.Context(), h.ownerPhone, reply); msgErr != nil {
@@ -166,6 +149,14 @@ func (h *webhookHandler) notifyError(ctx context.Context, err error) {
 	msg := "Não consegui registrar a despesa: " + err.Error()
 	if sentID, msgErr := h.messenger.SendText(ctx, h.ownerPhone, msg); msgErr != nil {
 		h.logger.Error("erro ao enviar notificação de erro", "error", msgErr)
+	} else if sentID != "" {
+		h.sentIDs.Store(sentID, time.Now())
+	}
+}
+
+func (h *webhookHandler) sendText(ctx context.Context, msg string) {
+	if sentID, err := h.messenger.SendText(ctx, h.ownerPhone, msg); err != nil {
+		h.logger.Error("erro ao enviar mensagem", "error", err)
 	} else if sentID != "" {
 		h.sentIDs.Store(sentID, time.Now())
 	}

@@ -61,6 +61,8 @@ type ExpenseOutput struct {
 	QueryTotal      float64           `json:"query_total,omitempty"`
 	QueryCategories []CategorySummary `json:"query_categories,omitempty"`
 	QueryEmpty      bool              `json:"query_empty,omitempty"`
+
+	ExportMonthTime time.Time `json:"-"`
 }
 
 func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*ExpenseOutput, error) {
@@ -74,6 +76,8 @@ func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*Ex
 	switch analysis.Type {
 	case ports.ExpenseTypeQuery:
 		return uc.processQuery(ctx, analysis)
+	case ports.ExpenseTypeExportCSV:
+		return processExportCSV(analysis)
 	case ports.ExpenseTypeInstallment:
 		return uc.processInstallment(ctx, analysis, payment, input.Text)
 	case ports.ExpenseTypeRecurring:
@@ -95,6 +99,8 @@ func (uc *AnalyzeExpense) ExecuteImage(ctx context.Context, input ImageInput) (*
 	rawInput := fmt.Sprintf("[imagem: %s]", input.MimeType)
 
 	switch analysis.Type {
+	case ports.ExpenseTypeExportCSV:
+		return processExportCSV(analysis)
 	case ports.ExpenseTypeInstallment:
 		return uc.processInstallment(ctx, analysis, payment, rawInput)
 	case ports.ExpenseTypeRecurring:
@@ -117,6 +123,14 @@ func (uc *AnalyzeExpense) GenerateRecurringExpenses(ctx context.Context) error {
 
 	for i := range actives {
 		p := &actives[i]
+
+		if p.DayOfMonth != nil {
+			target := lastValidDay(now.Year(), now.Month(), *p.DayOfMonth)
+			if now.Day() != target {
+				continue
+			}
+		}
+
 		has, err := uc.repo.HasPaymentForMonth(ctx, p.ID, firstOfMonth)
 		if err != nil {
 			uc.logger.Error("erro ao verificar pagamento mensal", "purchase_id", p.ID, "error", err)
@@ -133,4 +147,34 @@ func (uc *AnalyzeExpense) GenerateRecurringExpenses(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func processExportCSV(analysis *ports.ExpenseAnalysis) (*ExpenseOutput, error) {
+	now := time.Now().UTC()
+	month := now.Month()
+	year := now.Year()
+
+	if analysis.ExportInfo != nil {
+		if analysis.ExportInfo.Month >= 1 && analysis.ExportInfo.Month <= 12 {
+			month = time.Month(analysis.ExportInfo.Month)
+		}
+		if analysis.ExportInfo.Year >= 2000 {
+			year = analysis.ExportInfo.Year
+		}
+	}
+
+	return &ExpenseOutput{
+		Type:            string(ports.ExpenseTypeExportCSV),
+		ExportMonthTime: time.Date(year, month, 1, 0, 0, 0, 0, time.UTC),
+	}, nil
+}
+
+// lastValidDay retorna o menor valor entre day e o último dia do mês.
+// Garante que dia 31 em fevereiro, por exemplo, vira dia 28/29.
+func lastValidDay(year int, month time.Month, day int) int {
+	lastDay := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	if day > lastDay {
+		return lastDay
+	}
+	return day
 }
