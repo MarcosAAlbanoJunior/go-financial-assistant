@@ -17,12 +17,14 @@ type Config struct {
 
 	GeminiAPIKey string
 
-	EvolutionAPIURL string
-	EvolutionInstance      string
-	EvolutionAPIKey        string
-	OwnerPhone             string
+	EvolutionAPIURL   string
+	EvolutionInstance string
+	EvolutionAPIKey   string
+	OwnerPhone        string
 
 	AllowedNumbers map[string]struct{}
+
+	AdminSecret string
 }
 
 func Load() (*Config, error) {
@@ -51,7 +53,7 @@ func Load() (*Config, error) {
 		errs = append(errs, errors.New("GEMINI_API_KEY é obrigatória"))
 	}
 
-	cfg.EvolutionAPIURL = getEnv("EVOLUTION_API_URL", "http://evolution:8080")
+	cfg.EvolutionAPIURL = getEnv("EVOLUTION_API_URL", "http://evolution:8082")
 	cfg.EvolutionInstance = getEnv("EVOLUTION_INSTANCE", "")
 	if cfg.EvolutionInstance == "" {
 		errs = append(errs, errors.New("EVOLUTION_INSTANCE é obrigatória"))
@@ -67,6 +69,7 @@ func Load() (*Config, error) {
 	}
 
 	cfg.AllowedNumbers = parseAllowedNumbers(getEnv("ALLOWED_NUMBERS", ""))
+	cfg.AdminSecret = getEnv("ADMIN_SECRET", "")
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, fmt.Errorf("configuração inválida:\n%w", err)

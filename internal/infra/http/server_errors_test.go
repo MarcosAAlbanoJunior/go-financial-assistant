@@ -75,7 +75,6 @@ func TestNotifyError_MessengerError(t *testing.T) {
 	}
 	h := newHandler(&mockAnalyzer{}, messenger)
 	h.notifyError(context.Background(), errors.New("erro original"))
-	// Should not panic
 }
 
 func TestDecodeBase64Image_WithPrefix(t *testing.T) {
