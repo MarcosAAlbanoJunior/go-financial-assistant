@@ -12,12 +12,10 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
-// CSVExporter é a interface do use case de exportação.
 type CSVExporter interface {
 	Execute(ctx context.Context, month time.Time) (data []byte, filename string, err error)
 }
 
-// ExportCSV gera uma planilha CSV das despesas de um mês.
 type ExportCSV struct {
 	repo ports.PurchaseRepository
 }
@@ -26,8 +24,6 @@ func NewExportCSV(repo ports.PurchaseRepository) *ExportCSV {
 	return &ExportCSV{repo: repo}
 }
 
-// Execute retorna os bytes do CSV e o nome do arquivo sugerido.
-// Retorna data == nil quando não há despesas no mês.
 func (uc *ExportCSV) Execute(ctx context.Context, month time.Time) ([]byte, string, error) {
 	details, err := uc.repo.FindPaymentDetailsByMonth(ctx, month)
 	if err != nil {
@@ -39,7 +35,6 @@ func (uc *ExportCSV) Execute(ctx context.Context, month time.Time) ([]byte, stri
 	}
 
 	var buf bytes.Buffer
-	// BOM UTF-8 para compatibilidade com Excel
 	buf.WriteString("\xEF\xBB\xBF")
 
 	w := csv.NewWriter(&buf)
@@ -48,11 +43,18 @@ func (uc *ExportCSV) Execute(ctx context.Context, month time.Time) ([]byte, stri
 		return nil, "", fmt.Errorf("erro ao escrever cabeçalho: %w", err)
 	}
 
+	var total float64
 	for _, d := range details {
+		total += d.Amount
 		row := buildCSVRow(d)
 		if err := w.Write(row); err != nil {
 			return nil, "", fmt.Errorf("erro ao escrever linha: %w", err)
 		}
+	}
+
+	totalRow := []string{"", "TOTAL", "", "", "", "", fmt.Sprintf("%.2f", total)}
+	if err := w.Write(totalRow); err != nil {
+		return nil, "", fmt.Errorf("erro ao escrever linha de total: %w", err)
 	}
 
 	w.Flush()

@@ -192,6 +192,36 @@ func TestExportCSV_RecurringRow(t *testing.T) {
 	}
 }
 
+func TestExportCSV_TotalRow(t *testing.T) {
+	due := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
+	details := []ports.PaymentDetail{
+		{Description: strPtr("A"), Category: "FOOD", PaymentMethod: "PIX", Amount: 30.00, PurchaseType: "SINGLE", DueDate: &due},
+		{Description: strPtr("B"), Category: "FOOD", PaymentMethod: "PIX", Amount: 20.50, PurchaseType: "SINGLE", DueDate: &due},
+	}
+	repo := &mockPurchaseRepo{
+		findPaymentDetailsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentDetail, error) {
+			return details, nil
+		},
+	}
+
+	uc := NewExportCSV(repo)
+	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+
+	records := parseCSV(t, data)
+	// header + 2 linhas + total = 4
+	if len(records) != 4 {
+		t.Fatalf("esperava 4 linhas, got %d", len(records))
+	}
+
+	total := records[3]
+	if total[1] != "TOTAL" {
+		t.Errorf("label total: esperava TOTAL, got %q", total[1])
+	}
+	if total[6] != "50.50" {
+		t.Errorf("valor total: esperava 50.50, got %q", total[6])
+	}
+}
+
 func TestExportCSV_NilDescription(t *testing.T) {
 	due := time.Date(2025, 3, 5, 0, 0, 0, 0, time.UTC)
 	detail := ports.PaymentDetail{
