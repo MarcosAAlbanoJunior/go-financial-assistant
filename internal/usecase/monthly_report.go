@@ -10,7 +10,6 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
-// MonthlyReport envia automaticamente o CSV do mês anterior via WhatsApp.
 type MonthlyReport struct {
 	exporter  CSVExporter
 	messenger ports.Messenger
@@ -27,8 +26,6 @@ func NewMonthlyReport(exporter CSVExporter, messenger ports.Messenger, phone str
 	}
 }
 
-// Send gera o CSV do mês anterior e envia via WhatsApp.
-// Chamado no dia 1 de cada mês pelo scheduler.
 func (r *MonthlyReport) Send(ctx context.Context) error {
 	prevMonth := previousMonth()
 
