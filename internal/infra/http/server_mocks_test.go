@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
@@ -18,7 +19,10 @@ type mockAnalyzer struct {
 }
 
 func (m *mockAnalyzer) ExecuteText(ctx context.Context, input usecase.TextInput) (*usecase.ExpenseOutput, error) {
-	return m.executeTextFn(ctx, input)
+	if m.executeTextFn != nil {
+		return m.executeTextFn(ctx, input)
+	}
+	return defaultOutput(), nil
 }
 
 func (m *mockAnalyzer) ExecuteImage(ctx context.Context, input usecase.ImageInput) (*usecase.ExpenseOutput, error) {
@@ -27,12 +31,20 @@ func (m *mockAnalyzer) ExecuteImage(ctx context.Context, input usecase.ImageInpu
 
 type mockMessenger struct {
 	sendTextFn         func(ctx context.Context, to, text string) (string, error)
+	sendDocumentFn     func(ctx context.Context, to, filename, base64Data, caption string) (string, error)
 	fetchImageBase64Fn func(ctx context.Context, remoteJid string, fromMe bool, messageID string) (string, error)
 }
 
 func (m *mockMessenger) SendText(ctx context.Context, to, text string) (string, error) {
 	if m.sendTextFn != nil {
 		return m.sendTextFn(ctx, to, text)
+	}
+	return "", nil
+}
+
+func (m *mockMessenger) SendDocument(ctx context.Context, to, filename, base64Data, caption string) (string, error) {
+	if m.sendDocumentFn != nil {
+		return m.sendDocumentFn(ctx, to, filename, base64Data, caption)
 	}
 	return "", nil
 }
@@ -44,6 +56,17 @@ func (m *mockMessenger) FetchImageBase64(ctx context.Context, remoteJid string, 
 	return "", nil
 }
 
+type mockCSVExporter struct {
+	executeFn func(ctx context.Context, month time.Time) ([]byte, string, error)
+}
+
+func (m *mockCSVExporter) Execute(ctx context.Context, month time.Time) ([]byte, string, error) {
+	if m.executeFn != nil {
+		return m.executeFn(ctx, month)
+	}
+	return nil, "", nil
+}
+
 var silentLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 func defaultOutput() *usecase.ExpenseOutput {
@@ -53,13 +76,18 @@ func defaultOutput() *usecase.ExpenseOutput {
 	}
 }
 
-func newHandler(analyzer usecase.ExpenseAnalyzer, messenger *mockMessenger) *webhookHandler {
+func newHandler(analyzer usecase.ExpenseAnalyzer, messenger *mockMessenger, exporters ...usecase.CSVExporter) *webhookHandler {
+	var exporter usecase.CSVExporter = &mockCSVExporter{}
+	if len(exporters) > 0 && exporters[0] != nil {
+		exporter = exporters[0]
+	}
 	return newWebhookHandler(
 		ServerConfig{
 			OwnerPhone:     "5511999999999",
 			AllowedNumbers: map[string]struct{}{"5511888888888@s.whatsapp.net": {}},
 		},
 		analyzer,
+		exporter,
 		messenger,
 		silentLogger,
 	)

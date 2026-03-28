@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -28,6 +27,7 @@ func NewClient(baseURL, instance, apiKey string) *Client {
 	}
 }
 
+// response types compartilhados entre os arquivos do pacote
 type sendTextResponse struct {
 	Key struct {
 		ID string `json:"id"`
@@ -38,50 +38,14 @@ type fetchBase64Response struct {
 	Base64 string `json:"base64"`
 }
 
-func (c *Client) SendText(ctx context.Context, to string, text string) (string, error) {
-	if idx := strings.Index(to, "@"); idx != -1 {
-		to = to[:idx]
-	}
+type connectionStateResponse struct {
+	Instance struct {
+		State string `json:"state"`
+	} `json:"instance"`
+}
 
-	body, err := json.Marshal(map[string]string{
-		"number": to,
-		"text":   text,
-	})
-	if err != nil {
-		return "", fmt.Errorf("erro ao serializar mensagem: %w", err)
-	}
-
-	endpoint := fmt.Sprintf("%s/message/sendText/%s", c.baseURL, url.PathEscape(c.instance))
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("erro ao criar request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("apikey", c.apiKey)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("erro ao enviar mensagem: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("erro ao ler resposta: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("evolution API retornou status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	var result sendTextResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("erro ao deserializar resposta: %w", err)
-	}
-
-	return result.Key.ID, nil
+type connectResponse struct {
+	Code string `json:"code"`
 }
 
 func (c *Client) EnsureInstance(ctx context.Context, ownerPhone string) (bool, error) {
@@ -128,12 +92,6 @@ func (c *Client) EnsureInstance(ctx context.Context, ownerPhone string) (bool, e
 	return true, nil
 }
 
-type connectionStateResponse struct {
-	Instance struct {
-		State string `json:"state"`
-	} `json:"instance"`
-}
-
 func (c *Client) FetchConnectionState(ctx context.Context) (string, error) {
 	endpoint := fmt.Sprintf("%s/instance/connectionState/%s", c.baseURL, url.PathEscape(c.instance))
 
@@ -167,10 +125,6 @@ func (c *Client) FetchConnectionState(ctx context.Context) (string, error) {
 	return result.Instance.State, nil
 }
 
-type connectResponse struct {
-	Code string `json:"code"`
-}
-
 func (c *Client) FetchConnectCode(ctx context.Context) (string, error) {
 	endpoint := fmt.Sprintf("%s/instance/connect/%s", c.baseURL, url.PathEscape(c.instance))
 
@@ -202,51 +156,4 @@ func (c *Client) FetchConnectCode(ctx context.Context) (string, error) {
 	}
 
 	return result.Code, nil
-}
-
-func (c *Client) FetchImageBase64(ctx context.Context, remoteJid string, fromMe bool, messageID string) (string, error) {
-	body, err := json.Marshal(map[string]any{
-		"message": map[string]any{
-			"key": map[string]any{
-				"remoteJid": remoteJid,
-				"fromMe":    fromMe,
-				"id":        messageID,
-			},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("erro ao serializar request: %w", err)
-	}
-
-	endpoint := fmt.Sprintf("%s/chat/getBase64FromMediaMessage/%s", c.baseURL, url.PathEscape(c.instance))
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("erro ao criar request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("apikey", c.apiKey)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("erro ao buscar base64: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("erro ao ler resposta: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("evolution API retornou status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	var result fetchBase64Response
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("erro ao deserializar resposta: %w", err)
-	}
-
-	return result.Base64, nil
 }

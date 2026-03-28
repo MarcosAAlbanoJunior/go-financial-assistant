@@ -120,6 +120,7 @@ type geminiResponse struct {
 	Recurring       *geminiRecurring       `json:"recurring"`
 	CancelRecurring *geminiCancelRecurring `json:"cancel_recurring"`
 	Query           *geminiQuery           `json:"query"`
+	Export          *geminiQuery           `json:"export"`
 }
 
 func (g *geminiResponse) toAnalysis(rawJSON string) *ports.ExpenseAnalysis {
@@ -163,6 +164,17 @@ func (g *geminiResponse) toAnalysis(rawJSON string) *ports.ExpenseAnalysis {
 		analysis.QueryInfo = info
 	}
 
+	if g.Export != nil {
+		info := &ports.QueryInfo{}
+		if g.Export.Month != nil {
+			info.Month = *g.Export.Month
+		}
+		if g.Export.Year != nil {
+			info.Year = *g.Export.Year
+		}
+		analysis.ExportInfo = info
+	}
+
 	return analysis
 }
 
@@ -176,6 +188,8 @@ func toExpenseType(s string) ports.ExpenseType {
 		return ports.ExpenseTypeCancelRecurring
 	case "QUERY":
 		return ports.ExpenseTypeQuery
+	case "EXPORT_CSV":
+		return ports.ExpenseTypeExportCSV
 	default:
 		return ports.ExpenseTypeSingle
 	}

@@ -24,13 +24,14 @@ func (m *mockAnalyzer) AnalyzeImage(ctx context.Context, imageData []byte, mimeT
 }
 
 type mockPurchaseRepo struct {
-	saveFn                  func(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error
-	findActiveRecurringFn   func(ctx context.Context) ([]domain.Purchase, error)
-	findByDescriptionFn     func(ctx context.Context, description string) ([]domain.Purchase, error)
-	updateFn                func(ctx context.Context, purchase *domain.Purchase) error
-	savePaymentFn           func(ctx context.Context, payment *domain.Payment) error
-	hasPaymentForMonthFn    func(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
-	findPaymentsByMonthFn   func(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error)
+	saveFn                      func(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error
+	findActiveRecurringFn       func(ctx context.Context) ([]domain.Purchase, error)
+	findByDescriptionFn         func(ctx context.Context, description string) ([]domain.Purchase, error)
+	updateFn                    func(ctx context.Context, purchase *domain.Purchase) error
+	savePaymentFn               func(ctx context.Context, payment *domain.Payment) error
+	hasPaymentForMonthFn        func(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
+	findPaymentsByMonthFn       func(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error)
+	findPaymentDetailsByMonthFn func(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error)
 }
 
 func (m *mockPurchaseRepo) Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error {
@@ -78,6 +79,13 @@ func (m *mockPurchaseRepo) HasPaymentForMonth(ctx context.Context, purchaseID uu
 func (m *mockPurchaseRepo) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 	if m.findPaymentsByMonthFn != nil {
 		return m.findPaymentsByMonthFn(ctx, month)
+	}
+	return nil, nil
+}
+
+func (m *mockPurchaseRepo) FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error) {
+	if m.findPaymentDetailsByMonthFn != nil {
+		return m.findPaymentDetailsByMonthFn(ctx, month)
 	}
 	return nil, nil
 }
