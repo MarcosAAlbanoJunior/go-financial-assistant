@@ -39,6 +39,22 @@ func (m paymentDetailModel) toPort() ports.PaymentDetail {
 	}
 }
 
+func (r *PostgresPurchaseRepository) ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error) {
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM payments
+			WHERE ABS(amount - $2) < 0.001
+			  AND DATE_TRUNC('day', COALESCE(due_date, paid_at, created_at)) = DATE_TRUNC('day', $1::timestamptz)
+			  AND status != 'CANCELLED'
+		)
+	`
+	var exists bool
+	if err := r.db.Pool.QueryRow(ctx, query, date, amount).Scan(&exists); err != nil {
+		return false, fmt.Errorf("erro ao verificar duplicata: %w", err)
+	}
+	return exists, nil
+}
+
 func (r *PostgresPurchaseRepository) HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM payments WHERE purchase_id = $1 AND reference_month = $2)`
 	var exists bool

@@ -11,6 +11,33 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
+func formatStatementSummary(output *usecase.StatementOutput) string {
+	if output.Inserted == 0 && len(output.Pending) == 0 {
+		return "📄 Nenhuma despesa nova encontrada no extrato."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("📄 *Extrato processado!*\n")
+	if output.Inserted > 0 {
+		sb.WriteString(fmt.Sprintf("✅ %d despesa(s) importada(s) automaticamente.\n", output.Inserted))
+	}
+	if len(output.Pending) > 0 {
+		sb.WriteString(fmt.Sprintf("⚠️ %d transação(ões) já existem no banco — vou perguntar uma a uma.", len(output.Pending)))
+	}
+	return sb.String()
+}
+
+func formatConfirmationQuestion(tx usecase.PendingTransaction, current, total int) string {
+	return fmt.Sprintf(
+		"❓ Transação %d/%d\n📅 %s\n📝 %s\n💰 R$ %.2f\n🏷️ %s\n\nJá existe uma transação com esse valor nessa data. Deseja inserir mesmo assim?\nResponda *sim* ou *não*",
+		current, total,
+		tx.Date.Format("02/01/2006"),
+		tx.Description,
+		tx.Amount,
+		tx.Category,
+	)
+}
+
 func (h *webhookHandler) writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
