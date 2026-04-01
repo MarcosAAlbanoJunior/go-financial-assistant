@@ -6,12 +6,22 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
+
+const pendingImportTTL = 30 * time.Minute
+
+type pendingImportSession struct {
+	items     []usecase.PendingTransaction
+	index     int
+	total     int
+	expiresAt time.Time
+}
 
 type webhookHandler struct {
 	analyzeExpense usecase.ExpenseAnalyzer
@@ -22,6 +32,7 @@ type webhookHandler struct {
 	allowedNumbers map[string]struct{}
 	sentIDs        sync.Map
 	processedIDs   sync.Map
+	pendingImports sync.Map // key: ownerPhone, value: *pendingImportSession
 }
 
 func newWebhookHandler(cfg ServerConfig, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter, messenger ports.Messenger, logger *slog.Logger) *webhookHandler {
@@ -50,7 +61,8 @@ func (h *webhookHandler) startCleanup(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			cutoff := time.Now().Add(-time.Hour)
+			now := time.Now()
+			cutoff := now.Add(-time.Hour)
 			h.processedIDs.Range(func(key, value any) bool {
 				if t, ok := value.(time.Time); ok && t.Before(cutoff) {
 					h.processedIDs.Delete(key)
@@ -60,6 +72,12 @@ func (h *webhookHandler) startCleanup(ctx context.Context) {
 			h.sentIDs.Range(func(key, value any) bool {
 				if t, ok := value.(time.Time); ok && t.Before(cutoff) {
 					h.sentIDs.Delete(key)
+				}
+				return true
+			})
+			h.pendingImports.Range(func(key, value any) bool {
+				if s, ok := value.(*pendingImportSession); ok && s.expiresAt.Before(now) {
+					h.pendingImports.Delete(key)
 				}
 				return true
 			})
@@ -122,6 +140,18 @@ func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Documentos (PDF/extrato) têm fluxo próprio
+	if payload.Data.Message.DocumentMessage != nil {
+		h.handleDocumentImport(r.Context(), w, payload)
+		return
+	}
+
+	// Verifica se há uma importação pendente aguardando confirmação
+	text := extractText(payload)
+	if h.tryHandlePendingConfirmation(r.Context(), w, text) {
+		return
+	}
+
 	output, err := h.route(r.Context(), payload)
 	if err != nil {
 		h.handleError(w, err)
@@ -143,6 +173,121 @@ func (h *webhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeJSON(w, http.StatusCreated, output)
+}
+
+func extractText(payload evolutionPayload) string {
+	if payload.Data.Message.ExtendedTextMessage != nil {
+		return payload.Data.Message.ExtendedTextMessage.Text
+	}
+	return payload.Data.Message.Conversation
+}
+
+func (h *webhookHandler) handleDocumentImport(ctx context.Context, w http.ResponseWriter, payload evolutionPayload) {
+	doc := payload.Data.Message.DocumentMessage
+
+	var docData []byte
+	var err error
+
+	base64Data := payload.Data.Base64
+	if base64Data == "" {
+		h.logger.Info("base64 ausente no webhook de documento, buscando via API")
+		key := payload.Data.Key
+		base64Data, err = h.messenger.FetchImageBase64(ctx, key.RemoteJID, key.FromMe, key.ID)
+		if err != nil {
+			h.logger.Error("falha ao buscar base64 do documento", "error", err)
+			h.sendText(ctx, "❌ Não consegui ler o documento. Tente enviar novamente.")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}
+
+	docData, err = decodeBase64Image(base64Data)
+	if err != nil {
+		h.logger.Error("falha ao decodificar base64 do documento", "error", err)
+		h.sendText(ctx, "❌ Não consegui processar o documento. Formato inválido.")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	mimeType := doc.Mimetype
+	if mimeType == "" {
+		mimeType = "application/pdf"
+	}
+
+	h.sendText(ctx, "⏳ Analisando o extrato, aguarde...")
+
+	result, err := h.analyzeExpense.ExecuteDocument(ctx, usecase.DocumentInput{
+		Data:     docData,
+		MimeType: mimeType,
+		Caption:  doc.Caption,
+	})
+	if err != nil {
+		h.logger.Error("erro ao processar extrato", "error", err)
+		h.sendText(ctx, "❌ Não consegui processar o extrato. Tente novamente.")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	summary := formatStatementSummary(result)
+	h.sendText(ctx, summary)
+
+	if len(result.Pending) > 0 {
+		session := &pendingImportSession{
+			items:     result.Pending,
+			index:     0,
+			total:     len(result.Pending),
+			expiresAt: time.Now().Add(pendingImportTTL),
+		}
+		h.pendingImports.Store(h.ownerPhone, session)
+		h.sendText(ctx, formatConfirmationQuestion(result.Pending[0], 1, len(result.Pending)))
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *webhookHandler) tryHandlePendingConfirmation(ctx context.Context, w http.ResponseWriter, text string) bool {
+	val, ok := h.pendingImports.Load(h.ownerPhone)
+	if !ok {
+		return false
+	}
+
+	session, ok := val.(*pendingImportSession)
+	if !ok || time.Now().After(session.expiresAt) {
+		h.pendingImports.Delete(h.ownerPhone)
+		return false
+	}
+
+	answer := strings.ToLower(strings.TrimSpace(text))
+	if answer != "sim" && answer != "s" && answer != "não" && answer != "nao" && answer != "n" {
+		return false
+	}
+
+	current := session.items[session.index]
+
+	if answer == "sim" || answer == "s" {
+		h.saveConfirmedTransaction(ctx, current)
+	}
+
+	session.index++
+
+	if session.index >= session.total {
+		h.pendingImports.Delete(h.ownerPhone)
+		h.sendText(ctx, "✅ Importação concluída!")
+	} else {
+		session.expiresAt = time.Now().Add(pendingImportTTL)
+		next := session.items[session.index]
+		h.sendText(ctx, formatConfirmationQuestion(next, session.index+1, session.total))
+	}
+
+	w.WriteHeader(http.StatusOK)
+	return true
+}
+
+func (h *webhookHandler) saveConfirmedTransaction(ctx context.Context, tx usecase.PendingTransaction) {
+	if err := h.analyzeExpense.SavePendingTransaction(ctx, tx); err != nil {
+		h.logger.Error("erro ao salvar transação confirmada", "description", tx.Description, "error", err)
+		h.sendText(ctx, "⚠️ Não consegui salvar: "+tx.Description)
+	}
 }
 
 func (h *webhookHandler) notifyError(ctx context.Context, err error) {

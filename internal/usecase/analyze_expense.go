@@ -13,6 +13,8 @@ import (
 type ExpenseAnalyzer interface {
 	ExecuteText(ctx context.Context, input TextInput) (*ExpenseOutput, error)
 	ExecuteImage(ctx context.Context, input ImageInput) (*ExpenseOutput, error)
+	ExecuteDocument(ctx context.Context, input DocumentInput) (*StatementOutput, error)
+	SavePendingTransaction(ctx context.Context, tx PendingTransaction) error
 }
 
 type AnalyzeExpense struct {
@@ -33,6 +35,26 @@ type ImageInput struct {
 	ImageData []byte
 	MimeType  string
 	Caption   string
+}
+
+type DocumentInput struct {
+	Data     []byte
+	MimeType string
+	Caption  string
+}
+
+type PendingTransaction struct {
+	Date        time.Time
+	Description string
+	Amount      float64
+	Category    string
+	Payment     string
+	RawInput    string
+}
+
+type StatementOutput struct {
+	Inserted int
+	Pending  []PendingTransaction
 }
 
 type CategorySummary struct {

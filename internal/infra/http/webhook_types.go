@@ -26,13 +26,21 @@ type evolutionKey struct {
 }
 
 type evolutionMessage struct {
-	Conversation        string                 `json:"conversation,omitempty"`
-	ImageMessage        *evolutionImageMessage `json:"imageMessage,omitempty"`
-	ExtendedTextMessage *evolutionExtendedText `json:"extendedTextMessage,omitempty"`
+	Conversation        string                    `json:"conversation,omitempty"`
+	ImageMessage        *evolutionImageMessage    `json:"imageMessage,omitempty"`
+	DocumentMessage     *evolutionDocumentMessage `json:"documentMessage,omitempty"`
+	ExtendedTextMessage *evolutionExtendedText    `json:"extendedTextMessage,omitempty"`
 }
 
 type evolutionImageMessage struct {
 	Mimetype string `json:"mimetype"`
+	Caption  string `json:"caption"`
+	URL      string `json:"url"`
+}
+
+type evolutionDocumentMessage struct {
+	Mimetype string `json:"mimetype"`
+	Title    string `json:"title"`
 	Caption  string `json:"caption"`
 	URL      string `json:"url"`
 }

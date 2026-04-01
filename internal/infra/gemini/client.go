@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"google.golang.org/genai"
@@ -69,6 +70,34 @@ func (c *Client) AnalyzeImage(ctx context.Context, imageData []byte, mimeType st
 	}
 
 	return parseResponse(resp)
+}
+
+func (c *Client) AnalyzeDocument(ctx context.Context, data []byte, mimeType string) (*ports.StatementAnalysis, error) {
+	statementConfig := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{
+				{Text: statementPrompt},
+			},
+		},
+		ResponseMIMEType: "application/json",
+	}
+
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{InlineData: &genai.Blob{MIMEType: mimeType, Data: data}},
+				{Text: "Extraia todas as transações de débito deste extrato bancário."},
+			},
+		},
+	}
+
+	resp, err := c.client.Models.GenerateContent(ctx, modelName, contents, statementConfig)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao analisar extrato com gemini: %w", err)
+	}
+
+	return parseStatementResponse(resp)
 }
 
 func parseResponse(resp *genai.GenerateContentResponse) (*ports.ExpenseAnalysis, error) {
@@ -176,6 +205,56 @@ func (g *geminiResponse) toAnalysis(rawJSON string) *ports.ExpenseAnalysis {
 	}
 
 	return analysis
+}
+
+type geminiStatementTransaction struct {
+	Date           string  `json:"date"`
+	RawDescription string  `json:"raw_description"`
+	Description    string  `json:"description"`
+	Amount         float64 `json:"amount"`
+	Category       string  `json:"category"`
+	PaymentMethod  string  `json:"payment_method"`
+}
+
+type geminiStatementResponse struct {
+	Transactions []geminiStatementTransaction `json:"transactions"`
+}
+
+func parseStatementResponse(resp *genai.GenerateContentResponse) (*ports.StatementAnalysis, error) {
+	if resp == nil || len(resp.Candidates) == 0 {
+		return nil, fmt.Errorf("gemini retornou resposta vazia")
+	}
+
+	candidate := resp.Candidates[0]
+	if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
+		return nil, fmt.Errorf("gemini retornou conteúdo vazio")
+	}
+
+	var raw geminiStatementResponse
+	if err := json.Unmarshal([]byte(candidate.Content.Parts[0].Text), &raw); err != nil {
+		return nil, fmt.Errorf("erro ao deserializar extrato gemini: %w", err)
+	}
+
+	analysis := &ports.StatementAnalysis{
+		Transactions: make([]ports.StatementTransaction, 0, len(raw.Transactions)),
+	}
+
+	for _, t := range raw.Transactions {
+		parsed, err := time.Parse("2006-01-02", t.Date)
+		if err != nil {
+			continue // ignora linha com data inválida
+		}
+		analysis.Transactions = append(analysis.Transactions, ports.StatementTransaction{
+			Date:           parsed,
+			RawDescription: t.RawDescription,
+			Description:    t.Description,
+			Amount:         t.Amount,
+			Category:       t.Category,
+			PaymentMethod:  t.PaymentMethod,
+		})
+	}
+
+	return analysis, nil
 }
 
 func toExpenseType(s string) ports.ExpenseType {

@@ -14,8 +14,9 @@ import (
 )
 
 type mockAnalyzer struct {
-	executeTextFn  func(ctx context.Context, input usecase.TextInput) (*usecase.ExpenseOutput, error)
-	executeImageFn func(ctx context.Context, input usecase.ImageInput) (*usecase.ExpenseOutput, error)
+	executeTextFn     func(ctx context.Context, input usecase.TextInput) (*usecase.ExpenseOutput, error)
+	executeImageFn    func(ctx context.Context, input usecase.ImageInput) (*usecase.ExpenseOutput, error)
+	executeDocumentFn func(ctx context.Context, input usecase.DocumentInput) (*usecase.StatementOutput, error)
 }
 
 func (m *mockAnalyzer) ExecuteText(ctx context.Context, input usecase.TextInput) (*usecase.ExpenseOutput, error) {
@@ -27,6 +28,17 @@ func (m *mockAnalyzer) ExecuteText(ctx context.Context, input usecase.TextInput)
 
 func (m *mockAnalyzer) ExecuteImage(ctx context.Context, input usecase.ImageInput) (*usecase.ExpenseOutput, error) {
 	return m.executeImageFn(ctx, input)
+}
+
+func (m *mockAnalyzer) ExecuteDocument(ctx context.Context, input usecase.DocumentInput) (*usecase.StatementOutput, error) {
+	if m.executeDocumentFn != nil {
+		return m.executeDocumentFn(ctx, input)
+	}
+	return &usecase.StatementOutput{}, nil
+}
+
+func (m *mockAnalyzer) SavePendingTransaction(ctx context.Context, tx usecase.PendingTransaction) error {
+	return nil
 }
 
 type mockMessenger struct {

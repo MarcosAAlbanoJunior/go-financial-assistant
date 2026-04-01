@@ -33,6 +33,7 @@ const (
 	CategoryEntertainment Category = "ENTERTAINMENT"
 	CategoryShopping      Category = "SHOPPING"
 	CategoryMarket        Category = "MARKET"
+	CategoryInvestment    Category = "INVESTMENT"
 	CategoryOther         Category = "OTHER"
 )
 
