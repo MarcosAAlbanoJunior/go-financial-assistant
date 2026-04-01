@@ -35,4 +35,5 @@ type PurchaseRepository interface {
 	HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
 	FindPaymentsByMonth(ctx context.Context, month time.Time) ([]PaymentSummary, error)
 	FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]PaymentDetail, error)
+	ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error)
 }

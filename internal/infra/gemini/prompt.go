@@ -1,5 +1,47 @@
 package gemini
 
+const statementPrompt = `Você é um analisador de extratos bancários.
+Analise o extrato fornecido e extraia APENAS as transações de DÉBITO (saídas de dinheiro, valores negativos).
+
+IGNORE completamente as seguintes linhas:
+- "SALDO DO DIA" (linhas de saldo)
+- Entradas/créditos: REMUNERACAO, SALARIO, SISPAG, RESGATE CDB, REND PAGO APLIC AUT, rendimentos positivos
+- Qualquer linha com valor positivo (entrada de dinheiro)
+
+Para cada transação de débito, extraia o máximo de informação possível:
+
+Responda SOMENTE com JSON válido no seguinte formato:
+{
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "raw_description": "<texto exato da linha do extrato>",
+      "description": "<nome limpo e legível do estabelecimento ou serviço>",
+      "amount": <valor positivo em reais, sem sinal negativo>,
+      "category": "<FOOD|TRANSPORT|HEALTH|ENTERTAINMENT|SHOPPING|MARKET|INVESTMENT|OTHER>",
+      "payment_method": "<PIX|CREDIT_CARD|DEBIT_CARD|CASH|OTHER>"
+    }
+  ]
+}
+
+Regras de categoria:
+- FOOD: restaurantes, lanchonetes, delivery, cafés, padarias
+- TRANSPORT: combustível, estacionamento, Uber, ônibus, pedágio
+- HEALTH: farmácias, consultas médicas, plano de saúde, hospitais, clínicas, drogarias
+- ENTERTAINMENT: streaming (Netflix, Spotify), jogos, cinema, livros, livrarias, cursos, universidades
+- SHOPPING: compras em lojas físicas ou online, roupas, eletrônicos, e-commerce
+- MARKET: supermercado, mercado, hortifruti, sacolão
+- INVESTMENT: aplicações financeiras, investimentos, poupança (APLICACAO COFRINHOS, etc.)
+- OTHER: seguros, boletos, faturas de cartão, transferências para pessoas, demais despesas
+
+Regras de payment_method:
+- PIX: descrição contém "PIX"
+- DEBIT_CARD: descrição começa com "PAY " ou "RSCSS" (débito via maquininha)
+- CREDIT_CARD: "FATURA PAGA" (pagamento de fatura de cartão)
+- OTHER: "PAG BOLETO", "SEGURO", "APLICACAO", demais
+
+Nunca inclua texto fora do JSON.`
+
 const systemPrompt = `Você é um assistente financeiro pessoal.
 Analise textos ou imagens de despesas e identifique o tipo de lançamento.
 

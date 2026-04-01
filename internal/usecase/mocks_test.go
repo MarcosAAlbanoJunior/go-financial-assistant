@@ -11,8 +11,9 @@ import (
 )
 
 type mockAnalyzer struct {
-	analyzeTextFn  func(ctx context.Context, text string) (*ports.ExpenseAnalysis, error)
-	analyzeImageFn func(ctx context.Context, imageData []byte, mimeType string) (*ports.ExpenseAnalysis, error)
+	analyzeTextFn     func(ctx context.Context, text string) (*ports.ExpenseAnalysis, error)
+	analyzeImageFn    func(ctx context.Context, imageData []byte, mimeType string) (*ports.ExpenseAnalysis, error)
+	analyzeDocumentFn func(ctx context.Context, data []byte, mimeType string) (*ports.StatementAnalysis, error)
 }
 
 func (m *mockAnalyzer) AnalyzeText(ctx context.Context, text string) (*ports.ExpenseAnalysis, error) {
@@ -23,15 +24,25 @@ func (m *mockAnalyzer) AnalyzeImage(ctx context.Context, imageData []byte, mimeT
 	return m.analyzeImageFn(ctx, imageData, mimeType)
 }
 
+func (m *mockAnalyzer) AnalyzeDocument(ctx context.Context, data []byte, mimeType string) (*ports.StatementAnalysis, error) {
+	if m.analyzeDocumentFn != nil {
+		return m.analyzeDocumentFn(ctx, data, mimeType)
+	}
+	return &ports.StatementAnalysis{}, nil
+}
+
+// SavePendingTransaction não é método do AIAnalyzer — pertence ao use case AnalyzeExpense.
+
 type mockPurchaseRepo struct {
-	saveFn                      func(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error
-	findActiveRecurringFn       func(ctx context.Context) ([]domain.Purchase, error)
-	findByDescriptionFn         func(ctx context.Context, description string) ([]domain.Purchase, error)
-	updateFn                    func(ctx context.Context, purchase *domain.Purchase) error
-	savePaymentFn               func(ctx context.Context, payment *domain.Payment) error
-	hasPaymentForMonthFn        func(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
-	findPaymentsByMonthFn       func(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error)
-	findPaymentDetailsByMonthFn func(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error)
+	saveFn                           func(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error
+	findActiveRecurringFn            func(ctx context.Context) ([]domain.Purchase, error)
+	findByDescriptionFn              func(ctx context.Context, description string) ([]domain.Purchase, error)
+	updateFn                         func(ctx context.Context, purchase *domain.Purchase) error
+	savePaymentFn                    func(ctx context.Context, payment *domain.Payment) error
+	hasPaymentForMonthFn             func(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
+	findPaymentsByMonthFn            func(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error)
+	findPaymentDetailsByMonthFn      func(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error)
+	existsPaymentByDateAndAmountFn   func(ctx context.Context, date time.Time, amount float64) (bool, error)
 }
 
 func (m *mockPurchaseRepo) Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error {
@@ -88,6 +99,13 @@ func (m *mockPurchaseRepo) FindPaymentDetailsByMonth(ctx context.Context, month 
 		return m.findPaymentDetailsByMonthFn(ctx, month)
 	}
 	return nil, nil
+}
+
+func (m *mockPurchaseRepo) ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error) {
+	if m.existsPaymentByDateAndAmountFn != nil {
+		return m.existsPaymentByDateAndAmountFn(ctx, date, amount)
+	}
+	return false, nil
 }
 
 func ptr[T any](v T) *T { return &v }
