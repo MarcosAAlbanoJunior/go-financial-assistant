@@ -139,28 +139,35 @@ type geminiQuery struct {
 }
 
 type geminiResponse struct {
-	Type            string                 `json:"type"`
-	Amount          *float64               `json:"amount"`
-	Description     *string                `json:"description"`
-	Category        *string                `json:"category"`
-	PaymentMethod   *string                `json:"payment_method"`
-	Confidence      float64                `json:"confidence"`
-	Installments    *geminiInstallments    `json:"installments"`
-	Recurring       *geminiRecurring       `json:"recurring"`
-	CancelRecurring *geminiCancelRecurring `json:"cancel_recurring"`
-	Query           *geminiQuery           `json:"query"`
-	Export          *geminiQuery           `json:"export"`
+	Type              string                 `json:"type"`
+	Amount            *float64               `json:"amount"`
+	Description       *string                `json:"description"`
+	Category          *string                `json:"category"`
+	PaymentMethod     *string                `json:"payment_method"`
+	TransferDirection *string                `json:"transfer_direction"`
+	Confidence        float64                `json:"confidence"`
+	Installments      *geminiInstallments    `json:"installments"`
+	Recurring         *geminiRecurring       `json:"recurring"`
+	CancelRecurring   *geminiCancelRecurring `json:"cancel_recurring"`
+	Query             *geminiQuery           `json:"query"`
+	Export            *geminiQuery           `json:"export"`
 }
 
 func (g *geminiResponse) toAnalysis(rawJSON string) *ports.ExpenseAnalysis {
+	transferDirection := ""
+	if g.TransferDirection != nil && (*g.TransferDirection == "IN" || *g.TransferDirection == "OUT") {
+		transferDirection = *g.TransferDirection
+	}
+
 	analysis := &ports.ExpenseAnalysis{
-		Amount:        g.Amount,
-		Description:   g.Description,
-		Category:      g.Category,
-		PaymentMethod: g.PaymentMethod,
-		Confidence:    g.Confidence,
-		RawResponse:   rawJSON,
-		Type:          toExpenseType(g.Type),
+		Amount:            g.Amount,
+		Description:       g.Description,
+		Category:          g.Category,
+		PaymentMethod:     g.PaymentMethod,
+		TransferDirection: transferDirection,
+		Confidence:        g.Confidence,
+		RawResponse:       rawJSON,
+		Type:              toExpenseType(g.Type),
 	}
 
 	if g.Installments != nil {
@@ -213,6 +220,7 @@ type geminiStatementTransaction struct {
 	Description    string  `json:"description"`
 	Amount         float64 `json:"amount"`
 	Kind           string  `json:"kind"`
+	Direction      string  `json:"direction"`
 	Category       string  `json:"category"`
 	PaymentMethod  string  `json:"payment_method"`
 }
@@ -246,17 +254,31 @@ func parseStatementResponse(resp *genai.GenerateContentResponse) (*ports.Stateme
 			continue // ignora linha com data inválida
 		}
 		kind := t.Kind
-		if kind != "INCOME" {
+		if kind != "INCOME" && kind != "TRANSFER" {
 			kind = "EXPENSE"
 		}
+		direction := ""
+		if kind == "TRANSFER" {
+			if t.Direction == "IN" || t.Direction == "OUT" {
+				direction = t.Direction
+			} else if t.Amount > 0 {
+				// fallback heurístico: RESGATE tem "RESGATE" na descrição
+				if len(t.RawDescription) >= 6 && t.RawDescription[:6] == "RESGAT" {
+					direction = "IN"
+				} else {
+					direction = "OUT"
+				}
+			}
+		}
 		analysis.Transactions = append(analysis.Transactions, ports.StatementTransaction{
-			Date:           parsed,
-			RawDescription: t.RawDescription,
-			Description:    t.Description,
-			Amount:         t.Amount,
-			Kind:           kind,
-			Category:       t.Category,
-			PaymentMethod:  t.PaymentMethod,
+			Date:              parsed,
+			RawDescription:    t.RawDescription,
+			Description:       t.Description,
+			Amount:            t.Amount,
+			Kind:              kind,
+			Category:          t.Category,
+			PaymentMethod:     t.PaymentMethod,
+			TransferDirection: direction,
 		})
 	}
 
@@ -295,6 +317,8 @@ func toExpenseType(s string) ports.ExpenseType {
 		return ports.ExpenseTypeIncome
 	case "INCOME_RECURRING":
 		return ports.ExpenseTypeIncomeRecurring
+	case "TRANSFER":
+		return ports.ExpenseTypeTransfer
 	default:
 		return ports.ExpenseTypeSingle
 	}

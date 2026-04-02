@@ -242,6 +242,103 @@ func TestExportCSV_NilDescription(t *testing.T) {
 	}
 }
 
+func TestExportCSV_TransferRows(t *testing.T) {
+	due := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
+	details := []ports.PaymentDetail{
+		{Description: strPtr("Gasto"), Category: "FOOD", PaymentMethod: "PIX", Amount: 100.00, PurchaseType: "SINGLE", PurchaseKind: "EXPENSE", DueDate: &due},
+		{Description: strPtr("Aplicação Cofrinho"), Category: "OTHER", PaymentMethod: "PIX", Amount: 500.00, PurchaseType: "SINGLE", PurchaseKind: "TRANSFER", TransferDirection: "OUT", DueDate: &due},
+		{Description: strPtr("Resgate CDB"), Category: "OTHER", PaymentMethod: "PIX", Amount: 200.00, PurchaseType: "SINGLE", PurchaseKind: "TRANSFER", TransferDirection: "IN", DueDate: &due},
+	}
+	repo := &mockPurchaseRepo{
+		findPaymentDetailsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentDetail, error) {
+			return details, nil
+		},
+	}
+
+	uc := NewExportCSV(repo)
+	data, _, summary, err := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+
+	records := parseCSV(t, data)
+	// cabeçalho + 3 dados + TOTAL DESPESAS + TOTAL APLICADO + TOTAL RESGATADO = 7
+	if len(records) != 7 {
+		t.Fatalf("esperava 7 linhas, got %d: %v", len(records), records)
+	}
+
+	totalRow := records[4]
+	if totalRow[1] != "TOTAL DESPESAS" || totalRow[6] != "100.00" {
+		t.Errorf("TOTAL DESPESAS incorreto: %v", totalRow)
+	}
+	aplicadoRow := records[5]
+	if aplicadoRow[1] != "TOTAL APLICADO" || aplicadoRow[6] != "500.00" {
+		t.Errorf("TOTAL APLICADO incorreto: %v", aplicadoRow)
+	}
+	resgatadoRow := records[6]
+	if resgatadoRow[1] != "TOTAL RESGATADO" || resgatadoRow[6] != "200.00" {
+		t.Errorf("TOTAL RESGATADO incorreto: %v", resgatadoRow)
+	}
+
+	if summary.TotalExpenses != 100.00 {
+		t.Errorf("summary.TotalExpenses: esperava 100.00, got %.2f", summary.TotalExpenses)
+	}
+	if summary.TotalApplied != 500.00 {
+		t.Errorf("summary.TotalApplied: esperava 500.00, got %.2f", summary.TotalApplied)
+	}
+	if summary.TotalRedeemed != 200.00 {
+		t.Errorf("summary.TotalRedeemed: esperava 200.00, got %.2f", summary.TotalRedeemed)
+	}
+}
+
+func TestBuildExportCaption_WithTransfers(t *testing.T) {
+	month := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	summary := &ExportSummary{
+		TotalExpenses: 1000.00,
+		TotalIncome:   6000.00,
+		Balance:       5000.00,
+		TotalApplied:  3000.00,
+		TotalRedeemed: 500.00,
+		InAccount:     2500.00,
+	}
+
+	caption := BuildExportCaption(month, summary)
+
+	if !strings.Contains(caption, "Despesas: R$ 1000.00") {
+		t.Errorf("caption sem despesas: %q", caption)
+	}
+	if !strings.Contains(caption, "Entradas: R$ 6000.00") {
+		t.Errorf("caption sem entradas: %q", caption)
+	}
+	if !strings.Contains(caption, "Resultado: R$ 5000.00") {
+		t.Errorf("caption sem resultado: %q", caption)
+	}
+	if !strings.Contains(caption, "Aplicado: R$ 3000.00") {
+		t.Errorf("caption sem aplicado: %q", caption)
+	}
+	if !strings.Contains(caption, "Resgatado: R$ 500.00") {
+		t.Errorf("caption sem resgatado: %q", caption)
+	}
+	if !strings.Contains(caption, "Em conta: R$ 2500.00") {
+		t.Errorf("caption sem em conta: %q", caption)
+	}
+}
+
+func TestBuildExportCaption_NoTransfers(t *testing.T) {
+	month := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	summary := &ExportSummary{TotalExpenses: 500.00}
+
+	caption := BuildExportCaption(month, summary)
+
+	if strings.Contains(caption, "Aplicado") {
+		t.Error("caption não deveria ter linha de investimentos quando não há transferências")
+	}
+	if strings.Contains(caption, "Em conta") {
+		t.Error("caption não deveria ter 'Em conta' sem transferências")
+	}
+}
+
 var errSentinel = errors.New("repo error")
 
 func strPtr(s string) *string { return &s }

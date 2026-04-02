@@ -20,7 +20,8 @@ type PaymentDetail struct {
 	Amount            float64
 	Status            string
 	PurchaseType      string
-	PurchaseKind      string // "EXPENSE" ou "INCOME"
+	PurchaseKind      string // "EXPENSE", "INCOME" ou "TRANSFER"
+	TransferDirection string // "IN", "OUT" ou "" para não-TRANSFER
 	InstallmentNumber *int
 	DueDate           *time.Time
 	ReferenceMonth    *time.Time
@@ -37,5 +38,6 @@ type PurchaseRepository interface {
 	FindPaymentsByMonth(ctx context.Context, month time.Time) ([]PaymentSummary, error)
 	FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]PaymentDetail, error)
 	FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error)
+	FindTransferNetByMonth(ctx context.Context, month time.Time) (applied float64, redeemed float64, err error)
 	ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error)
 }

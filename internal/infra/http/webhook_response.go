@@ -13,13 +13,13 @@ import (
 
 func formatStatementSummary(output *usecase.StatementOutput) string {
 	if output.Inserted == 0 && len(output.Pending) == 0 {
-		return "📄 Nenhuma despesa nova encontrada no extrato."
+		return "📄 Nenhuma transação nova encontrada no extrato."
 	}
 
 	var sb strings.Builder
 	sb.WriteString("📄 *Extrato processado!*\n")
 	if output.Inserted > 0 {
-		sb.WriteString(fmt.Sprintf("✅ %d despesa(s) importada(s) automaticamente.\n", output.Inserted))
+		sb.WriteString(fmt.Sprintf("✅ %d transação(ões) importada(s) automaticamente.\n", output.Inserted))
 	}
 	if len(output.Pending) > 0 {
 		sb.WriteString(fmt.Sprintf("⚠️ %d transação(ões) já existem no banco — vou perguntar uma a uma.", len(output.Pending)))
@@ -88,6 +88,9 @@ func formatReply(output *usecase.ExpenseOutput) string {
 	case "INCOME_RECURRING":
 		return fmt.Sprintf("✅ Entrada recorrente registrada!\n💰 R$ %.2f/mês\n📝 %s\n🏷️ %s\n💳 %s\n📅 Dia %d de cada mês",
 			output.Amount, output.Description, output.Category, output.Payment, output.DayOfMonth)
+	case "TRANSFER":
+		return fmt.Sprintf("↔️ Transferência registrada!\n💰 R$ %.2f\n📝 %s\n💳 %s",
+			output.Amount, output.Description, output.Payment)
 	default:
 		return fmt.Sprintf("✅ Despesa registrada!\n💰 R$ %.2f\n📝 %s\n🏷️ %s\n💳 %s",
 			output.Amount, output.Description, output.Category, output.Payment)
@@ -111,7 +114,14 @@ func formatQueryReply(output *usecase.ExpenseOutput) string {
 
 	if output.QueryIncome > 0 {
 		sb.WriteString(fmt.Sprintf("\n💰 Entradas: R$ %.2f\n", output.QueryIncome))
-		sb.WriteString(fmt.Sprintf("📈 Saldo: R$ %.2f\n", output.QueryBalance))
+		sb.WriteString(fmt.Sprintf("📈 Resultado: R$ %.2f\n", output.QueryBalance))
+	}
+
+	if output.QueryApplied > 0 || output.QueryRedeemed > 0 {
+		sb.WriteString(fmt.Sprintf("\n🏦 Investimentos no mês\n"))
+		sb.WriteString(fmt.Sprintf("  ↓ Aplicado: R$ %.2f\n", output.QueryApplied))
+		sb.WriteString(fmt.Sprintf("  ↑ Resgatado: R$ %.2f\n", output.QueryRedeemed))
+		sb.WriteString(fmt.Sprintf("💵 Em conta: R$ %.2f\n", output.QueryInAccount))
 	}
 
 	return sb.String()

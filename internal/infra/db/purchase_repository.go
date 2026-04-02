@@ -16,6 +16,7 @@ type purchaseModel struct {
 	Category           string     `db:"category"`
 	PaymentMethod      string     `db:"payment_method"`
 	Kind               string     `db:"kind"`
+	TransferDirection  *string    `db:"transfer_direction"`
 	Type               string     `db:"type"`
 	TotalAmount        float64    `db:"total_amount"`
 	InstallmentCount   *int       `db:"installment_count"`
@@ -29,12 +30,18 @@ type purchaseModel struct {
 }
 
 func (m purchaseModel) toDomain() domain.Purchase {
+	var dir *domain.TransferDirection
+	if m.TransferDirection != nil {
+		d := domain.TransferDirection(*m.TransferDirection)
+		dir = &d
+	}
 	return domain.Purchase{
 		ID:                 m.ID,
 		Description:        m.Description,
 		Category:           domain.Category(m.Category),
 		PaymentMethod:      domain.PaymentMethod(m.PaymentMethod),
 		Kind:               domain.PurchaseKind(m.Kind),
+		TransferDirection:  dir,
 		Type:               domain.PurchaseType(m.Type),
 		TotalAmount:        m.TotalAmount,
 		InstallmentCount:   m.InstallmentCount,
@@ -75,15 +82,21 @@ func (r *PostgresPurchaseRepository) Save(ctx context.Context, purchase *domain.
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	var transferDir *string
+	if purchase.TransferDirection != nil {
+		s := string(*purchase.TransferDirection)
+		transferDir = &s
+	}
+
 	purchaseQuery := `
 		INSERT INTO purchases
-			(id, description, category, payment_method, kind, type, total_amount,
+			(id, description, category, payment_method, kind, transfer_direction, type, total_amount,
 			 installment_count, installment_amount, day_of_month, is_active, raw_input, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 	if _, err := tx.Exec(ctx, purchaseQuery,
 		purchase.ID, purchase.Description, purchase.Category, purchase.PaymentMethod,
-		purchase.Kind, purchase.Type, purchase.TotalAmount, purchase.InstallmentCount,
+		purchase.Kind, transferDir, purchase.Type, purchase.TotalAmount, purchase.InstallmentCount,
 		purchase.InstallmentAmount, purchase.DayOfMonth, purchase.IsActive,
 		purchase.RawInput, purchase.CreatedAt,
 	); err != nil {
@@ -136,6 +149,23 @@ func (r *PostgresPurchaseRepository) FindIncomeTotalByMonth(ctx context.Context,
 		return 0, fmt.Errorf("erro ao consultar entradas do mês: %w", err)
 	}
 	return total, nil
+}
+
+func (r *PostgresPurchaseRepository) FindTransferNetByMonth(ctx context.Context, month time.Time) (applied float64, redeemed float64, err error) {
+	query := `
+		SELECT
+			COALESCE(SUM(CASE WHEN p.transfer_direction = 'OUT' THEN pay.amount ELSE 0 END), 0) AS applied,
+			COALESCE(SUM(CASE WHEN p.transfer_direction = 'IN'  THEN pay.amount ELSE 0 END), 0) AS redeemed
+		FROM payments pay
+		JOIN purchases p ON p.id = pay.purchase_id
+		WHERE DATE_TRUNC('month', COALESCE(pay.due_date, pay.reference_month, pay.created_at)) = DATE_TRUNC('month', $1::timestamptz)
+		  AND p.kind = 'TRANSFER'
+		  AND pay.status != 'CANCELLED'
+	`
+	if err = r.db.Pool.QueryRow(ctx, query, month).Scan(&applied, &redeemed); err != nil {
+		return 0, 0, fmt.Errorf("erro ao consultar transferências do mês: %w", err)
+	}
+	return applied, redeemed, nil
 }
 
 func (r *PostgresPurchaseRepository) SavePayment(ctx context.Context, payment *domain.Payment) error {

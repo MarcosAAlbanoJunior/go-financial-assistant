@@ -44,13 +44,14 @@ type DocumentInput struct {
 }
 
 type PendingTransaction struct {
-	Date        time.Time
-	Description string
-	Amount      float64
-	Category    string
-	Payment     string
-	RawInput    string
-	Kind        string // "EXPENSE" ou "INCOME"
+	Date              time.Time
+	Description       string
+	Amount            float64
+	Category          string
+	Payment           string
+	RawInput          string
+	Kind              string // "EXPENSE", "INCOME" ou "TRANSFER"
+	TransferDirection string // "IN" ou "OUT", só para TRANSFER
 }
 
 type StatementOutput struct {
@@ -87,8 +88,12 @@ type ExpenseOutput struct {
 
 	ExportMonthTime time.Time `json:"-"`
 
-	QueryIncome  float64 `json:"query_income,omitempty"`
-	QueryBalance float64 `json:"query_balance,omitempty"`
+	QueryIncome    float64 `json:"query_income,omitempty"`
+	QueryBalance   float64 `json:"query_balance,omitempty"`
+	QueryApplied    float64 `json:"query_applied,omitempty"`
+	QueryRedeemed   float64 `json:"query_redeemed,omitempty"`
+	QueryNetInvested float64 `json:"query_net_invested,omitempty"`
+	QueryInAccount  float64 `json:"query_in_account,omitempty"`
 }
 
 func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*ExpenseOutput, error) {
@@ -114,6 +119,8 @@ func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*Ex
 		return uc.processIncome(ctx, analysis, payment, input.Text)
 	case ports.ExpenseTypeIncomeRecurring:
 		return uc.processIncomeRecurring(ctx, analysis, payment, input.Text)
+	case ports.ExpenseTypeTransfer:
+		return uc.processTransfer(ctx, analysis, payment, input.Text)
 	default:
 		return uc.processAnalysis(ctx, analysis, payment, input.Text)
 	}
@@ -141,6 +148,8 @@ func (uc *AnalyzeExpense) ExecuteImage(ctx context.Context, input ImageInput) (*
 		return uc.processIncome(ctx, analysis, payment, rawInput)
 	case ports.ExpenseTypeIncomeRecurring:
 		return uc.processIncomeRecurring(ctx, analysis, payment, rawInput)
+	case ports.ExpenseTypeTransfer:
+		return uc.processTransfer(ctx, analysis, payment, rawInput)
 	default:
 		return uc.processAnalysis(ctx, analysis, payment, rawInput)
 	}

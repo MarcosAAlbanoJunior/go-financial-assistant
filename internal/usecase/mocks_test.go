@@ -43,6 +43,7 @@ type mockPurchaseRepo struct {
 	findPaymentsByMonthFn            func(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error)
 	findPaymentDetailsByMonthFn      func(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error)
 	findIncomeTotalByMonthFn         func(ctx context.Context, month time.Time) (float64, error)
+	findTransferNetByMonthFn         func(ctx context.Context, month time.Time) (float64, float64, error)
 	existsPaymentByDateAndAmountFn   func(ctx context.Context, date time.Time, amount float64) (bool, error)
 }
 
@@ -107,6 +108,13 @@ func (m *mockPurchaseRepo) FindIncomeTotalByMonth(ctx context.Context, month tim
 		return m.findIncomeTotalByMonthFn(ctx, month)
 	}
 	return 0, nil
+}
+
+func (m *mockPurchaseRepo) FindTransferNetByMonth(ctx context.Context, month time.Time) (float64, float64, error) {
+	if m.findTransferNetByMonthFn != nil {
+		return m.findTransferNetByMonthFn(ctx, month)
+	}
+	return 0, 0, nil
 }
 
 func (m *mockPurchaseRepo) ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error) {
