@@ -17,8 +17,16 @@ const (
 type PurchaseKind string
 
 const (
-	KindExpense PurchaseKind = "EXPENSE"
-	KindIncome  PurchaseKind = "INCOME"
+	KindExpense  PurchaseKind = "EXPENSE"
+	KindIncome   PurchaseKind = "INCOME"
+	KindTransfer PurchaseKind = "TRANSFER"
+)
+
+type TransferDirection string
+
+const (
+	TransferDirectionOut TransferDirection = "OUT" // aplicação: dinheiro saindo para investimento
+	TransferDirectionIn  TransferDirection = "IN"  // resgate: dinheiro voltando do investimento
 )
 
 type PaymentMethod string
@@ -51,6 +59,7 @@ type Purchase struct {
 	Category           Category
 	PaymentMethod      PaymentMethod
 	Kind               PurchaseKind
+	TransferDirection  *TransferDirection
 	Type               PurchaseType
 	TotalAmount        float64
 	InstallmentCount   *int
@@ -114,6 +123,42 @@ func NewIncome(
 		RawInput:      rawInput,
 		CreatedAt:     time.Now().UTC(),
 	}, nil
+}
+
+func NewTransfer(
+	amount float64,
+	description *string,
+	paymentMethod PaymentMethod,
+	purchaseType PurchaseType,
+	rawInput string,
+	direction TransferDirection,
+) (*Purchase, error) {
+	if amount <= 0 {
+		return nil, ErrInvalidAmount
+	}
+	if purchaseType == PurchaseTypeInstallment {
+		return nil, ErrInvalidAmount
+	}
+	return &Purchase{
+		ID:                uuid.New(),
+		Description:       description,
+		Category:          CategoryOther,
+		PaymentMethod:     paymentMethod,
+		Kind:              KindTransfer,
+		TransferDirection: &direction,
+		Type:              purchaseType,
+		TotalAmount:       amount,
+		IsActive:          true,
+		RawInput:          rawInput,
+		CreatedAt:         time.Now().UTC(),
+	}, nil
+}
+
+func ParseTransferDirection(s string) TransferDirection {
+	if s == string(TransferDirectionIn) {
+		return TransferDirectionIn
+	}
+	return TransferDirectionOut
 }
 
 func (p *Purchase) Cancel(reason string) {

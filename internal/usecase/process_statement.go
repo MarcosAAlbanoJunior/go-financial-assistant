@@ -29,13 +29,14 @@ func (uc *AnalyzeExpense) ExecuteDocument(ctx context.Context, input DocumentInp
 
 		if isDuplicate {
 			output.Pending = append(output.Pending, PendingTransaction{
-				Date:        tx.Date,
-				Description: tx.Description,
-				Amount:      tx.Amount,
-				Category:    tx.Category,
-				Payment:     tx.PaymentMethod,
-				RawInput:    fmt.Sprintf("[extrato: %s]", tx.RawDescription),
-				Kind:        tx.Kind,
+				Date:              tx.Date,
+				Description:       tx.Description,
+				Amount:            tx.Amount,
+				Category:          tx.Category,
+				Payment:           tx.PaymentMethod,
+				RawInput:          fmt.Sprintf("[extrato: %s]", tx.RawDescription),
+				Kind:              tx.Kind,
+				TransferDirection: tx.TransferDirection,
 			})
 			continue
 		}
@@ -58,7 +59,8 @@ func (uc *AnalyzeExpense) SavePendingTransaction(ctx context.Context, tx Pending
 	}
 
 	var purchase *domain.Purchase
-	if tx.Kind == "INCOME" {
+	switch tx.Kind {
+	case "INCOME":
 		purchase, err = domain.NewIncome(
 			tx.Amount,
 			&tx.Description,
@@ -67,7 +69,16 @@ func (uc *AnalyzeExpense) SavePendingTransaction(ctx context.Context, tx Pending
 			domain.PurchaseTypeSingle,
 			tx.RawInput,
 		)
-	} else {
+	case "TRANSFER":
+		purchase, err = domain.NewTransfer(
+			tx.Amount,
+			&tx.Description,
+			payment,
+			domain.PurchaseTypeSingle,
+			tx.RawInput,
+			domain.ParseTransferDirection(tx.TransferDirection),
+		)
+	default:
 		purchase, err = domain.NewPurchase(
 			tx.Amount,
 			&tx.Description,
@@ -100,7 +111,8 @@ func (uc *AnalyzeExpense) saveStatementTransaction(ctx context.Context, tx ports
 	rawInput := fmt.Sprintf("[extrato: %s]", tx.RawDescription)
 
 	var purchase *domain.Purchase
-	if tx.Kind == "INCOME" {
+	switch tx.Kind {
+	case "INCOME":
 		purchase, err = domain.NewIncome(
 			tx.Amount,
 			&desc,
@@ -109,7 +121,16 @@ func (uc *AnalyzeExpense) saveStatementTransaction(ctx context.Context, tx ports
 			domain.PurchaseTypeSingle,
 			rawInput,
 		)
-	} else {
+	case "TRANSFER":
+		purchase, err = domain.NewTransfer(
+			tx.Amount,
+			&desc,
+			payment,
+			domain.PurchaseTypeSingle,
+			rawInput,
+			domain.ParseTransferDirection(tx.TransferDirection),
+		)
+	default:
 		purchase, err = domain.NewPurchase(
 			tx.Amount,
 			&desc,

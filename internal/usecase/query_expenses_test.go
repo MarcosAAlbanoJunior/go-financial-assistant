@@ -164,6 +164,78 @@ func TestProcessQuery_NoQueryInfo_UsesCurrentMonth(t *testing.T) {
 	}
 }
 
+func TestProcessQuery_WithIncomeAndTransfers(t *testing.T) {
+	repo := &mockPurchaseRepo{
+		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentSummary, error) {
+			return []ports.PaymentSummary{{Category: "FOOD", Total: 1000.00}}, nil
+		},
+		findIncomeTotalByMonthFn: func(_ context.Context, _ time.Time) (float64, error) {
+			return 6000.00, nil
+		},
+		findTransferNetByMonthFn: func(_ context.Context, _ time.Time) (float64, float64, error) {
+			return 3000.00, 500.00, nil // applied=3000, redeemed=500
+		},
+	}
+	analyzer := &mockAnalyzer{
+		analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
+			return &ports.ExpenseAnalysis{Type: ports.ExpenseTypeQuery, QueryInfo: &ports.QueryInfo{Month: 3, Year: 2026}}, nil
+		},
+	}
+
+	output, err := newUC(repo, analyzer).ExecuteText(context.Background(), TextInput{Text: "resumo março 2026"})
+
+	if err != nil {
+		t.Fatalf("esperava sem erro, got: %v", err)
+	}
+	if output.QueryTotal != 1000.00 {
+		t.Errorf("QueryTotal: esperava 1000.00, got %.2f", output.QueryTotal)
+	}
+	if output.QueryIncome != 6000.00 {
+		t.Errorf("QueryIncome: esperava 6000.00, got %.2f", output.QueryIncome)
+	}
+	if output.QueryBalance != 5000.00 {
+		t.Errorf("QueryBalance: esperava 5000.00, got %.2f", output.QueryBalance)
+	}
+	if output.QueryApplied != 3000.00 {
+		t.Errorf("QueryApplied: esperava 3000.00, got %.2f", output.QueryApplied)
+	}
+	if output.QueryRedeemed != 500.00 {
+		t.Errorf("QueryRedeemed: esperava 500.00, got %.2f", output.QueryRedeemed)
+	}
+	if output.QueryNetInvested != 2500.00 {
+		t.Errorf("QueryNetInvested: esperava 2500.00, got %.2f", output.QueryNetInvested)
+	}
+	// em conta = resultado(5000) - líquido investido(2500) = 2500
+	if output.QueryInAccount != 2500.00 {
+		t.Errorf("QueryInAccount: esperava 2500.00, got %.2f", output.QueryInAccount)
+	}
+}
+
+func TestProcessQuery_EmptyWithTransfers_NotEmpty(t *testing.T) {
+	repo := &mockPurchaseRepo{
+		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentSummary, error) {
+			return nil, nil
+		},
+		findTransferNetByMonthFn: func(_ context.Context, _ time.Time) (float64, float64, error) {
+			return 1000.00, 0, nil
+		},
+	}
+	analyzer := &mockAnalyzer{
+		analyzeTextFn: func(_ context.Context, _ string) (*ports.ExpenseAnalysis, error) {
+			return &ports.ExpenseAnalysis{Type: ports.ExpenseTypeQuery, QueryInfo: &ports.QueryInfo{Month: 1, Year: 2026}}, nil
+		},
+	}
+
+	output, err := newUC(repo, analyzer).ExecuteText(context.Background(), TextInput{Text: "resumo"})
+
+	if err != nil {
+		t.Fatalf("esperava sem erro, got: %v", err)
+	}
+	if output.QueryEmpty {
+		t.Error("QueryEmpty não deveria ser true quando há transferências")
+	}
+}
+
 func TestResolveQueryMonth_InvalidMonth(t *testing.T) {
 	info := &ports.QueryInfo{Month: 13, Year: 2025}
 	now := time.Now().UTC()

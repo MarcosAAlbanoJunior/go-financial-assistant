@@ -19,6 +19,7 @@ type paymentDetailModel struct {
 	Status            string     `db:"status"`
 	PurchaseType      string     `db:"purchase_type"`
 	PurchaseKind      string     `db:"purchase_kind"`
+	TransferDirection *string    `db:"transfer_direction"`
 	InstallmentNumber *int       `db:"installment_number"`
 	DueDate           *time.Time `db:"due_date"`
 	ReferenceMonth    *time.Time `db:"reference_month"`
@@ -26,6 +27,10 @@ type paymentDetailModel struct {
 }
 
 func (m paymentDetailModel) toPort() ports.PaymentDetail {
+	dir := ""
+	if m.TransferDirection != nil {
+		dir = *m.TransferDirection
+	}
 	return ports.PaymentDetail{
 		Description:       m.Description,
 		Category:          m.Category,
@@ -34,6 +39,7 @@ func (m paymentDetailModel) toPort() ports.PaymentDetail {
 		Status:            m.Status,
 		PurchaseType:      m.PurchaseType,
 		PurchaseKind:      m.PurchaseKind,
+		TransferDirection: dir,
 		InstallmentNumber: m.InstallmentNumber,
 		DueDate:           m.DueDate,
 		ReferenceMonth:    m.ReferenceMonth,
@@ -46,7 +52,8 @@ func (r *PostgresPurchaseRepository) ExistsPaymentByDateAndAmount(ctx context.Co
 		SELECT EXISTS(
 			SELECT 1 FROM payments
 			WHERE ABS(amount - $2) < 0.001
-			  AND DATE_TRUNC('day', COALESCE(due_date, paid_at, created_at)) = DATE_TRUNC('day', $1::timestamptz)
+			  AND due_date IS NOT NULL
+			  AND DATE_TRUNC('day', due_date) = DATE_TRUNC('day', $1::timestamptz)
 			  AND status != 'CANCELLED'
 		)
 	`
@@ -156,6 +163,7 @@ func (r *PostgresPurchaseRepository) FindPaymentDetailsByMonth(ctx context.Conte
 		    pay.status,
 		    p.type AS purchase_type,
 		    p.kind AS purchase_kind,
+		    p.transfer_direction,
 		    pay.installment_number,
 		    pay.due_date,
 		    pay.reference_month,
@@ -183,4 +191,3 @@ func (r *PostgresPurchaseRepository) FindPaymentDetailsByMonth(ctx context.Conte
 	return result, nil
 }
 
-//todo colocar saldo tambem de entradas.

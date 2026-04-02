@@ -16,6 +16,9 @@ type ExportSummary struct {
 	TotalExpenses float64
 	TotalIncome   float64
 	Balance       float64
+	TotalApplied  float64
+	TotalRedeemed float64
+	InAccount     float64
 }
 
 type CSVExporter interface {
@@ -49,15 +52,22 @@ func (uc *ExportCSV) Execute(ctx context.Context, month time.Time) ([]byte, stri
 		return nil, "", nil, fmt.Errorf("erro ao escrever cabeçalho: %w", err)
 	}
 
-	var totalExpenses, totalIncome float64
+	var totalExpenses, totalIncome, totalApplied, totalRedeemed float64
 	for _, d := range details {
 		row := buildCSVRow(d)
 		if err := w.Write(row); err != nil {
 			return nil, "", nil, fmt.Errorf("erro ao escrever linha: %w", err)
 		}
-		if d.PurchaseKind == "INCOME" {
+		switch d.PurchaseKind {
+		case "INCOME":
 			totalIncome += d.Amount
-		} else {
+		case "TRANSFER":
+			if d.TransferDirection == "IN" {
+				totalRedeemed += d.Amount
+			} else {
+				totalApplied += d.Amount
+			}
+		default:
 			totalExpenses += d.Amount
 		}
 	}
@@ -74,6 +84,16 @@ func (uc *ExportCSV) Execute(ctx context.Context, month time.Time) ([]byte, stri
 			return nil, "", nil, fmt.Errorf("erro ao escrever saldo: %w", err)
 		}
 	}
+	if totalApplied > 0 {
+		if err := w.Write([]string{"", "TOTAL APLICADO", "", "", "", "", fmt.Sprintf("%.2f", totalApplied)}); err != nil {
+			return nil, "", nil, fmt.Errorf("erro ao escrever total aplicado: %w", err)
+		}
+	}
+	if totalRedeemed > 0 {
+		if err := w.Write([]string{"", "TOTAL RESGATADO", "", "", "", "", fmt.Sprintf("%.2f", totalRedeemed)}); err != nil {
+			return nil, "", nil, fmt.Errorf("erro ao escrever total resgatado: %w", err)
+		}
+	}
 
 	w.Flush()
 	if err := w.Error(); err != nil {
@@ -85,10 +105,14 @@ func (uc *ExportCSV) Execute(ctx context.Context, month time.Time) ([]byte, stri
 		month.Year(),
 	)
 
+	balance := totalIncome - totalExpenses
 	summary := &ExportSummary{
 		TotalExpenses: totalExpenses,
 		TotalIncome:   totalIncome,
-		Balance:       totalIncome - totalExpenses,
+		Balance:       balance,
+		TotalApplied:  totalApplied,
+		TotalRedeemed: totalRedeemed,
+		InAccount:     balance - (totalApplied - totalRedeemed),
 	}
 
 	return buf.Bytes(), filename, summary, nil
@@ -103,7 +127,11 @@ func BuildExportCaption(month time.Time, summary *ExportSummary) string {
 	caption += fmt.Sprintf("💸 Despesas: R$ %.2f\n", summary.TotalExpenses)
 	if summary.TotalIncome > 0 {
 		caption += fmt.Sprintf("💰 Entradas: R$ %.2f\n", summary.TotalIncome)
-		caption += fmt.Sprintf("📈 Saldo: R$ %.2f", summary.Balance)
+		caption += fmt.Sprintf("📈 Resultado: R$ %.2f\n", summary.Balance)
+	}
+	if summary.TotalApplied > 0 || summary.TotalRedeemed > 0 {
+		caption += fmt.Sprintf("🏦 Aplicado: R$ %.2f | Resgatado: R$ %.2f\n", summary.TotalApplied, summary.TotalRedeemed)
+		caption += fmt.Sprintf("💵 Em conta: R$ %.2f", summary.InAccount)
 	}
 	return caption
 }
@@ -143,18 +171,25 @@ func resolvePaymentDate(d ports.PaymentDetail) time.Time {
 }
 
 func purchaseKindTypeLabel(kind, t string) string {
-	if kind == "INCOME" {
+	switch kind {
+	case "INCOME":
 		if t == "RECURRING" {
 			return "Entrada Recorrente"
 		}
 		return "Entrada"
-	}
-	switch t {
-	case "INSTALLMENT":
-		return "Parcelado"
-	case "RECURRING":
-		return "Recorrente"
+	case "TRANSFER":
+		if t == "RECURRING" {
+			return "Transf. Recorrente"
+		}
+		return "Transferência"
 	default:
-		return "Único"
+		switch t {
+		case "INSTALLMENT":
+			return "Parcelado"
+		case "RECURRING":
+			return "Recorrente"
+		default:
+			return "Único"
+		}
 	}
 }
