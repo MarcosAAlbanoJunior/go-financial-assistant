@@ -81,7 +81,13 @@ func formatReply(output *usecase.ExpenseOutput) string {
 			output.Amount, output.Description, output.Category, output.Payment, output.DayOfMonth,
 		)
 	case "CANCEL_RECURRING":
-		return fmt.Sprintf("✅ Despesa recorrente cancelada!\n📝 %s", output.CancelledDescription)
+		return fmt.Sprintf("✅ Recorrente cancelada!\n📝 %s", output.CancelledDescription)
+	case "INCOME":
+		return fmt.Sprintf("✅ Entrada registrada!\n💰 R$ %.2f\n📝 %s\n🏷️ %s\n💳 %s",
+			output.Amount, output.Description, output.Category, output.Payment)
+	case "INCOME_RECURRING":
+		return fmt.Sprintf("✅ Entrada recorrente registrada!\n💰 R$ %.2f/mês\n📝 %s\n🏷️ %s\n💳 %s\n📅 Dia %d de cada mês",
+			output.Amount, output.Description, output.Category, output.Payment, output.DayOfMonth)
 	default:
 		return fmt.Sprintf("✅ Despesa registrada!\n💰 R$ %.2f\n📝 %s\n🏷️ %s\n💳 %s",
 			output.Amount, output.Description, output.Category, output.Payment)
@@ -90,15 +96,24 @@ func formatReply(output *usecase.ExpenseOutput) string {
 
 func formatQueryReply(output *usecase.ExpenseOutput) string {
 	if output.QueryEmpty {
-		return fmt.Sprintf("📊 Sem despesas registradas em %s.", output.QueryMonth)
+		return fmt.Sprintf("📊 Sem lançamentos registrados em %s.", output.QueryMonth)
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📊 Despesas de %s\n", output.QueryMonth))
-	sb.WriteString(fmt.Sprintf("💰 Total: R$ %.2f\n\n", output.QueryTotal))
-	for _, c := range output.QueryCategories {
-		sb.WriteString(fmt.Sprintf("  • %s: R$ %.2f\n", c.Category, c.Total))
+	sb.WriteString(fmt.Sprintf("📊 Resumo de %s\n\n", output.QueryMonth))
+
+	if len(output.QueryCategories) > 0 {
+		sb.WriteString(fmt.Sprintf("💸 Despesas: R$ %.2f\n", output.QueryTotal))
+		for _, c := range output.QueryCategories {
+			sb.WriteString(fmt.Sprintf("  • %s: R$ %.2f\n", c.Category, c.Total))
+		}
 	}
+
+	if output.QueryIncome > 0 {
+		sb.WriteString(fmt.Sprintf("\n💰 Entradas: R$ %.2f\n", output.QueryIncome))
+		sb.WriteString(fmt.Sprintf("📈 Saldo: R$ %.2f\n", output.QueryBalance))
+	}
+
 	return sb.String()
 }
 

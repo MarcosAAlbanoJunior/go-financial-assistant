@@ -14,6 +14,8 @@ const (
 	ExpenseTypeCancelRecurring ExpenseType = "CANCEL_RECURRING"
 	ExpenseTypeQuery           ExpenseType = "QUERY"
 	ExpenseTypeExportCSV       ExpenseType = "EXPORT_CSV"
+	ExpenseTypeIncome          ExpenseType = "INCOME"
+	ExpenseTypeIncomeRecurring ExpenseType = "INCOME_RECURRING"
 )
 
 type AIAnalyzer interface {
@@ -33,6 +35,7 @@ type StatementTransaction struct {
 	Amount         float64
 	Category       string
 	PaymentMethod  string
+	Kind           string // "EXPENSE" ou "INCOME"
 }
 
 type ExpenseAnalysis struct {

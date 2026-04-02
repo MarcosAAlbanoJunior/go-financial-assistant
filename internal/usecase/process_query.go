@@ -17,7 +17,12 @@ func (uc *AnalyzeExpense) processQuery(ctx context.Context, analysis *ports.Expe
 		return nil, fmt.Errorf("erro ao consultar despesas: %w", err)
 	}
 
-	if len(summaries) == 0 {
+	incomeTotal, err := uc.repo.FindIncomeTotalByMonth(ctx, targetMonth)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar entradas: %w", err)
+	}
+
+	if len(summaries) == 0 && incomeTotal == 0 {
 		return &ExpenseOutput{
 			Type:       "QUERY",
 			QueryMonth: formatMonthPT(targetMonth),
@@ -40,6 +45,8 @@ func (uc *AnalyzeExpense) processQuery(ctx context.Context, analysis *ports.Expe
 		QueryMonth:      formatMonthPT(targetMonth),
 		QueryTotal:      total,
 		QueryCategories: categories,
+		QueryIncome:     incomeTotal,
+		QueryBalance:    incomeTotal - total,
 	}, nil
 }
 

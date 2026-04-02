@@ -20,7 +20,7 @@ func TestExportCSV_EmptyMonth(t *testing.T) {
 	}
 
 	uc := NewExportCSV(repo)
-	data, filename, err := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	data, filename, _, err := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	if err != nil {
 		t.Fatalf("esperava nil error, got: %v", err)
@@ -41,7 +41,7 @@ func TestExportCSV_RepoError(t *testing.T) {
 	}
 
 	uc := NewExportCSV(repo)
-	_, _, err := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	_, _, _, err := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	if err == nil {
 		t.Fatal("esperava erro do repositório")
@@ -52,7 +52,7 @@ func TestExportCSV_Filename(t *testing.T) {
 	repo := repoWithOneDetail(singleDetail())
 
 	uc := NewExportCSV(repo)
-	_, filename, err := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	_, filename, _, err := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -66,7 +66,7 @@ func TestExportCSV_HasBOM(t *testing.T) {
 	repo := repoWithOneDetail(singleDetail())
 
 	uc := NewExportCSV(repo)
-	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	data, _, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	bom := []byte{0xEF, 0xBB, 0xBF}
 	if !bytes.HasPrefix(data, bom) {
@@ -78,7 +78,7 @@ func TestExportCSV_Header(t *testing.T) {
 	repo := repoWithOneDetail(singleDetail())
 
 	uc := NewExportCSV(repo)
-	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	data, _, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	records := parseCSV(t, data)
 	if len(records) < 1 {
@@ -107,7 +107,7 @@ func TestExportCSV_SingleRow(t *testing.T) {
 
 	repo := repoWithOneDetail(detail)
 	uc := NewExportCSV(repo)
-	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	data, _, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	records := parseCSV(t, data)
 	if len(records) < 2 {
@@ -153,7 +153,7 @@ func TestExportCSV_InstallmentRow(t *testing.T) {
 
 	repo := repoWithOneDetail(detail)
 	uc := NewExportCSV(repo)
-	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	data, _, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	records := parseCSV(t, data)
 	row := records[1]
@@ -179,7 +179,7 @@ func TestExportCSV_RecurringRow(t *testing.T) {
 
 	repo := repoWithOneDetail(detail)
 	uc := NewExportCSV(repo)
-	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	data, _, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	records := parseCSV(t, data)
 	row := records[1]
@@ -205,7 +205,7 @@ func TestExportCSV_TotalRow(t *testing.T) {
 	}
 
 	uc := NewExportCSV(repo)
-	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	data, _, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	records := parseCSV(t, data)
 	if len(records) != 4 {
@@ -213,8 +213,8 @@ func TestExportCSV_TotalRow(t *testing.T) {
 	}
 
 	total := records[3]
-	if total[1] != "TOTAL" {
-		t.Errorf("label total: esperava TOTAL, got %q", total[1])
+	if total[1] != "TOTAL DESPESAS" {
+		t.Errorf("label total: esperava TOTAL DESPESAS, got %q", total[1])
 	}
 	if total[6] != "50.50" {
 		t.Errorf("valor total: esperava 50.50, got %q", total[6])
@@ -234,7 +234,7 @@ func TestExportCSV_NilDescription(t *testing.T) {
 
 	repo := repoWithOneDetail(detail)
 	uc := NewExportCSV(repo)
-	data, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
+	data, _, _, _ := uc.Execute(context.Background(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC))
 
 	records := parseCSV(t, data)
 	if records[1][1] != "" {
