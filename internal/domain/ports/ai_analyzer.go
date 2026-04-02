@@ -16,6 +16,7 @@ const (
 	ExpenseTypeExportCSV       ExpenseType = "EXPORT_CSV"
 	ExpenseTypeIncome          ExpenseType = "INCOME"
 	ExpenseTypeIncomeRecurring ExpenseType = "INCOME_RECURRING"
+	ExpenseTypeTransfer        ExpenseType = "TRANSFER"
 )
 
 type AIAnalyzer interface {
@@ -29,28 +30,30 @@ type StatementAnalysis struct {
 }
 
 type StatementTransaction struct {
-	Date           time.Time
-	RawDescription string
-	Description    string
-	Amount         float64
-	Category       string
-	PaymentMethod  string
-	Kind           string // "EXPENSE" ou "INCOME"
+	Date              time.Time
+	RawDescription    string
+	Description       string
+	Amount            float64
+	Category          string
+	PaymentMethod     string
+	Kind              string // "EXPENSE", "INCOME" ou "TRANSFER"
+	TransferDirection string // "IN" (resgate) ou "OUT" (aplicação), só para TRANSFER
 }
 
 type ExpenseAnalysis struct {
-	Amount        *float64
-	Description   *string
-	Category      *string
-	PaymentMethod *string
-	Confidence    float64
-	RawResponse   string
-	Type          ExpenseType
-	Installments  *InstallmentInfo
-	RecurringInfo *RecurringInfo
-	CancelInfo    *CancelInfo
-	QueryInfo     *QueryInfo
-	ExportInfo    *QueryInfo
+	Amount            *float64
+	Description       *string
+	Category          *string
+	PaymentMethod     *string
+	TransferDirection string // "IN", "OUT" ou "" para não-TRANSFER
+	Confidence        float64
+	RawResponse       string
+	Type              ExpenseType
+	Installments      *InstallmentInfo
+	RecurringInfo     *RecurringInfo
+	CancelInfo        *CancelInfo
+	QueryInfo         *QueryInfo
+	ExportInfo        *QueryInfo
 }
 
 type InstallmentInfo struct {

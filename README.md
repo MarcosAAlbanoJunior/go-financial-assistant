@@ -1,20 +1,31 @@
 # Go Financial Assistant
 
-Assistente financeiro pessoal via WhatsApp. Envie mensagens de texto ou fotos de recibos e comprovantes para registrar despesas automaticamente. O assistente utiliza IA (Google Gemini) para interpretar os gastos e armazená-los em um banco de dados PostgreSQL.
+Assistente financeiro pessoal via WhatsApp. Envie mensagens de texto, fotos de recibos ou extratos bancários em PDF para registrar despesas, entradas e transferências automaticamente. O assistente utiliza IA (Google Gemini) para interpretar as transações e armazená-las em um banco de dados PostgreSQL.
 
 ## Como funciona
 
-Você envia uma mensagem para **si mesmo** no WhatsApp — texto descrevendo um gasto ou uma foto de recibo/nota fiscal — e o assistente registra a despesa automaticamente.
+Você envia uma mensagem para **si mesmo** no WhatsApp — texto descrevendo um gasto, uma foto de recibo ou o PDF do extrato bancário — e o assistente registra as transações automaticamente.
 
 **Exemplos de mensagens:**
 - `"gastei 45 reais no almoço no pix"`
 - `"netflix 55 reais todo mês todo dia 15"`
 - `"cancelar netflix"`
+- `"recebi 6000 reais de salário"`
+- `"coloquei 2000 no cofrinho"`
 - `"quanto gastei em março?"`
 - `"exportar meus gastos de março"`
 - Foto de um recibo ou nota fiscal
+- PDF do extrato bancário (Itaú e outros)
 
-O assistente interpreta o tipo de gasto (único, parcelado, recorrente), categoria, valor e forma de pagamento.
+O assistente classifica cada transação em três categorias:
+
+| Tipo | Descrição | Exemplo |
+|------|-----------|---------|
+| **Despesa** | Gasto real de dinheiro | Almoço, Netflix, conta de luz |
+| **Entrada** | Dinheiro recebido | Salário, freelance, reembolso |
+| **Transferência** | Movimentação entre contas próprias | Aplicação no cofrinho, resgate de CDB |
+
+Transferências são excluídas dos totais de despesas e entradas — evitando que aplicações no cofrinho distorçam o resumo financeiro.
 
 ## Tecnologias
 
@@ -120,11 +131,40 @@ netflix 55 reais todo mês todo dia 15
 cancelar netflix
 ```
 
+### Registrar entrada (salário, renda)
+```
+recebi 6000 reais de salário
+entrou 500 reais de freela no pix
+```
+
+### Registrar transferência entre contas próprias
+```
+coloquei 2000 reais no cofrinho
+resgatei 500 do CDB
+```
+Transferências não afetam despesas nem entradas — servem apenas para rastrear movimentações entre suas próprias contas.
+
 ### Consultar resumo do mês
 ```
 quanto gastei esse mês?
 quanto gastei em fevereiro?
 ```
+
+O resumo mostra:
+- **Despesas** por categoria
+- **Entradas** totais (se houver)
+- **Resultado** do mês (entradas − despesas)
+- **Investimentos no mês**: quanto foi aplicado, quanto foi resgatado
+- **Em conta**: resultado descontando o líquido que ficou investido
+
+### Importar extrato bancário (PDF)
+
+Envie o PDF do extrato do seu banco diretamente no WhatsApp. O assistente processa todas as transações automaticamente:
+
+- Despesas, entradas e transferências são classificadas pela IA
+- Aplicações no cofrinho e resgates de CDB são detectados como **Transferência** — não inflam as despesas
+- Transações já existentes no banco são sinalizadas para confirmação individual
+- Suporta o formato de extrato do **Itaú** (e outros formatos com datas DD/MM/AAAA ou AAAA-MM-DD)
 
 ### Exportar planilha CSV
 
@@ -138,9 +178,11 @@ exportar
 ```
 
 - Se nenhum mês for especificado, exporta o **mês atual**.
-- Se não houver gastos no período, o assistente avisa por texto.
+- Se não houver lançamentos no período, o assistente avisa por texto.
 - O arquivo vem com **BOM UTF-8** para compatibilidade com Excel.
 - Colunas: Data, Descrição, Categoria, Forma de Pagamento, Tipo, Parcela, Valor (R$).
+- Linhas de totais ao final: **TOTAL DESPESAS**, **TOTAL ENTRADAS** (se houver), **SALDO**, **TOTAL APLICADO** / **TOTAL RESGATADO** (se houver transferências).
+- A mensagem que acompanha o arquivo já traz o resumo financeiro: despesas, entradas, resultado, aplicado/resgatado e valor em conta.
 
 > O Gemini interpreta a intenção de exportação, então frases naturais como _"quero ver meus gastos em planilha"_ ou _"gera um csv pra mim"_ também funcionam.
 

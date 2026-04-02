@@ -22,7 +22,12 @@ func (uc *AnalyzeExpense) processQuery(ctx context.Context, analysis *ports.Expe
 		return nil, fmt.Errorf("erro ao consultar entradas: %w", err)
 	}
 
-	if len(summaries) == 0 && incomeTotal == 0 {
+	applied, redeemed, err := uc.repo.FindTransferNetByMonth(ctx, targetMonth)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar transferências: %w", err)
+	}
+
+	if len(summaries) == 0 && incomeTotal == 0 && applied == 0 && redeemed == 0 {
 		return &ExpenseOutput{
 			Type:       "QUERY",
 			QueryMonth: formatMonthPT(targetMonth),
@@ -40,6 +45,7 @@ func (uc *AnalyzeExpense) processQuery(ctx context.Context, analysis *ports.Expe
 		})
 	}
 
+	netInvested := applied - redeemed
 	return &ExpenseOutput{
 		Type:            "QUERY",
 		QueryMonth:      formatMonthPT(targetMonth),
@@ -47,6 +53,10 @@ func (uc *AnalyzeExpense) processQuery(ctx context.Context, analysis *ports.Expe
 		QueryCategories: categories,
 		QueryIncome:     incomeTotal,
 		QueryBalance:    incomeTotal - total,
+		QueryApplied:    applied,
+		QueryRedeemed:   redeemed,
+		QueryNetInvested: netInvested,
+		QueryInAccount:  (incomeTotal - total) - netInvested,
 	}, nil
 }
 
