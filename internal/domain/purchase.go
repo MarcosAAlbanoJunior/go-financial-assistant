@@ -14,6 +14,13 @@ const (
 	PurchaseTypeRecurring   PurchaseType = "RECURRING"
 )
 
+type PurchaseKind string
+
+const (
+	KindExpense PurchaseKind = "EXPENSE"
+	KindIncome  PurchaseKind = "INCOME"
+)
+
 type PaymentMethod string
 
 const (
@@ -34,6 +41,7 @@ const (
 	CategoryShopping      Category = "SHOPPING"
 	CategoryMarket        Category = "MARKET"
 	CategoryInvestment    Category = "INVESTMENT"
+	CategorySalary        Category = "SALARY"
 	CategoryOther         Category = "OTHER"
 )
 
@@ -42,6 +50,7 @@ type Purchase struct {
 	Description        *string
 	Category           Category
 	PaymentMethod      PaymentMethod
+	Kind               PurchaseKind
 	Type               PurchaseType
 	TotalAmount        float64
 	InstallmentCount   *int
@@ -70,6 +79,35 @@ func NewPurchase(
 		Description:   description,
 		Category:      category,
 		PaymentMethod: paymentMethod,
+		Kind:          KindExpense,
+		Type:          purchaseType,
+		TotalAmount:   amount,
+		IsActive:      true,
+		RawInput:      rawInput,
+		CreatedAt:     time.Now().UTC(),
+	}, nil
+}
+
+func NewIncome(
+	amount float64,
+	description *string,
+	category Category,
+	paymentMethod PaymentMethod,
+	purchaseType PurchaseType,
+	rawInput string,
+) (*Purchase, error) {
+	if amount <= 0 {
+		return nil, ErrInvalidAmount
+	}
+	if purchaseType == PurchaseTypeInstallment {
+		return nil, ErrInvalidAmount
+	}
+	return &Purchase{
+		ID:            uuid.New(),
+		Description:   description,
+		Category:      category,
+		PaymentMethod: paymentMethod,
+		Kind:          KindIncome,
 		Type:          purchaseType,
 		TotalAmount:   amount,
 		IsActive:      true,

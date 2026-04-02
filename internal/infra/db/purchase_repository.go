@@ -15,6 +15,7 @@ type purchaseModel struct {
 	Description        *string    `db:"description"`
 	Category           string     `db:"category"`
 	PaymentMethod      string     `db:"payment_method"`
+	Kind               string     `db:"kind"`
 	Type               string     `db:"type"`
 	TotalAmount        float64    `db:"total_amount"`
 	InstallmentCount   *int       `db:"installment_count"`
@@ -33,6 +34,7 @@ func (m purchaseModel) toDomain() domain.Purchase {
 		Description:        m.Description,
 		Category:           domain.Category(m.Category),
 		PaymentMethod:      domain.PaymentMethod(m.PaymentMethod),
+		Kind:               domain.PurchaseKind(m.Kind),
 		Type:               domain.PurchaseType(m.Type),
 		TotalAmount:        m.TotalAmount,
 		InstallmentCount:   m.InstallmentCount,
@@ -75,13 +77,13 @@ func (r *PostgresPurchaseRepository) Save(ctx context.Context, purchase *domain.
 
 	purchaseQuery := `
 		INSERT INTO purchases
-			(id, description, category, payment_method, type, total_amount,
+			(id, description, category, payment_method, kind, type, total_amount,
 			 installment_count, installment_amount, day_of_month, is_active, raw_input, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 	if _, err := tx.Exec(ctx, purchaseQuery,
 		purchase.ID, purchase.Description, purchase.Category, purchase.PaymentMethod,
-		purchase.Type, purchase.TotalAmount, purchase.InstallmentCount,
+		purchase.Kind, purchase.Type, purchase.TotalAmount, purchase.InstallmentCount,
 		purchase.InstallmentAmount, purchase.DayOfMonth, purchase.IsActive,
 		purchase.RawInput, purchase.CreatedAt,
 	); err != nil {
@@ -118,6 +120,22 @@ func (r *PostgresPurchaseRepository) Update(ctx context.Context, purchase *domai
 		return fmt.Errorf("erro ao atualizar compra: %w", err)
 	}
 	return nil
+}
+
+func (r *PostgresPurchaseRepository) FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error) {
+	query := `
+		SELECT COALESCE(SUM(pay.amount), 0)
+		FROM payments pay
+		JOIN purchases p ON p.id = pay.purchase_id
+		WHERE DATE_TRUNC('month', COALESCE(pay.due_date, pay.reference_month, pay.created_at)) = DATE_TRUNC('month', $1::timestamptz)
+		  AND p.kind = 'INCOME'
+		  AND pay.status != 'CANCELLED'
+	`
+	var total float64
+	if err := r.db.Pool.QueryRow(ctx, query, month).Scan(&total); err != nil {
+		return 0, fmt.Errorf("erro ao consultar entradas do mês: %w", err)
+	}
+	return total, nil
 }
 
 func (r *PostgresPurchaseRepository) SavePayment(ctx context.Context, payment *domain.Payment) error {

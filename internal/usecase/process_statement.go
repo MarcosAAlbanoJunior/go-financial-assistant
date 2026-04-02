@@ -35,12 +35,13 @@ func (uc *AnalyzeExpense) ExecuteDocument(ctx context.Context, input DocumentInp
 				Category:    tx.Category,
 				Payment:     tx.PaymentMethod,
 				RawInput:    fmt.Sprintf("[extrato: %s]", tx.RawDescription),
+				Kind:        tx.Kind,
 			})
 			continue
 		}
 
 		if err := uc.saveStatementTransaction(ctx, tx); err != nil {
-			uc.logger.Error("erro ao salvar transação do extrato", "description", tx.RawDescription, "error", err)
+			uc.logger.Error("erro ao salvar transação do extrato", "description", tx.RawDescription, "kind", tx.Kind, "error", err)
 			continue
 		}
 
@@ -56,16 +57,28 @@ func (uc *AnalyzeExpense) SavePendingTransaction(ctx context.Context, tx Pending
 		payment = domain.PaymentMethodOther
 	}
 
-	purchase, err := domain.NewPurchase(
-		tx.Amount,
-		&tx.Description,
-		parseCategory(categoryPtr(tx.Category)),
-		payment,
-		domain.PurchaseTypeSingle,
-		tx.RawInput,
-	)
+	var purchase *domain.Purchase
+	if tx.Kind == "INCOME" {
+		purchase, err = domain.NewIncome(
+			tx.Amount,
+			&tx.Description,
+			parseCategory(categoryPtr(tx.Category)),
+			payment,
+			domain.PurchaseTypeSingle,
+			tx.RawInput,
+		)
+	} else {
+		purchase, err = domain.NewPurchase(
+			tx.Amount,
+			&tx.Description,
+			parseCategory(categoryPtr(tx.Category)),
+			payment,
+			domain.PurchaseTypeSingle,
+			tx.RawInput,
+		)
+	}
 	if err != nil {
-		return fmt.Errorf("despesa inválida: %w", err)
+		return fmt.Errorf("transação inválida: %w", err)
 	}
 
 	pmt := domain.NewPayment(purchase.ID, tx.Amount, domain.PaymentStatusPaid)
@@ -84,16 +97,30 @@ func (uc *AnalyzeExpense) saveStatementTransaction(ctx context.Context, tx ports
 	}
 
 	desc := tx.Description
-	purchase, err := domain.NewPurchase(
-		tx.Amount,
-		&desc,
-		parseCategory(&tx.Category),
-		payment,
-		domain.PurchaseTypeSingle,
-		fmt.Sprintf("[extrato: %s]", tx.RawDescription),
-	)
+	rawInput := fmt.Sprintf("[extrato: %s]", tx.RawDescription)
+
+	var purchase *domain.Purchase
+	if tx.Kind == "INCOME" {
+		purchase, err = domain.NewIncome(
+			tx.Amount,
+			&desc,
+			parseCategory(&tx.Category),
+			payment,
+			domain.PurchaseTypeSingle,
+			rawInput,
+		)
+	} else {
+		purchase, err = domain.NewPurchase(
+			tx.Amount,
+			&desc,
+			parseCategory(&tx.Category),
+			payment,
+			domain.PurchaseTypeSingle,
+			rawInput,
+		)
+	}
 	if err != nil {
-		return fmt.Errorf("despesa inválida: %w", err)
+		return fmt.Errorf("transação inválida: %w", err)
 	}
 
 	pmt := domain.NewPayment(purchase.ID, tx.Amount, domain.PaymentStatusPaid)

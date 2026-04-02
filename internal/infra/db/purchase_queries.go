@@ -18,6 +18,7 @@ type paymentDetailModel struct {
 	Amount            float64    `db:"amount"`
 	Status            string     `db:"status"`
 	PurchaseType      string     `db:"purchase_type"`
+	PurchaseKind      string     `db:"purchase_kind"`
 	InstallmentNumber *int       `db:"installment_number"`
 	DueDate           *time.Time `db:"due_date"`
 	ReferenceMonth    *time.Time `db:"reference_month"`
@@ -32,6 +33,7 @@ func (m paymentDetailModel) toPort() ports.PaymentDetail {
 		Amount:            m.Amount,
 		Status:            m.Status,
 		PurchaseType:      m.PurchaseType,
+		PurchaseKind:      m.PurchaseKind,
 		InstallmentNumber: m.InstallmentNumber,
 		DueDate:           m.DueDate,
 		ReferenceMonth:    m.ReferenceMonth,
@@ -123,6 +125,7 @@ func (r *PostgresPurchaseRepository) FindPaymentsByMonth(ctx context.Context, mo
 		JOIN purchases p ON p.id = pay.purchase_id
 		WHERE DATE_TRUNC('month', COALESCE(pay.due_date, pay.reference_month, pay.created_at)) = DATE_TRUNC('month', $1::timestamptz)
 		  AND pay.status != 'CANCELLED'
+		  AND p.kind = 'EXPENSE'
 		GROUP BY p.category
 		ORDER BY total DESC
 	`
@@ -152,6 +155,7 @@ func (r *PostgresPurchaseRepository) FindPaymentDetailsByMonth(ctx context.Conte
 		    pay.amount,
 		    pay.status,
 		    p.type AS purchase_type,
+		    p.kind AS purchase_kind,
 		    pay.installment_number,
 		    pay.due_date,
 		    pay.reference_month,
@@ -178,3 +182,5 @@ func (r *PostgresPurchaseRepository) FindPaymentDetailsByMonth(ctx context.Conte
 	}
 	return result, nil
 }
+
+//todo colocar saldo tambem de entradas.

@@ -77,6 +77,8 @@ func parseCategory(s *string) domain.Category {
 		return domain.CategoryShopping
 	case "MARKET":
 		return domain.CategoryMarket
+	case "SALARY":
+		return domain.CategorySalary
 	default:
 		return domain.CategoryOther
 	}

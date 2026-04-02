@@ -3,8 +3,8 @@ package usecase
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"io"
+	"log/slog"
 	"testing"
 	"time"
 )
@@ -33,14 +33,14 @@ func (m *mockMessengerUC) FetchImageBase64(ctx context.Context, remoteJid string
 }
 
 type mockCSVExporterUC struct {
-	executeFn func(ctx context.Context, month time.Time) ([]byte, string, error)
+	executeFn func(ctx context.Context, month time.Time) ([]byte, string, *ExportSummary, error)
 }
 
-func (m *mockCSVExporterUC) Execute(ctx context.Context, month time.Time) ([]byte, string, error) {
+func (m *mockCSVExporterUC) Execute(ctx context.Context, month time.Time) ([]byte, string, *ExportSummary, error) {
 	if m.executeFn != nil {
 		return m.executeFn(ctx, month)
 	}
-	return nil, "", nil
+	return nil, "", nil, nil
 }
 
 func silentReportLogger() *slog.Logger {
@@ -56,8 +56,8 @@ func TestMonthlyReport_SendsDocument(t *testing.T) {
 		},
 	}
 	exporter := &mockCSVExporterUC{
-		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, error) {
-			return []byte("csv content"), "despesas_fevereiro_2025.csv", nil
+		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, *ExportSummary, error) {
+			return []byte("csv content"), "despesas_fevereiro_2025.csv", nil, nil
 		},
 	}
 
@@ -79,8 +79,8 @@ func TestMonthlyReport_EmptyMonth_DoesNotSend(t *testing.T) {
 		},
 	}
 	exporter := &mockCSVExporterUC{
-		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, error) {
-			return nil, "", nil
+		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, *ExportSummary, error) {
+			return nil, "", nil, nil
 		},
 	}
 
@@ -95,8 +95,8 @@ func TestMonthlyReport_EmptyMonth_DoesNotSend(t *testing.T) {
 
 func TestMonthlyReport_ExporterError_ReturnsError(t *testing.T) {
 	exporter := &mockCSVExporterUC{
-		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, error) {
-			return nil, "", errors.New("db error")
+		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, *ExportSummary, error) {
+			return nil, "", nil, errors.New("db error")
 		},
 	}
 
@@ -113,8 +113,8 @@ func TestMonthlyReport_MessengerError_ReturnsError(t *testing.T) {
 		},
 	}
 	exporter := &mockCSVExporterUC{
-		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, error) {
-			return []byte("csv"), "file.csv", nil
+		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, *ExportSummary, error) {
+			return []byte("csv"), "file.csv", nil, nil
 		},
 	}
 
@@ -133,8 +133,8 @@ func TestMonthlyReport_UsesCorrectPhone(t *testing.T) {
 		},
 	}
 	exporter := &mockCSVExporterUC{
-		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, error) {
-			return []byte("csv"), "file.csv", nil
+		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, *ExportSummary, error) {
+			return []byte("csv"), "file.csv", nil, nil
 		},
 	}
 

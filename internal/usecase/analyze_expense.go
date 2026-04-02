@@ -50,6 +50,7 @@ type PendingTransaction struct {
 	Category    string
 	Payment     string
 	RawInput    string
+	Kind        string // "EXPENSE" ou "INCOME"
 }
 
 type StatementOutput struct {
@@ -85,6 +86,9 @@ type ExpenseOutput struct {
 	QueryEmpty      bool              `json:"query_empty,omitempty"`
 
 	ExportMonthTime time.Time `json:"-"`
+
+	QueryIncome  float64 `json:"query_income,omitempty"`
+	QueryBalance float64 `json:"query_balance,omitempty"`
 }
 
 func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*ExpenseOutput, error) {
@@ -106,6 +110,10 @@ func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*Ex
 		return uc.processRecurring(ctx, analysis, payment, input.Text)
 	case ports.ExpenseTypeCancelRecurring:
 		return uc.processCancel(ctx, analysis)
+	case ports.ExpenseTypeIncome:
+		return uc.processIncome(ctx, analysis, payment, input.Text)
+	case ports.ExpenseTypeIncomeRecurring:
+		return uc.processIncomeRecurring(ctx, analysis, payment, input.Text)
 	default:
 		return uc.processAnalysis(ctx, analysis, payment, input.Text)
 	}
@@ -129,6 +137,10 @@ func (uc *AnalyzeExpense) ExecuteImage(ctx context.Context, input ImageInput) (*
 		return uc.processRecurring(ctx, analysis, payment, rawInput)
 	case ports.ExpenseTypeCancelRecurring:
 		return uc.processCancel(ctx, analysis)
+	case ports.ExpenseTypeIncome:
+		return uc.processIncome(ctx, analysis, payment, rawInput)
+	case ports.ExpenseTypeIncomeRecurring:
+		return uc.processIncomeRecurring(ctx, analysis, payment, rawInput)
 	default:
 		return uc.processAnalysis(ctx, analysis, payment, rawInput)
 	}

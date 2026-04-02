@@ -27,8 +27,8 @@ func TestHandleExportCommand_SendsDocument(t *testing.T) {
 		},
 	}
 	exporter := &mockCSVExporter{
-		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, error) {
-			return []byte("csv data"), "despesas_marco_2025.csv", nil
+		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, *usecase.ExportSummary, error) {
+			return []byte("csv data"), "despesas_marco_2025.csv", nil, nil
 		},
 	}
 
@@ -55,8 +55,8 @@ func TestHandleExportCommand_EmptyMonth_SendsText(t *testing.T) {
 		},
 	}
 	exporter := &mockCSVExporter{
-		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, error) {
-			return nil, "", nil
+		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, *usecase.ExportSummary, error) {
+			return nil, "", nil, nil
 		},
 	}
 
@@ -76,8 +76,8 @@ func TestHandleExportCommand_EmptyMonth_SendsText(t *testing.T) {
 
 func TestHandleExportCommand_ExporterError_Returns500(t *testing.T) {
 	exporter := &mockCSVExporter{
-		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, error) {
-			return nil, "", errors.New("db error")
+		executeFn: func(_ context.Context, _ time.Time) ([]byte, string, *usecase.ExportSummary, error) {
+			return nil, "", nil, errors.New("db error")
 		},
 	}
 
@@ -95,9 +95,9 @@ func TestHandleExportCommand_ExporterError_Returns500(t *testing.T) {
 func TestHandleExportCommand_UsesMonthFromAnalyzer(t *testing.T) {
 	var receivedMonth time.Time
 	exporter := &mockCSVExporter{
-		executeFn: func(_ context.Context, m time.Time) ([]byte, string, error) {
+		executeFn: func(_ context.Context, m time.Time) ([]byte, string, *usecase.ExportSummary, error) {
 			receivedMonth = m
-			return []byte("csv"), "file.csv", nil
+			return []byte("csv"), "file.csv", nil, nil
 		},
 	}
 

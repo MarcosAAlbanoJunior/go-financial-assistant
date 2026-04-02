@@ -69,14 +69,14 @@ func (m *mockMessenger) FetchImageBase64(ctx context.Context, remoteJid string, 
 }
 
 type mockCSVExporter struct {
-	executeFn func(ctx context.Context, month time.Time) ([]byte, string, error)
+	executeFn func(ctx context.Context, month time.Time) ([]byte, string, *usecase.ExportSummary, error)
 }
 
-func (m *mockCSVExporter) Execute(ctx context.Context, month time.Time) ([]byte, string, error) {
+func (m *mockCSVExporter) Execute(ctx context.Context, month time.Time) ([]byte, string, *usecase.ExportSummary, error) {
 	if m.executeFn != nil {
 		return m.executeFn(ctx, month)
 	}
-	return nil, "", nil
+	return nil, "", nil, nil
 }
 
 var silentLogger = slog.New(slog.NewTextHandler(io.Discard, nil))

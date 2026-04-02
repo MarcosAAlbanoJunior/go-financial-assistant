@@ -87,7 +87,7 @@ func (c *Client) AnalyzeDocument(ctx context.Context, data []byte, mimeType stri
 			Role: "user",
 			Parts: []*genai.Part{
 				{InlineData: &genai.Blob{MIMEType: mimeType, Data: data}},
-				{Text: "Extraia todas as transações de débito deste extrato bancário."},
+				{Text: "Extraia todas as transações deste extrato bancário."},
 			},
 		},
 	}
@@ -212,6 +212,7 @@ type geminiStatementTransaction struct {
 	RawDescription string  `json:"raw_description"`
 	Description    string  `json:"description"`
 	Amount         float64 `json:"amount"`
+	Kind           string  `json:"kind"`
 	Category       string  `json:"category"`
 	PaymentMethod  string  `json:"payment_method"`
 }
@@ -240,21 +241,42 @@ func parseStatementResponse(resp *genai.GenerateContentResponse) (*ports.Stateme
 	}
 
 	for _, t := range raw.Transactions {
-		parsed, err := time.Parse("2006-01-02", t.Date)
+		parsed, err := parseStatementDate(t.Date)
 		if err != nil {
 			continue // ignora linha com data inválida
+		}
+		kind := t.Kind
+		if kind != "INCOME" {
+			kind = "EXPENSE"
 		}
 		analysis.Transactions = append(analysis.Transactions, ports.StatementTransaction{
 			Date:           parsed,
 			RawDescription: t.RawDescription,
 			Description:    t.Description,
 			Amount:         t.Amount,
+			Kind:           kind,
 			Category:       t.Category,
 			PaymentMethod:  t.PaymentMethod,
 		})
 	}
 
 	return analysis, nil
+}
+
+var statementDateFormats = []string{
+	"2006-01-02",
+	"02/01/2006",
+	"2006/01/02",
+	"01/02/2006",
+}
+
+func parseStatementDate(s string) (time.Time, error) {
+	for _, f := range statementDateFormats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("formato de data não reconhecido: %s", s)
 }
 
 func toExpenseType(s string) ports.ExpenseType {
@@ -269,6 +291,10 @@ func toExpenseType(s string) ports.ExpenseType {
 		return ports.ExpenseTypeQuery
 	case "EXPORT_CSV":
 		return ports.ExpenseTypeExportCSV
+	case "INCOME":
+		return ports.ExpenseTypeIncome
+	case "INCOME_RECURRING":
+		return ports.ExpenseTypeIncomeRecurring
 	default:
 		return ports.ExpenseTypeSingle
 	}
