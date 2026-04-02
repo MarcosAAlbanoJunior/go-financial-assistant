@@ -20,6 +20,7 @@ type PaymentDetail struct {
 	Amount            float64
 	Status            string
 	PurchaseType      string
+	PurchaseKind      string // "EXPENSE" ou "INCOME"
 	InstallmentNumber *int
 	DueDate           *time.Time
 	ReferenceMonth    *time.Time
@@ -35,5 +36,6 @@ type PurchaseRepository interface {
 	HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error)
 	FindPaymentsByMonth(ctx context.Context, month time.Time) ([]PaymentSummary, error)
 	FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]PaymentDetail, error)
+	FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error)
 	ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error)
 }
