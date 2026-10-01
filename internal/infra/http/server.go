@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -44,8 +45,10 @@ func NewServer(port int, logger *slog.Logger) *Server {
 }
 
 // MountWhatsApp registra o webhook da Evolution API e o endpoint de QR code.
-func (s *Server) MountWhatsApp(cfg WhatsAppConfig, client EvolutionClient, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter) {
+// syncer pode ser nil quando o Open Finance não está configurado.
+func (s *Server) MountWhatsApp(cfg WhatsAppConfig, client EvolutionClient, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter, syncer chat.Syncer) {
 	handler := newWebhookHandler(cfg, client, analyzeExpense, csvExporter, s.logger)
+	handler.chat.SetSyncer(syncer)
 	qrHandler := &qrcodeHandler{secret: cfg.AdminSecret, qrProvider: client}
 	qrLimiter := newIPRateLimiter(10, time.Minute)
 
