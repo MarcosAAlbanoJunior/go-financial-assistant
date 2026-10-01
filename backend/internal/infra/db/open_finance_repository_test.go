@@ -140,14 +140,14 @@ func TestSaveExternal_LinkAndAccount(t *testing.T) {
 		return repo.SaveExternal(ctx, p, pay)
 	}
 
-	if found, _ := repo.LinkExternalAccount(ctx, "of-save-1", acc); found {
+	if found, _ := repo.RefreshExternal(ctx, externalTx("of-save-1", 12.34, time.Now()), acc); found {
 		t.Fatal("banco de teste sujo: of-save-1 já existe")
 	}
 	if err := save(); err != nil {
 		t.Fatal(err)
 	}
 	// Salvo antes da tabela de contas (sem conta): a sincronização seguinte vincula.
-	if found, err := repo.LinkExternalAccount(ctx, "of-save-1", acc); err != nil || !found {
+	if found, err := repo.RefreshExternal(ctx, externalTx("of-save-1", 12.34, time.Now()), acc); err != nil || !found {
 		t.Errorf("deveria existir: %v %v", found, err)
 	}
 	var linked *uuid.UUID
@@ -181,5 +181,55 @@ func TestUpsertAccount_UpdatesInPlace(t *testing.T) {
 	pg.Pool.QueryRow(ctx, `SELECT name, balance FROM accounts WHERE id = $1`, first).Scan(&name, &bal)
 	if name != "Cartão" || bal != 99.9 {
 		t.Errorf("conta não atualizada: %s %v", name, bal)
+	}
+}
+
+func TestRefreshExternal_PromotesOtherExpenseCategory(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	acc := testAccount(t, repo, pg)
+
+	save := func(extID string, cat domain.Category) *domain.Purchase {
+		t.Helper()
+		desc := "teste-open-finance"
+		p, _ := domain.NewPurchase(7.77, &desc, cat, domain.PaymentMethodPix, domain.PurchaseTypeSingle, "[open finance]")
+		cleanup(t, pg, p)
+		pay := domain.NewPayment(p.ID, 7.77, domain.PaymentStatusPaid)
+		pay.ExternalID = &extID
+		if err := repo.SaveExternal(ctx, p, pay); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	categoryOf := func(p *domain.Purchase) string {
+		var c string
+		pg.Pool.QueryRow(ctx, `SELECT category FROM purchases WHERE id = $1`, p.ID).Scan(&c)
+		return c
+	}
+	refresh := func(id string, cat domain.Category) bool {
+		t.Helper()
+		found, err := repo.RefreshExternal(ctx, ports.ExternalTransaction{ID: id, Category: cat}, acc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return found
+	}
+
+	other, set := save("of-cat-other", domain.CategoryOther), save("of-cat-food", domain.CategoryFood)
+
+	if !refresh("of-cat-other", domain.CategoryTransport) || categoryOf(other) != "TRANSPORT" {
+		t.Errorf("OTHER deveria ser promovida: %s", categoryOf(other))
+	}
+	refresh("of-cat-food", domain.CategoryMarket)
+	if categoryOf(set) != "FOOD" {
+		t.Errorf("categoria já definida não pode ser trocada: %s", categoryOf(set))
+	}
+	other2 := save("of-cat-other2", domain.CategoryOther)
+	refresh("of-cat-other2", domain.CategoryOther)
+	if categoryOf(other2) != "OTHER" {
+		t.Errorf("OTHER -> OTHER não muda nada: %s", categoryOf(other2))
+	}
+	if refresh("of-cat-inexistente", domain.CategoryFood) {
+		t.Error("transação desconhecida não pode ser reportada como existente")
 	}
 }

@@ -29,13 +29,22 @@ func (r *PostgresPurchaseRepository) UpsertAccount(ctx context.Context, a ports.
 	return id, nil
 }
 
-func (r *PostgresPurchaseRepository) LinkExternalAccount(ctx context.Context, externalID string, accountID uuid.UUID) (bool, error) {
-	tag, err := r.db.Pool.Exec(ctx,
-		`UPDATE payments SET account_id = COALESCE(account_id, $2) WHERE external_id = $1`, externalID, accountID)
-	if err != nil {
+func (r *PostgresPurchaseRepository) RefreshExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
+	// O CTE com UPDATE roda sempre; a consulta final só diz se a transação existia.
+	query := `
+		WITH linked AS (
+			UPDATE payments SET account_id = COALESCE(account_id, $2) WHERE external_id = $1 RETURNING purchase_id
+		), recategorized AS (
+			UPDATE purchases SET category = $3
+			WHERE id IN (SELECT purchase_id FROM linked) AND kind = 'EXPENSE' AND category = 'OTHER' AND $3 <> 'OTHER'
+		)
+		SELECT COUNT(*) FROM linked
+	`
+	var n int
+	if err := r.db.Pool.QueryRow(ctx, query, tx.ID, accountID, tx.Category).Scan(&n); err != nil {
 		return false, fmt.Errorf("erro ao verificar transação externa: %w", err)
 	}
-	return tag.RowsAffected() > 0, nil
+	return n > 0, nil
 }
 
 func (r *PostgresPurchaseRepository) SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error {

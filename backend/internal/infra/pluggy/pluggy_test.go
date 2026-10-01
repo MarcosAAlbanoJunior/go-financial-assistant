@@ -280,3 +280,59 @@ func TestInvestmentName(t *testing.T) {
 		t.Errorf("nome vazio: %q", got)
 	}
 }
+
+func described(typ, category, description string, amount float64) transaction {
+	t := tx(typ, category, amount)
+	t.Description, t.DescriptionRaw = description, strings.ToUpper(description)
+	return t
+}
+
+func TestToExternal_AutoSweepIsIgnoredButYieldIsKept(t *testing.T) {
+	for _, desc := range []string{"Aplicação APL APLIC AUT MAIS", "Resgate RES APLIC AUT MAIS", "Entrada RES APLIC AUT MAIS AP"} {
+		typ := "DEBIT"
+		if strings.HasPrefix(desc, "Resgate") || strings.HasPrefix(desc, "Entrada") {
+			typ = "CREDIT"
+		}
+		if _, ok := toExternal("BANK", described(typ, "Fixed income", desc, 100)); ok {
+			t.Errorf("%q deveria ser ignorada", desc)
+		}
+	}
+
+	// Aporte feito pelo usuário (Cofrinhos) e rendimento continuam entrando.
+	if got, ok := toExternal("BANK", described("DEBIT", "Investment", "Saída APLICACAO COFRINHOS", -50)); !ok || got.Kind != domain.KindTransfer {
+		t.Errorf("Cofrinhos deveria virar aplicação: %+v %v", got, ok)
+	}
+	if got, ok := toExternal("BANK", described("CREDIT", "Income", "Rendimentos REND PAGO APLIC AUT MAIS", 0.12)); !ok || got.Kind != domain.KindIncome {
+		t.Errorf("rendimento deveria ser renda: %+v %v", got, ok)
+	}
+}
+
+func TestToExternal_CategoryFromDescription(t *testing.T) {
+	cases := []struct {
+		category, description string
+		want                  domain.Category
+	}{
+		{"", "Pagamento de Pix QR Code 99 FOOD", domain.CategoryFood},
+		{"", "Compra débito Auto Posto Central Ltda", domain.CategoryTransport},
+		{"", "Pagamento de Pix QR Code RD SAUDE", domain.CategoryHealth},
+		{"", "Pagamento de boleto HOSPITAL SANTA CASA DE EXEMPLO", domain.CategoryHealth},
+		{"", "ANTHROPIC* CLAUDE SUBSAN FRANCISCOUSA", domain.CategoryEntertainment},
+		{"", "Compra débito Aracatuba*kalunga 0148", domain.CategoryShopping},
+		{"", "Pix enviado Maria da Silva", domain.CategoryOther},
+		{"", "Pagamento de Pix QR Code TELEFONICA BRAS", domain.CategoryOther},
+		{"", "Compra débito Composto Ltda", domain.CategoryOther}, // "posto" só vale como palavra
+		// A categoria do Pluggy, quando útil, manda: a descrição só desempata o OTHER.
+		{"Groceries", "Pagamento de Pix QR Code 99 FOOD", domain.CategoryMarket},
+	}
+	for _, tc := range cases {
+		got, ok := toExternal("BANK", described("DEBIT", tc.category, tc.description, -20))
+		if !ok || got.Category != tc.want {
+			t.Errorf("%q (%q): got %s, esperado %s", tc.description, tc.category, got.Category, tc.want)
+		}
+	}
+
+	// Renda nunca é reclassificada por descrição.
+	if got, _ := toExternal("BANK", described("CREDIT", "", "Pix recebido IFOOD", 10)); got.Category != domain.CategoryOther {
+		t.Errorf("renda deveria continuar OTHER: %s", got.Category)
+	}
+}
