@@ -1,4 +1,4 @@
-.PHONY: run build test lint compose-up compose-down compose-logs db-shell
+.PHONY: run build test lint front-dev front-test front-build compose-up compose-down compose-logs db-shell
 
 run:
 	docker compose up postgres redis -d
@@ -38,6 +38,17 @@ logs-evolution:
 
 db-shell:
 	docker compose exec postgres psql -U finassist -d finassist
+# O front precisa de Node 22+ (com nvm: "nvm use 22"). Em desenvolvimento, o Vite roda em
+# http://localhost:5173 e repassa /api ao app Go em 127.0.0.1:3000 (suba o app antes).
+front-dev:
+	cd frontend && npm install && npm run dev
+
+front-test:
+	cd frontend && npm install && npm test && npm run lint
+
+front-build:
+	cd frontend && npm install && npm run build
+
 deps:
 	cd backend && go mod tidy
 	cd backend && go mod download
@@ -58,4 +69,7 @@ help:
 	@echo "  make logs-evolution   Logs apenas da Evolution API"
 	@echo "  make db-shell         Abre o psql no container"
 	@echo "  make deps             Baixa e organiza dependências"
+	@echo "  make front-dev        Front em modo desenvolvimento (Vite)"
+	@echo "  make front-test       Testes e lint do front"
+	@echo "  make front-build      Build de produção do front"
 	@echo ""
