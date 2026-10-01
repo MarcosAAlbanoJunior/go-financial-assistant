@@ -36,7 +36,7 @@ func (r *PostgresPurchaseRepository) RefreshExternal(ctx context.Context, tx por
 			UPDATE payments SET account_id = COALESCE(account_id, $2) WHERE external_id = $1 RETURNING purchase_id
 		), recategorized AS (
 			UPDATE purchases SET category = $3
-			WHERE id IN (SELECT purchase_id FROM linked) AND kind = 'EXPENSE' AND category = 'OTHER' AND $3 <> 'OTHER'
+			WHERE id IN (SELECT purchase_id FROM linked) AND category = 'OTHER' AND $3 <> 'OTHER'
 		)
 		SELECT COUNT(*) FROM linked
 	`

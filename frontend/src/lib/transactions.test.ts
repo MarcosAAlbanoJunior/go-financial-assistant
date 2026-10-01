@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeAmount, formatDay, monthFilter, toApiQuery } from './transactions'
+import { describeAmount, formatDay, formatDayLabel, monthFilter, toApiQuery, withGroupFilter } from './transactions'
 
 const q = (s: string) => new URLSearchParams(s)
 const plain = (s: string) => s.replace(/ /g, ' ')
@@ -46,5 +46,22 @@ describe('describeAmount', () => {
 describe('formatDay', () => {
   it('formata sem deslocar o dia', () => {
     expect(formatDay('2026-09-03')).toBe('03/09/2026')
+  })
+})
+
+describe('formatDayLabel', () => {
+  it('mostra o dia da semana sem deslocar por fuso', () => {
+    expect(formatDayLabel('2026-09-03')).toBe('qui, 03/09')
+    expect(formatDayLabel('2026-01-01')).toBe('qui, 01/01')
+  })
+})
+
+describe('withGroupFilter', () => {
+  it('acrescenta a categoria, pede até 100 itens e volta à primeira página', () => {
+    expect(withGroupFilter('month=2026-09&kind=EXPENSE&page=3', 'category', 'FOOD')).toBe('month=2026-09&kind=EXPENSE&category=FOOD&limit=100')
+  })
+
+  it('o filtro por dia troca o mês', () => {
+    expect(withGroupFilter('month=2026-09&q=padaria', 'day', '2026-09-03')).toBe('q=padaria&day=2026-09-03&limit=100')
   })
 })
