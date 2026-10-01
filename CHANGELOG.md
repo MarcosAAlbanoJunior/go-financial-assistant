@@ -5,6 +5,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- **Dashboard em React** (`frontend/`: Vite, TypeScript, TanStack Query, React Router e Recharts) com login, tema claro/escuro e a tela **Visão geral**: receitas, despesas, saldo do mês, "em conta" e investimentos com a variação sobre o mês anterior, e o gráfico de receitas e despesas dos últimos 12 meses (com visão em tabela). O mês vai na URL (`?mes=AAAA-MM`).
+- Serviço `web` no Docker Compose: nginx sem privilégios que serve o front e repassa `/api` ao app (mesma origem, sem CORS), com CSP restritiva e demais cabeçalhos de segurança. Porta configurável por `WEB_PORT` (padrão 8080), publicada só em `127.0.0.1`.
+- Alvos `make front-dev`, `make front-test` e `make front-build`.
 - **API de leitura do dashboard** sob `/api` (resumo do mês, série temporal, gastos por categoria, forma de pagamento e conta/cartão, investimentos, transações com filtros e paginação, contas), com agregação feita no SQL.
 - Autenticação do dashboard: `POST /api/login` com a senha de `DASHBOARD_PASSWORD` (mínimo de 12 caracteres) emite um cookie de sessão assinado (`HttpOnly`, `SameSite=Strict`, `Secure` atrás de HTTPS). Sem a variável, a API não é montada.
 - Contas e cartões do Open Finance agora são persistidos (tabela `accounts`: tipo, nome, 4 últimos dígitos, saldo, limite e limite disponível), e cada pagamento sincronizado aponta para a conta de origem (`payments.account_id`). Base para "gasto por conta/cartão" e "saldo real" no dashboard.
