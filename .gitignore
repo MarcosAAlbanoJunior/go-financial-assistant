@@ -1,3 +1,5 @@
 .env
 .claude
 .idea
+backend/finassist
+backend/coverage.out
