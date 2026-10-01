@@ -10,8 +10,16 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const (
+	ChannelWhatsApp = "whatsapp"
+	ChannelTelegram = "telegram"
+)
+
 type Config struct {
 	Port int
+
+	// Channel define por onde o usuário conversa com o assistente: whatsapp (padrão) ou telegram.
+	Channel string
 
 	DatabaseURL string
 
@@ -25,6 +33,9 @@ type Config struct {
 	AllowedNumbers map[string]struct{}
 
 	AdminSecret string
+
+	TelegramBotToken string
+	TelegramChatID   int64
 }
 
 func Load() (*Config, error) {
@@ -53,29 +64,43 @@ func Load() (*Config, error) {
 		errs = append(errs, errors.New("GEMINI_API_KEY é obrigatória"))
 	}
 
-	cfg.EvolutionAPIURL = getEnv("EVOLUTION_API_URL", "http://evolution:8082")
-	cfg.EvolutionInstance = getEnv("EVOLUTION_INSTANCE", "")
-	if cfg.EvolutionInstance == "" {
-		errs = append(errs, errors.New("EVOLUTION_INSTANCE é obrigatória"))
-	}
-	cfg.EvolutionAPIKey = getEnv("EVOLUTION_API_KEY", "")
-	if cfg.EvolutionAPIKey == "" {
-		errs = append(errs, errors.New("EVOLUTION_API_KEY é obrigatória"))
-	}
-
-	cfg.OwnerPhone = getEnv("OWNER_PHONE", "")
-	if cfg.OwnerPhone == "" {
-		errs = append(errs, errors.New("OWNER_PHONE é obrigatória"))
-	}
-
+	cfg.Channel = strings.ToLower(strings.TrimSpace(getEnv("CHANNEL", ChannelWhatsApp)))
 	cfg.AllowedNumbers = parseAllowedNumbers(getEnv("ALLOWED_NUMBERS", ""))
 	cfg.AdminSecret = getEnv("ADMIN_SECRET", "")
+
+	switch cfg.Channel {
+	case ChannelWhatsApp:
+		cfg.EvolutionAPIURL = getEnv("EVOLUTION_API_URL", "http://evolution:8082")
+		cfg.EvolutionInstance = requireEnv("EVOLUTION_INSTANCE", &errs)
+		cfg.EvolutionAPIKey = requireEnv("EVOLUTION_API_KEY", &errs)
+		cfg.OwnerPhone = requireEnv("OWNER_PHONE", &errs)
+	case ChannelTelegram:
+		cfg.TelegramBotToken = requireEnv("TELEGRAM_BOT_TOKEN", &errs)
+		chatIDStr := requireEnv("TELEGRAM_CHAT_ID", &errs)
+		if chatIDStr != "" {
+			chatID, err := strconv.ParseInt(chatIDStr, 10, 64)
+			if err != nil || chatID <= 0 {
+				errs = append(errs, errors.New("TELEGRAM_CHAT_ID inválido: deve ser o ID numérico da sua conta (use @userinfobot)"))
+			}
+			cfg.TelegramChatID = chatID
+		}
+	default:
+		errs = append(errs, fmt.Errorf("CHANNEL inválido: %q — use %q ou %q", cfg.Channel, ChannelWhatsApp, ChannelTelegram))
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, fmt.Errorf("configuração inválida:\n%w", err)
 	}
 
 	return cfg, nil
+}
+
+func requireEnv(key string, errs *[]error) string {
+	value := getEnv(key, "")
+	if value == "" {
+		*errs = append(*errs, fmt.Errorf("%s é obrigatória", key))
+	}
+	return value
 }
 
 func getEnv(key, defaultValue string) string {

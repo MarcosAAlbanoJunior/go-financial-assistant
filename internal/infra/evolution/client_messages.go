@@ -3,6 +3,7 @@ package evolution
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,7 +29,7 @@ func (c *Client) SendText(ctx context.Context, to string, text string) (string, 
 	return c.postAndExtractID(ctx, endpoint, body, "mensagem")
 }
 
-func (c *Client) SendDocument(ctx context.Context, to, filename, base64Data, caption string) (string, error) {
+func (c *Client) SendDocument(ctx context.Context, to, filename string, data []byte, caption string) (string, error) {
 	if idx := strings.Index(to, "@"); idx != -1 {
 		to = to[:idx]
 	}
@@ -37,7 +38,7 @@ func (c *Client) SendDocument(ctx context.Context, to, filename, base64Data, cap
 		"number":    to,
 		"mediatype": "document",
 		"fileName":  filename,
-		"media":     base64Data,
+		"media":     base64.StdEncoding.EncodeToString(data),
 		"caption":   caption,
 	})
 	if err != nil {

@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"time"
@@ -41,9 +40,8 @@ func (r *MonthlyReport) Send(ctx context.Context) error {
 	}
 
 	caption := BuildExportCaption(prevMonth, summary)
-	base64Data := base64.StdEncoding.EncodeToString(data)
 
-	if _, err := r.messenger.SendDocument(ctx, r.phone, filename, base64Data, caption); err != nil {
+	if _, err := r.messenger.SendDocument(ctx, r.phone, filename, data, caption); err != nil {
 		return fmt.Errorf("erro ao enviar relatório mensal: %w", err)
 	}
 

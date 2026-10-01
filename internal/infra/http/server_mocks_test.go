@@ -43,7 +43,7 @@ func (m *mockAnalyzer) SavePendingTransaction(ctx context.Context, tx usecase.Pe
 
 type mockMessenger struct {
 	sendTextFn         func(ctx context.Context, to, text string) (string, error)
-	sendDocumentFn     func(ctx context.Context, to, filename, base64Data, caption string) (string, error)
+	sendDocumentFn     func(ctx context.Context, to, filename string, data []byte, caption string) (string, error)
 	fetchImageBase64Fn func(ctx context.Context, remoteJid string, fromMe bool, messageID string) (string, error)
 }
 
@@ -54,9 +54,9 @@ func (m *mockMessenger) SendText(ctx context.Context, to, text string) (string, 
 	return "", nil
 }
 
-func (m *mockMessenger) SendDocument(ctx context.Context, to, filename, base64Data, caption string) (string, error) {
+func (m *mockMessenger) SendDocument(ctx context.Context, to, filename string, data []byte, caption string) (string, error) {
 	if m.sendDocumentFn != nil {
-		return m.sendDocumentFn(ctx, to, filename, base64Data, caption)
+		return m.sendDocumentFn(ctx, to, filename, data, caption)
 	}
 	return "", nil
 }
@@ -67,6 +67,10 @@ func (m *mockMessenger) FetchImageBase64(ctx context.Context, remoteJid string, 
 	}
 	return "", nil
 }
+
+func (m *mockMessenger) FetchConnectionState(context.Context) (string, error) { return "open", nil }
+
+func (m *mockMessenger) FetchConnectCode(context.Context) (string, string, error) { return "", "", nil }
 
 type mockCSVExporter struct {
 	executeFn func(ctx context.Context, month time.Time) ([]byte, string, *usecase.ExportSummary, error)
@@ -94,13 +98,13 @@ func newHandler(analyzer usecase.ExpenseAnalyzer, messenger *mockMessenger, expo
 		exporter = exporters[0]
 	}
 	return newWebhookHandler(
-		ServerConfig{
+		WhatsAppConfig{
 			OwnerPhone:     "5511999999999",
 			AllowedNumbers: map[string]struct{}{"5511888888888@s.whatsapp.net": {}},
 		},
+		messenger,
 		analyzer,
 		exporter,
-		messenger,
 		silentLogger,
 	)
 }
