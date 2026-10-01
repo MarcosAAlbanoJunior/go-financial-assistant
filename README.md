@@ -190,7 +190,14 @@ O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `fronten
 
 1. Defina `DASHBOARD_PASSWORD` no `.env` (mínimo de 12 caracteres).
 2. `docker compose up -d --build` e abra **http://localhost:8080** (mude a porta com `WEB_PORT`).
-3. Entre com a senha. A tela inicial mostra receitas, despesas, saldo do mês, "em conta" e investimentos, com a variação em relação ao mês anterior, e o histórico de 12 meses (há uma visão em tabela para leitores de tela). O mês é escolhido na própria tela ou por `?mes=AAAA-MM`. O tema claro/escuro segue o sistema e pode ser trocado no botão do topo.
+3. Entre com a senha. As telas são:
+   - **Visão geral**: receitas, despesas, saldo do mês, "em conta" e investimentos, com a variação sobre o mês anterior, e o histórico de 12 meses.
+   - **Gastos**: despesas do mês por categoria, forma de pagamento e conta/cartão.
+   - **Comparações**: despesas por categoria no mês escolhido contra o anterior, e a evolução de receitas e despesas em 6, 12 ou 24 meses.
+   - **Transações**: lista manual e do Open Finance, com filtros por mês, tipo, categoria, forma de pagamento, conta e busca na descrição, paginada.
+   - **Contas**: saldo das contas correntes e limite usado dos cartões.
+
+   O mês e os filtros ficam na URL (`?mes=AAAA-MM`), então dá para guardar ou compartilhar a visão. Os gráficos têm visão em tabela, e o tema claro/escuro segue o sistema (botão no topo para trocar).
 
 O container escuta só em `127.0.0.1`. Para acessar de outro dispositivo, ponha na frente um proxy com **HTTPS** (Caddy, Traefik, Cloudflare Tunnel…) apontando para a porta do dashboard; sem HTTPS a senha e o cookie trafegam em claro. O nginx envia `Content-Security-Policy` restritiva, `X-Frame-Options: DENY`, `nosniff` e `Referrer-Policy: no-referrer`.
 

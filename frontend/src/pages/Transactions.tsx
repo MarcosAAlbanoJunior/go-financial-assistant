@@ -85,9 +85,9 @@ export default function Transactions() {
                     <tr>
                       <th scope="col">Data</th>
                       <th scope="col">Descrição</th>
-                      <th scope="col">Categoria</th>
-                      <th scope="col">Pagamento</th>
-                      <th scope="col">Conta</th>
+                      <th scope="col" className="col-wide">Categoria</th>
+                      <th scope="col" className="col-wide">Pagamento</th>
+                      <th scope="col" className="col-wide">Conta</th>
                       <th scope="col">Valor</th>
                     </tr>
                   </thead>
@@ -101,10 +101,13 @@ export default function Transactions() {
                             {t.description || '—'}
                             {t.status === 'PENDING' && <span className="badge">Pendente</span>}
                             {t.source === 'MANUAL' && <span className="badge">Manual</span>}
+                            <span className="tx-meta">
+                              {[t.categoryLabel, t.accountName].filter(Boolean).join(' · ')}
+                            </span>
                           </td>
-                          <td className="left">{t.categoryLabel}</td>
-                          <td className="left">{t.paymentMethodLabel}</td>
-                          <td className="left">{t.accountName || '—'}</td>
+                          <td className="left col-wide">{t.categoryLabel}</td>
+                          <td className="left col-wide">{t.paymentMethodLabel}</td>
+                          <td className="left col-wide">{t.accountName || '—'}</td>
                           <td className={`amount amount-${a.tone}`}>
                             {a.text}
                             <span className="amount-caption">{a.caption}</span>
