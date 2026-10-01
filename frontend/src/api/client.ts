@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Summary, Totals } from './types'
+import type { Account, BreakdownBy, BreakdownItem, Summary, Totals, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -43,5 +43,23 @@ export const useTimeseries = (from: string, to: string) =>
   useQuery({
     queryKey: ['timeseries', from, to],
     queryFn: () => request<Totals[]>(`/api/timeseries?from=${from}&to=${to}`),
+    placeholderData: keepPreviousData,
+  })
+
+export const useBreakdown = (month: string, by: BreakdownBy) =>
+  useQuery({
+    queryKey: ['breakdown', month, by],
+    queryFn: () => request<BreakdownItem[]>(`/api/breakdown?month=${month}&by=${by}`),
+    placeholderData: keepPreviousData,
+  })
+
+export const useAccounts = () =>
+  useQuery({ queryKey: ['accounts'], queryFn: () => request<Account[]>('/api/accounts') })
+
+/** query já vem montada e codificada por quem chama (URLSearchParams). */
+export const useTransactions = (query: string) =>
+  useQuery({
+    queryKey: ['transactions', query],
+    queryFn: () => request<TransactionPage>(`/api/transactions?${query}`),
     placeholderData: keepPreviousData,
   })

@@ -15,3 +15,48 @@ export interface Summary {
   /** Soma das contas correntes; null quando não há conta sincronizada. */
   bankBalance: number | null
 }
+
+export type BreakdownBy = 'category' | 'payment_method' | 'account'
+
+export interface BreakdownItem {
+  key: string
+  label: string
+  total: number
+}
+
+export interface Account {
+  id: string
+  type: 'BANK' | 'CREDIT'
+  name: string
+  last4: string
+  balance: number
+  creditLimit: number | null
+  availableCreditLimit: number | null
+  updatedAt: string
+}
+
+export interface Transaction {
+  id: string
+  date: string
+  description: string
+  category: string
+  categoryLabel: string
+  paymentMethod: string
+  paymentMethodLabel: string
+  kind: 'EXPENSE' | 'INCOME' | 'TRANSFER'
+  transferDirection?: 'IN' | 'OUT'
+  type: string
+  status: 'PENDING' | 'PAID'
+  amount: number
+  installmentNumber?: number
+  accountId?: string
+  accountName?: string
+  source: 'MANUAL' | 'OPEN_FINANCE'
+}
+
+export interface TransactionPage {
+  items: Transaction[]
+  total: number
+  page: number
+  limit: number
+}
