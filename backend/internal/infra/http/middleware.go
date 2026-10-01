@@ -40,9 +40,12 @@ func webhookSourceMiddleware(evolutionHost string, logger *slog.Logger, next htt
 }
 
 func adminRateLimitMiddleware(rl *ipRateLimiter, next http.Handler) http.Handler {
+	return rl.middleware(next)
+}
+
+func (rl *ipRateLimiter) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		if !rl.allow(ip) {
+		if !rl.allow(clientIP(r)) {
 			http.Error(w, "too many requests, tente novamente em breve", http.StatusTooManyRequests)
 			return
 		}
