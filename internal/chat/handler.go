@@ -25,6 +25,11 @@ type pendingImportSession struct {
 	expiresAt time.Time
 }
 
+// Syncer sincroniza as transações do Open Finance sob demanda.
+type Syncer interface {
+	Sync(ctx context.Context) (usecase.SyncResult, error)
+}
+
 // Handler processa mensagens do dono e responde para o mesmo chat (owner).
 type Handler struct {
 	analyzeExpense usecase.ExpenseAnalyzer
@@ -32,6 +37,8 @@ type Handler struct {
 	messenger      ports.Messenger
 	owner          string
 	logger         *slog.Logger
+
+	syncer Syncer // nil quando o Open Finance não está configurado
 
 	mu      sync.Mutex
 	pending *pendingImportSession
@@ -47,6 +54,9 @@ func NewHandler(analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVE
 	}
 }
 
+// SetSyncer habilita o comando de sincronização do Open Finance.
+func (h *Handler) SetSyncer(s Syncer) { h.syncer = s }
+
 // Handle processa a mensagem e já responde ao usuário. O output só é retornado
 // para registros de texto/imagem; os demais fluxos retornam (nil, nil).
 // Erros de registro são notificados ao usuário e também devolvidos ao adapter.
@@ -57,6 +67,11 @@ func (h *Handler) Handle(ctx context.Context, msg Message) (*usecase.ExpenseOutp
 	}
 
 	if h.tryHandlePendingConfirmation(ctx, msg.Text) {
+		return nil, nil
+	}
+
+	if isSyncCommand(msg.Text) {
+		h.handleSync(ctx)
 		return nil, nil
 	}
 

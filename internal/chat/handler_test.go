@@ -240,3 +240,57 @@ func TestHandle_Document_LoadError(t *testing.T) {
 		t.Errorf("mensagem inesperada: %v", msgr.texts)
 	}
 }
+
+type mockSyncer struct {
+	res usecase.SyncResult
+	err error
+	n   int
+}
+
+func (m *mockSyncer) Sync(context.Context) (usecase.SyncResult, error) { m.n++; return m.res, m.err }
+
+func TestHandle_SyncCommand(t *testing.T) {
+	for _, cmd := range []string{"/sync", "Sincronizar", "  sincronizar "} {
+		a := &mockAnalyzer{}
+		h, msgr := newTestHandler(a, &mockExporter{})
+		syncer := &mockSyncer{res: usecase.SyncResult{Inserted: 3, Reconciled: 1, Existing: 7}}
+		h.SetSyncer(syncer)
+
+		if out, err := h.Handle(context.Background(), Message{Text: cmd}); out != nil || err != nil {
+			t.Fatalf("%q: esperava (nil, nil), got %v, %v", cmd, out, err)
+		}
+		if syncer.n != 1 || a.textSeen != "" {
+			t.Errorf("%q: deveria sincronizar sem passar pelo Gemini (syncs=%d, texto=%q)", cmd, syncer.n, a.textSeen)
+		}
+		last := msgr.texts[len(msgr.texts)-1]
+		if !strings.Contains(last, "3 novo") || !strings.Contains(last, "1 conciliado") || !strings.Contains(last, "7 já existiam") {
+			t.Errorf("resumo inesperado: %q", last)
+		}
+	}
+}
+
+func TestHandle_SyncCommand_NotConfigured(t *testing.T) {
+	h, msgr := newTestHandler(&mockAnalyzer{}, &mockExporter{})
+
+	h.Handle(context.Background(), Message{Text: "/sync"})
+	if len(msgr.texts) != 1 || !strings.Contains(msgr.texts[0], "não está configurado") {
+		t.Errorf("esperava aviso de que o Open Finance não está configurado: %v", msgr.texts)
+	}
+}
+
+func TestHandle_SyncCommand_Errors(t *testing.T) {
+	h, msgr := newTestHandler(&mockAnalyzer{}, &mockExporter{})
+	h.SetSyncer(&mockSyncer{err: usecase.ErrSyncInProgress})
+	h.Handle(context.Background(), Message{Text: "/sync"})
+	if last := msgr.texts[len(msgr.texts)-1]; !strings.Contains(last, "em andamento") {
+		t.Errorf("got %q", last)
+	}
+
+	h, msgr = newTestHandler(&mockAnalyzer{}, &mockExporter{})
+	h.SetSyncer(&mockSyncer{err: errors.New("item x: falhou")})
+	h.Handle(context.Background(), Message{Text: "/sync"})
+	last := msgr.texts[len(msgr.texts)-1]
+	if !strings.Contains(last, "falharam") || strings.Contains(last, "item x") {
+		t.Errorf("deve avisar da falha sem expor detalhes: %q", last)
+	}
+}

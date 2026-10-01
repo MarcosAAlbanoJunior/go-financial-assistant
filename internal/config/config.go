@@ -6,7 +6,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
@@ -36,7 +38,16 @@ type Config struct {
 
 	TelegramBotToken string
 	TelegramChatID   int64
+
+	// Open Finance (Meu Pluggy) é opcional: sem PLUGGY_CLIENT_ID só o registro manual fica ativo.
+	PluggyClientID          string
+	PluggyClientSecret      string
+	PluggyItemIDs           []string
+	OpenFinanceSyncInterval time.Duration
+	OpenFinanceLookbackDays int
 }
+
+func (c *Config) OpenFinanceEnabled() bool { return c.PluggyClientID != "" }
 
 func Load() (*Config, error) {
 
@@ -88,11 +99,51 @@ func Load() (*Config, error) {
 		errs = append(errs, fmt.Errorf("CHANNEL inválido: %q — use %q ou %q", cfg.Channel, ChannelWhatsApp, ChannelTelegram))
 	}
 
+	loadOpenFinance(cfg, &errs)
+
 	if err := errors.Join(errs...); err != nil {
 		return nil, fmt.Errorf("configuração inválida:\n%w", err)
 	}
 
 	return cfg, nil
+}
+
+func loadOpenFinance(cfg *Config, errs *[]error) {
+	cfg.PluggyClientID = getEnv("PLUGGY_CLIENT_ID", "")
+	cfg.PluggyClientSecret = getEnv("PLUGGY_CLIENT_SECRET", "")
+	itemsRaw := getEnv("PLUGGY_ITEM_IDS", "")
+	if cfg.PluggyClientID == "" && cfg.PluggyClientSecret == "" && itemsRaw == "" {
+		return
+	}
+
+	if cfg.PluggyClientID == "" || cfg.PluggyClientSecret == "" || itemsRaw == "" {
+		*errs = append(*errs, errors.New("Open Finance incompleto: PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET e PLUGGY_ITEM_IDS são obrigatórias juntas"))
+		return
+	}
+
+	for _, id := range strings.Split(itemsRaw, ",") {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, err := uuid.Parse(id); err != nil {
+			*errs = append(*errs, fmt.Errorf("PLUGGY_ITEM_IDS contém um itemId inválido: %q (deve ser um UUID)", id))
+			continue
+		}
+		cfg.PluggyItemIDs = append(cfg.PluggyItemIDs, id)
+	}
+
+	hours, err := strconv.Atoi(getEnv("SYNC_INTERVAL_HOURS", "6"))
+	if err != nil || hours < 1 {
+		*errs = append(*errs, errors.New("SYNC_INTERVAL_HOURS inválida: deve ser um inteiro >= 1"))
+	}
+	cfg.OpenFinanceSyncInterval = time.Duration(hours) * time.Hour
+
+	// O Pluggy só guarda os últimos 12 meses.
+	cfg.OpenFinanceLookbackDays, err = strconv.Atoi(getEnv("SYNC_LOOKBACK_DAYS", "60"))
+	if err != nil || cfg.OpenFinanceLookbackDays < 1 || cfg.OpenFinanceLookbackDays > 365 {
+		*errs = append(*errs, errors.New("SYNC_LOOKBACK_DAYS inválida: deve ser um inteiro entre 1 e 365"))
+	}
 }
 
 func requireEnv(key string, errs *[]error) string {

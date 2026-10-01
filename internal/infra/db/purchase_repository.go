@@ -8,6 +8,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type purchaseModel struct {
@@ -82,25 +83,8 @@ func (r *PostgresPurchaseRepository) Save(ctx context.Context, purchase *domain.
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	var transferDir *string
-	if purchase.TransferDirection != nil {
-		s := string(*purchase.TransferDirection)
-		transferDir = &s
-	}
-
-	purchaseQuery := `
-		INSERT INTO purchases
-			(id, description, category, payment_method, kind, transfer_direction, type, total_amount,
-			 installment_count, installment_amount, day_of_month, is_active, raw_input, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-	`
-	if _, err := tx.Exec(ctx, purchaseQuery,
-		purchase.ID, purchase.Description, purchase.Category, purchase.PaymentMethod,
-		purchase.Kind, transferDir, purchase.Type, purchase.TotalAmount, purchase.InstallmentCount,
-		purchase.InstallmentAmount, purchase.DayOfMonth, purchase.IsActive,
-		purchase.RawInput, purchase.CreatedAt,
-	); err != nil {
-		return fmt.Errorf("erro ao salvar compra: %w", err)
+	if err := insertPurchase(ctx, tx, purchase); err != nil {
+		return err
 	}
 
 	paymentQuery := `
@@ -118,6 +102,30 @@ func (r *PostgresPurchaseRepository) Save(ctx context.Context, purchase *domain.
 	}
 
 	return tx.Commit(ctx)
+}
+
+func insertPurchase(ctx context.Context, tx pgx.Tx, purchase *domain.Purchase) error {
+	var transferDir *string
+	if purchase.TransferDirection != nil {
+		s := string(*purchase.TransferDirection)
+		transferDir = &s
+	}
+
+	query := `
+		INSERT INTO purchases
+			(id, description, category, payment_method, kind, transfer_direction, type, total_amount,
+			 installment_count, installment_amount, day_of_month, is_active, raw_input, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	`
+	if _, err := tx.Exec(ctx, query,
+		purchase.ID, purchase.Description, purchase.Category, purchase.PaymentMethod,
+		purchase.Kind, transferDir, purchase.Type, purchase.TotalAmount, purchase.InstallmentCount,
+		purchase.InstallmentAmount, purchase.DayOfMonth, purchase.IsActive,
+		purchase.RawInput, purchase.CreatedAt,
+	); err != nil {
+		return fmt.Errorf("erro ao salvar compra: %w", err)
+	}
+	return nil
 }
 
 func (r *PostgresPurchaseRepository) Update(ctx context.Context, purchase *domain.Purchase) error {
