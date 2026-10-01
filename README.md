@@ -175,6 +175,7 @@ Se algum `PLUGGY_*` estiver preenchido, os três são obrigatórios. Sem nenhum,
 - **Conciliação com o manual:** se você registrou "gastei 45 no almoço" e depois o Pix chega pelo banco, o assistente liga os dois em vez de contar duas vezes (mesmo tipo e valor, data com até 3 dias de diferença; recorrentes casam no mesmo mês).
 - **Sem dupla contagem no cartão:** pagamento de fatura e transferência entre contas do mesmo titular são ignorados, porque as compras do cartão já entram uma a uma. Aplicações e resgates de investimento viram **Transferência**.
 - Compras parceladas no cartão chegam parcela a parcela, com a descrição `(2/3)`.
+- **Investimentos:** se o banco conectado tiver posições (CDB, fundos, ações, previdência...), o app guarda o saldo líquido de cada uma a cada sincronização (tabela `investments`, mais o saldo diário em `investment_balances`). O Pluggy não informa saldos passados, então o histórico do patrimônio começa na primeira sincronização. Titular, CNPJ do emissor e número da posição são descartados.
 - **Contas e cartões** são guardados na tabela `accounts` (nome, tipo, 4 últimos dígitos, saldo e limite do cartão), e cada transação aponta para a conta de origem. O app **não** guarda CPF, nome do titular nem o número completo da conta. Transações sincronizadas antes dessa tabela ganham a conta na primeira sincronização depois da atualização, desde que estejam dentro de `SYNC_LOOKBACK_DAYS`.
 
 **Limitações**
@@ -221,6 +222,8 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 | `GET /api/investments?from=&to=` | aplicado, resgatado e **líquido acumulado desde o primeiro lançamento** |
 | `GET /api/transactions?month=&kind=&category=&payment_method=&account=&q=&page=&limit=` | lista paginada (padrão 50, máx. 100), manual e Open Finance |
 | `GET /api/accounts` | contas e cartões, com saldo e limite |
+| `GET /api/portfolio` | posições de investimento (saldo real do Open Finance), total e total por tipo |
+| `GET /api/portfolio/history?from=&to=` | saldo total ao fim de cada mês (existe a partir da primeira sincronização) |
 
 - **Segurança:** a porta `3000` do app é publicada só em `127.0.0.1`. Para acessar de outra máquina, ponha um proxy com **HTTPS** na frente (sem HTTPS a senha e o cookie trafegam em claro) e repasse `X-Real-IP` e `X-Forwarded-Proto`, usados pelo rate limit e pelo atributo `Secure` do cookie; esses cabeçalhos só são aceitos de IPs da rede privada.
 

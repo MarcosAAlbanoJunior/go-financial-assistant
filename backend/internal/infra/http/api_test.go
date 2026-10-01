@@ -18,11 +18,12 @@ import (
 const testPassword = "senha-de-teste-123"
 
 type fakeReader struct {
-	monthly  []ports.MonthTotals
-	accounts []ports.Account
-	filter   ports.TransactionFilter
-	by       ports.BreakdownDimension
-	err      error
+	monthly   []ports.MonthTotals
+	accounts  []ports.Account
+	positions []ports.Position
+	filter    ports.TransactionFilter
+	by        ports.BreakdownDimension
+	err       error
 }
 
 func (f *fakeReader) MonthlyTotals(_ context.Context, from, to time.Time) ([]ports.MonthTotals, error) {
@@ -45,6 +46,16 @@ func (f *fakeReader) ExpenseBreakdown(_ context.Context, _ time.Time, by ports.B
 func (f *fakeReader) Transactions(_ context.Context, flt ports.TransactionFilter) ([]ports.Transaction, int, error) {
 	f.filter = flt
 	return []ports.Transaction{{ID: uuid.New(), Date: time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC), Category: "FOOD", PaymentMethod: "PIX", Kind: "EXPENSE", Type: "SINGLE", Status: "PAID", Amount: 12.5, FromOpenFinance: true}}, 1, f.err
+}
+func (f *fakeReader) Positions(context.Context) ([]ports.Position, error) {
+	return f.positions, f.err
+}
+func (f *fakeReader) PortfolioHistory(_ context.Context, from, to time.Time) ([]ports.PortfolioMonth, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	v := 1500.5
+	return []ports.PortfolioMonth{{Month: from}, {Month: to, Balance: &v}}, nil
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
 
@@ -88,7 +99,7 @@ func login(t *testing.T, s *Server) *http.Cookie {
 
 func TestAPI_RequiresSession(t *testing.T) {
 	s := newTestAPI(t, &fakeReader{})
-	for _, path := range []string{"/api/me", "/api/summary?month=2026-09", "/api/timeseries", "/api/breakdown?month=2026-09&by=category", "/api/investments", "/api/transactions", "/api/accounts"} {
+	for _, path := range []string{"/api/me", "/api/summary?month=2026-09", "/api/timeseries", "/api/breakdown?month=2026-09&by=category", "/api/investments", "/api/transactions", "/api/accounts", "/api/portfolio"} {
 		if rec := do(s, "GET", path, "", nil); rec.Code != http.StatusUnauthorized {
 			t.Errorf("GET %s sem sessão = %d, esperava 401", path, rec.Code)
 		}
@@ -315,5 +326,47 @@ func TestSessions_ExpiredCookieRejected(t *testing.T) {
 	r.AddCookie(&http.Cookie{Name: sessionCookie, Value: future + "." + sess.sign(future)})
 	if !sess.valid(r) {
 		t.Error("cookie válido recusado")
+	}
+}
+
+func TestAPI_Portfolio(t *testing.T) {
+	r := &fakeReader{positions: []ports.Position{
+		{ID: uuid.New(), Type: "FIXED_INCOME", Subtype: "CDB", Name: "CDB A", Balance: 1000, Amount: 1100},
+		{ID: uuid.New(), Type: "MUTUAL_FUND", Name: "Fundo B", Balance: 300.5},
+		{ID: uuid.New(), Type: "FIXED_INCOME", Subtype: "LCI", Name: "LCI C", Balance: 200},
+		{ID: uuid.New(), Type: "ALGO_NOVO", Name: "D", Balance: 1},
+	}}
+	s := newTestAPI(t, r)
+	c := login(t, s)
+
+	body := do(s, "GET", "/api/portfolio", "", nil, c).Body.String()
+	for _, want := range []string{`"total":1501.5`, `"typeLabel":"Renda fixa"`, `{"key":"Renda fixa","label":"Renda fixa","total":1200}`, `"label":"Outros"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("falta %s em %s", want, body)
+		}
+	}
+	if strings.Index(body, `"label":"Renda fixa","total":1200`) > strings.Index(body, `"label":"Fundos"`) {
+		t.Error("grupos devem vir do maior para o menor")
+	}
+
+	empty := newTestAPI(t, &fakeReader{})
+	body = do(empty, "GET", "/api/portfolio", "", nil, login(t, empty)).Body.String()
+	if !strings.Contains(body, `"positions":[]`) || !strings.Contains(body, `"byType":[]`) || !strings.Contains(body, `"total":0`) {
+		t.Errorf("sem posições deve devolver listas vazias, não null: %s", body)
+	}
+}
+
+func TestAPI_PortfolioHistory(t *testing.T) {
+	s := newTestAPI(t, &fakeReader{})
+	c := login(t, s)
+	body := do(s, "GET", "/api/portfolio/history?from=2026-08&to=2026-09", "", nil, c).Body.String()
+	if !strings.Contains(body, `{"month":"2026-08","balance":null}`) || !strings.Contains(body, `{"month":"2026-09","balance":1500.5}`) {
+		t.Errorf("histórico inesperado: %s", body)
+	}
+	if rec := do(s, "GET", "/api/portfolio/history?from=2020-01&to=2026-09", "", nil, c); rec.Code != 400 {
+		t.Errorf("janela longa demais = %d", rec.Code)
+	}
+	if rec := do(s, "GET", "/api/portfolio/history", "", nil); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
 	}
 }
