@@ -415,3 +415,31 @@ func TestBudget_KnownInstallments(t *testing.T) {
 		t.Errorf("parcelas por mês (cancelada e avulsa ficam de fora): %v %v", got, err)
 	}
 }
+
+func TestBudget_IncomePayments(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+
+	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "ZZSalário Empresa 03/01", amount: 6000, date: mar1999.AddDate(0, 0, 1)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "ZZSalário Empresa 03/02", amount: 9000, date: mar1999.AddDate(0, 0, 20)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "ZZSalário Empresa 04/01", amount: 6100, date: apr1999})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "ZZSalário despesa", amount: 50, date: mar1999})
+	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "ZZSalário cancelado", amount: 1, date: mar1999, status: domain.PaymentStatusCancelled})
+
+	got, err := repo.IncomePayments(ctx, mar1999, apr1999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mine []ports.IncomePayment
+	for _, p := range got {
+		if p.Key == "zzsal rio empresa" || p.Key == "zzsalário empresa" {
+			mine = append(mine, p)
+		}
+	}
+	if len(mine) != 3 {
+		t.Fatalf("3 recebimentos da mesma fonte (chave sem números), despesa e cancelado de fora: %+v", got)
+	}
+	if mine[0].Amount != 9000 || mine[0].Month.Month() != time.March || mine[2].Month.Month() != time.April {
+		t.Errorf("ordenado por mês e valor, com o valor de cada pagamento: %+v", mine)
+	}
+}

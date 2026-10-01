@@ -175,3 +175,41 @@ export function saveScenarios(list: Scenario[]) {
     // sem armazenamento, os cenários valem só nesta sessão
   }
 }
+
+// --- Premissas editadas (também só no navegador) ---
+
+const PREMISES_KEY = 'projection-premises'
+const FIELDS = ['income', 'fixed', 'variable'] as const
+
+/** Lê só números finitos e não negativos das premissas editadas; o resto é descartado. */
+export function parsePremises(raw: string | null): Partial<Premises> {
+  try {
+    const data: unknown = raw ? JSON.parse(raw) : {}
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) return {}
+    const out: Partial<Premises> = {}
+    for (const f of FIELDS) {
+      const v = (data as Record<string, unknown>)[f]
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e9) out[f] = v
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+export function loadPremises(): Partial<Premises> {
+  try {
+    return parsePremises(localStorage.getItem(PREMISES_KEY))
+  } catch {
+    return {}
+  }
+}
+
+export function savePremises(p: Partial<Premises>) {
+  try {
+    if (Object.keys(p).length === 0) localStorage.removeItem(PREMISES_KEY)
+    else localStorage.setItem(PREMISES_KEY, JSON.stringify(p))
+  } catch {
+    // sem armazenamento, a edição vale só nesta sessão
+  }
+}
