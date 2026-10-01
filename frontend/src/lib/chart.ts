@@ -1,10 +1,10 @@
-import type { InvestmentMonth, Totals } from '../api/types'
+import type { InvestmentMonth, PortfolioMonth, Totals } from '../api/types'
 import { formatMonthShort } from './format'
 
 export interface ChartRow {
   month: string
   label: string
-  [series: string]: string | number
+  [series: string]: string | number | null
 }
 
 export interface Series {
@@ -36,3 +36,11 @@ export const toInvestmentRows = (months: InvestmentMonth[]): ChartRow[] =>
     redeemed: m.redeemed,
     cumulative: m.cumulative,
   }))
+
+export const BALANCE: Series[] = [{ key: 'balance', name: 'Saldo real', color: 'var(--series-1)' }]
+
+export const toPortfolioRows = (months: PortfolioMonth[]): ChartRow[] =>
+  months.map((m) => ({ month: m.month, label: formatMonthShort(m.month), balance: m.balance }))
+
+/** Quantos meses têm saldo registrado (o histórico começa na primeira sincronização). */
+export const knownMonths = (rows: ChartRow[], key: string) => rows.filter((r) => r[key] !== null).length

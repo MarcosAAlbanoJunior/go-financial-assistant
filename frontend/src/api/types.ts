@@ -24,6 +24,31 @@ export interface InvestmentMonth {
   cumulative: number
 }
 
+export interface Position {
+  id: string
+  type: string
+  typeLabel: string
+  subtype: string
+  name: string
+  /** Saldo líquido atual. */
+  balance: number
+  /** Valor bruto. */
+  amount: number
+  updatedAt: string
+}
+
+export interface Portfolio {
+  total: number
+  positions: Position[]
+  byType: BreakdownItem[]
+}
+
+export interface PortfolioMonth {
+  month: string
+  /** Saldo total ao fim do mês; null antes do primeiro registro (o histórico começa na primeira sincronização). */
+  balance: number | null
+}
+
 export type BreakdownBy = 'category' | 'payment_method' | 'account'
 
 export interface BreakdownItem {
