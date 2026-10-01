@@ -23,6 +23,7 @@ type fakeReader struct {
 	positions []ports.Position
 	filter    ports.TransactionFilter
 	by        ports.BreakdownDimension
+	groupBy   ports.GroupBy
 	err       error
 }
 
@@ -57,6 +58,10 @@ func (f *fakeReader) PortfolioHistory(_ context.Context, from, to time.Time) ([]
 	v := 1500.5
 	est := 1400.0
 	return []ports.PortfolioMonth{{Month: from, Balance: &est, Estimated: true}, {Month: to, Balance: &v}}, nil
+}
+func (f *fakeReader) TransactionGroups(_ context.Context, flt ports.TransactionFilter, by ports.GroupBy) ([]ports.TransactionGroup, error) {
+	f.filter, f.groupBy = flt, by
+	return []ports.TransactionGroup{{Key: "FOOD", Count: 3, Expense: 90.5}, {Key: "SALARY", Count: 1, Income: 5000}}, f.err
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
 
@@ -369,5 +374,46 @@ func TestAPI_PortfolioHistory(t *testing.T) {
 	}
 	if rec := do(s, "GET", "/api/portfolio/history", "", nil); rec.Code != 401 {
 		t.Errorf("sem sessão = %d", rec.Code)
+	}
+}
+
+func TestAPI_TransactionGroups(t *testing.T) {
+	r := &fakeReader{}
+	s := newTestAPI(t, r)
+	c := login(t, s)
+
+	rec := do(s, "GET", "/api/transactions/groups?by=category&month=2026-09&kind=EXPENSE&q=pad", "", nil, c)
+	body := rec.Body.String()
+	if rec.Code != 200 || r.groupBy != ports.GroupByCategory || r.filter.Kind != "EXPENSE" || r.filter.Search != "pad" || r.filter.Month == nil {
+		t.Fatalf("%d %s filtro=%+v", rec.Code, body, r.filter)
+	}
+	for _, want := range []string{`"key":"FOOD","label":"Alimentação","count":3,"expense":90.5`, `"label":"Salário/Renda"`, `"income":5000`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("falta %s em %s", want, body)
+		}
+	}
+
+	body = do(s, "GET", "/api/transactions/groups?by=day&month=2026-09", "", nil, c).Body.String()
+	if r.groupBy != ports.GroupByDay || !strings.Contains(body, `"label":"FOOD"`) {
+		t.Errorf("por dia mantém a chave como rótulo: %s", body)
+	}
+
+	for _, bad := range []string{"", "?by=payment_method", "?by=category&kind=HACK", "?by=category&day=ontem", "?by=category&account=x"} {
+		path := "/api/transactions/groups" + bad
+		if bad == "" {
+			path += "?month=2026-09"
+		}
+		if rec := do(s, "GET", path, "", nil, c); rec.Code != 400 {
+			t.Errorf("%s = %d, esperava 400", path, rec.Code)
+		}
+	}
+	if rec := do(s, "GET", "/api/transactions/groups?by=category", "", nil); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
+	}
+
+	// O filtro por dia vale também na lista.
+	do(s, "GET", "/api/transactions?day=2026-09-03", "", nil, c)
+	if r.filter.Day == nil || r.filter.Day.Format("2006-01-02") != "2026-09-03" {
+		t.Errorf("day não chegou ao filtro: %+v", r.filter)
 	}
 }
