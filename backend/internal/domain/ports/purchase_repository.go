@@ -47,6 +47,9 @@ type PurchaseRepository interface {
 	// LinkExternalAccount informa se a transação já foi sincronizada e, se ainda não tinha
 	// conta de origem (sincronizada antes da tabela de contas), vincula-a.
 	LinkExternalAccount(ctx context.Context, externalID string, accountID uuid.UUID) (bool, error)
+	// SaveInvestments grava as posições do item e o saldo de hoje; posições do item que não
+	// vieram na lista (resgatadas) ficam inativas com saldo zero a partir de hoje.
+	SaveInvestments(ctx context.Context, itemID string, positions []ExternalInvestment, day time.Time) error
 	// ReconcileExternal liga a transação a um lançamento manual equivalente ainda não conciliado.
 	ReconcileExternal(ctx context.Context, tx ExternalTransaction, accountID uuid.UUID) (bool, error)
 	SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error

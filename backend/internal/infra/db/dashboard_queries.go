@@ -221,3 +221,56 @@ func (r *PostgresPurchaseRepository) Accounts(ctx context.Context) ([]ports.Acco
 func NewDashboardReader(db *DB) ports.DashboardReader {
 	return &PostgresPurchaseRepository{db: db}
 }
+
+func (r *PostgresPurchaseRepository) Positions(ctx context.Context) ([]ports.Position, error) {
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT id, type, subtype, name, balance, amount, updated_at
+		FROM investments
+		WHERE active
+		ORDER BY balance DESC, name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar posições: %w", err)
+	}
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (ports.Position, error) {
+		var p ports.Position
+		err := row.Scan(&p.ID, &p.Type, &p.Subtype, &p.Name, &p.Balance, &p.Amount, &p.UpdatedAt)
+		return p, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("erro ao escanear posições: %w", err)
+	}
+	return result, nil
+}
+
+func (r *PostgresPurchaseRepository) PortfolioHistory(ctx context.Context, from, to time.Time) ([]ports.PortfolioMonth, error) {
+	// Para cada mês, soma o último saldo de cada posição até o fim do mês. Sem nenhum
+	// registro até lá, a soma é NULL (histórico ainda não existia).
+	query := `
+		SELECT s.month::date, SUM(b.balance)
+		FROM generate_series($1::date, $2::date, '1 month') AS s(month)
+		LEFT JOIN LATERAL (
+			SELECT DISTINCT ON (ib.investment_id) ib.balance
+			FROM investment_balances ib
+			WHERE ib.day < s.month + INTERVAL '1 month'
+			ORDER BY ib.investment_id, ib.day DESC
+		) b ON TRUE
+		GROUP BY s.month
+		ORDER BY s.month
+	`
+	rows, err := r.db.Pool.Query(ctx, query, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar histórico do patrimônio: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ports.PortfolioMonth
+	for rows.Next() {
+		var m ports.PortfolioMonth
+		if err := rows.Scan(&m.Month, &m.Balance); err != nil {
+			return nil, fmt.Errorf("erro ao escanear histórico do patrimônio: %w", err)
+		}
+		result = append(result, m)
+	}
+	return result, rows.Err()
+}

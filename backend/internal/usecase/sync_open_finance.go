@@ -19,6 +19,7 @@ type SyncResult struct {
 	Inserted   int // lançamentos novos
 	Reconciled int // casados com um lançamento manual equivalente
 	Existing   int // já sincronizados antes
+	Positions  int // posições de investimento atualizadas
 }
 
 // SyncOpenFinance copia as transações do Open Finance para o banco. É idempotente: o ID da
@@ -49,6 +50,8 @@ func (s *SyncOpenFinance) Sync(ctx context.Context) (SyncResult, error) {
 	var result SyncResult
 	var errs []error
 	for _, itemID := range s.itemIDs {
+		s.syncInvestments(ctx, itemID, &result)
+
 		data, err := s.provider.FetchItem(ctx, itemID, from)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("item %s: %w", itemID, err))
@@ -79,6 +82,21 @@ func (s *SyncOpenFinance) Sync(ctx context.Context) (SyncResult, error) {
 		}
 	}
 	return result, errors.Join(errs...)
+}
+
+// syncInvestments atualiza as posições do item. É independente das transações: um item pode
+// não ter investimentos (ou o Pluggy não os oferecer), e isso não deve contar como falha.
+func (s *SyncOpenFinance) syncInvestments(ctx context.Context, itemID string, result *SyncResult) {
+	positions, err := s.provider.FetchInvestments(ctx, itemID)
+	if err != nil {
+		s.logger.Warn("investimentos não sincronizados", "error", err)
+		return
+	}
+	if err := s.repo.SaveInvestments(ctx, itemID, positions, time.Now().UTC()); err != nil {
+		s.logger.Error("erro ao salvar investimentos", "error", err)
+		return
+	}
+	result.Positions += len(positions)
 }
 
 func (s *SyncOpenFinance) syncOne(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID, result *SyncResult) error {

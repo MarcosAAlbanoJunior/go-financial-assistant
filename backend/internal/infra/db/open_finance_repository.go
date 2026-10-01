@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
@@ -96,4 +97,50 @@ func (r *PostgresPurchaseRepository) ReconcileExternal(ctx context.Context, tx p
 		return false, fmt.Errorf("erro ao conciliar transação externa: %w", err)
 	}
 	return tag.RowsAffected() > 0, nil
+}
+
+func (r *PostgresPurchaseRepository) SaveInvestments(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("erro ao iniciar transação: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	seen := make([]string, 0, len(positions))
+	for _, p := range positions {
+		var id uuid.UUID
+		err := tx.QueryRow(ctx, `
+			INSERT INTO investments (external_id, item_id, type, subtype, name, balance, amount, active, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, NOW())
+			ON CONFLICT (external_id) DO UPDATE SET
+				item_id = EXCLUDED.item_id, type = EXCLUDED.type, subtype = EXCLUDED.subtype, name = EXCLUDED.name,
+				balance = EXCLUDED.balance, amount = EXCLUDED.amount, active = TRUE, updated_at = NOW()
+			RETURNING id
+		`, p.ID, itemID, p.Type, p.Subtype, p.Name, p.Balance, p.Amount).Scan(&id)
+		if err != nil {
+			return fmt.Errorf("erro ao salvar posição de investimento: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO investment_balances (investment_id, day, balance) VALUES ($1, $2::date, $3)
+			ON CONFLICT (investment_id, day) DO UPDATE SET balance = EXCLUDED.balance
+		`, id, day, p.Balance); err != nil {
+			return fmt.Errorf("erro ao salvar saldo da posição: %w", err)
+		}
+		seen = append(seen, p.ID)
+	}
+
+	// Posição que sumiu do Pluggy foi resgatada: zera o saldo daqui em diante para o histórico não carregá-la.
+	if _, err := tx.Exec(ctx, `
+		WITH gone AS (
+			UPDATE investments SET active = FALSE, balance = 0, updated_at = NOW()
+			WHERE item_id = $1 AND active AND external_id <> ALL($2::text[])
+			RETURNING id
+		)
+		INSERT INTO investment_balances (investment_id, day, balance)
+		SELECT id, $3::date, 0 FROM gone
+		ON CONFLICT (investment_id, day) DO UPDATE SET balance = 0
+	`, itemID, seen, day); err != nil {
+		return fmt.Errorf("erro ao inativar posições resgatadas: %w", err)
+	}
+	return tx.Commit(ctx)
 }

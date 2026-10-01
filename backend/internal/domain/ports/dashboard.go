@@ -81,6 +81,23 @@ type Account struct {
 	UpdatedAt            time.Time
 }
 
+// Position é uma posição de investimento ativa, com o saldo da última sincronização.
+type Position struct {
+	ID        uuid.UUID
+	Type      string
+	Subtype   string
+	Name      string
+	Balance   float64
+	Amount    float64
+	UpdatedAt time.Time
+}
+
+// PortfolioMonth é o saldo total das posições ao fim do mês; nil antes do primeiro registro.
+type PortfolioMonth struct {
+	Month   time.Time
+	Balance *float64
+}
+
 // DashboardReader reúne as consultas de leitura do dashboard. As agregações são feitas
 // no banco; um mês é identificado pelo seu primeiro dia.
 type DashboardReader interface {
@@ -91,4 +108,9 @@ type DashboardReader interface {
 	// Transactions devolve a página pedida e o total de linhas que casam com o filtro.
 	Transactions(ctx context.Context, f TransactionFilter) ([]Transaction, int, error)
 	Accounts(ctx context.Context) ([]Account, error)
+	// Positions devolve as posições de investimento ativas, da maior para a menor.
+	Positions(ctx context.Context) ([]Position, error)
+	// PortfolioHistory devolve o saldo total ao fim de cada mês de from a to. Só existe a
+	// partir da primeira sincronização de investimentos.
+	PortfolioHistory(ctx context.Context, from, to time.Time) ([]PortfolioMonth, error)
 }
