@@ -26,6 +26,7 @@ export function Layout({ children }: { children: ReactNode }) {
               Visão geral
             </NavLink>
             <NavLink to="/gastos">Gastos</NavLink>
+            <NavLink to="/transacoes">Transações</NavLink>
             <NavLink to="/contas">Contas</NavLink>
           </nav>
           <div className="topbar-actions">
