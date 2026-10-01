@@ -385,3 +385,33 @@ func TestBudget_ExpenseKeyMonthsAndRules(t *testing.T) {
 		t.Errorf("AUTO apaga a regra: %v", rules)
 	}
 }
+
+func TestBudget_KnownInstallments(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM purchases WHERE raw_input = 'teste-parcelas'`) })
+
+	// Compra parcelada cadastrada à mão: 3 parcelas de 80 (uma já cancelada) em meses de 1999.
+	desc := "Compra parcelada teste"
+	p, err := domain.NewPurchase(240, &desc, domain.CategoryShopping, domain.PaymentMethodCreditCard, domain.PurchaseTypeInstallment, "teste-parcelas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pays []domain.Payment
+	for i, st := range []domain.PaymentStatus{domain.PaymentStatusPending, domain.PaymentStatusPending, domain.PaymentStatusCancelled} {
+		due := mar1999.AddDate(0, i, 0)
+		pay := domain.NewPayment(p.ID, 80, st)
+		pay.DueDate = &due
+		pays = append(pays, *pay)
+	}
+	if err := repo.Save(ctx, p, pays); err != nil {
+		t.Fatal(err)
+	}
+	// Avulsa no mesmo mês não entra.
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "avulsa", amount: 999, date: mar1999})
+
+	got, err := repo.KnownInstallments(ctx, mar1999, apr1999.AddDate(0, 1, 0))
+	if err != nil || len(got) != 2 || got[mar1999] != 80 || got[apr1999] != 80 {
+		t.Errorf("parcelas por mês (cancelada e avulsa ficam de fora): %v %v", got, err)
+	}
+}

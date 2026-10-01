@@ -27,6 +27,7 @@ type fakeReader struct {
 	from, to  time.Time
 	rules     map[string]ports.ExpenseClass
 	ruleKey   string
+	known     map[string]time.Time
 	ruleClass ports.ExpenseClass
 	err       error
 }
@@ -74,6 +75,10 @@ func (f *fakeReader) ExpenseKeyMonths(_ context.Context, from, to time.Time) ([]
 		{Key: "netflix", Label: "NETFLIX 12/10", Category: "ENTERTAINMENT", Month: to.AddDate(0, -2, 0), Total: 44.9, Count: 1, Day: 12, AllPaid: true},
 		{Key: "netflix", Label: "NETFLIX 12/11", Category: "ENTERTAINMENT", Month: to, Total: 44.9, Count: 1, Day: 12, AllPaid: false},
 	}, f.err
+}
+func (f *fakeReader) KnownInstallments(_ context.Context, from, to time.Time) (map[time.Time]float64, error) {
+	f.known = map[string]time.Time{"from": from, "to": to}
+	return map[time.Time]float64{from.AddDate(0, 2, 0): 300}, f.err
 }
 func (f *fakeReader) ExpenseRules(context.Context) (map[string]ports.ExpenseClass, error) {
 	return f.rules, f.err
@@ -495,6 +500,36 @@ func TestAPI_SetExpenseRule(t *testing.T) {
 		}
 	}
 	if rec := do(s, "PUT", "/api/expense-rules", `{"key":"netflix","class":"FIXED"}`, json); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
+	}
+}
+
+func TestAPI_Projection(t *testing.T) {
+	r := &fakeReader{}
+	s := newTestAPI(t, r)
+	s.mux = http.NewServeMux() // monta de novo com relógio fixo
+	if err := s.mountAPI("senha-de-teste-123", r, func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC) }); err != nil {
+		t.Fatal(err)
+	}
+	c := login(t, s)
+
+	rec := do(s, "GET", "/api/projection?months=6", "", nil, c)
+	body := rec.Body.String()
+	if rec.Code != 200 || r.known["from"].Format("2006-01") != "2026-10" || r.known["to"].Format("2006-01") != "2027-03" {
+		t.Fatalf("seis meses a partir do mês atual: %d %s %v", rec.Code, body, r.known)
+	}
+	if strings.Count(body, `"installment"`) != 6 || !strings.Contains(body, `"month":"2026-12","fixed":`) || !strings.Contains(body, `"installment":300`) {
+		t.Errorf("parcela cadastrada de dez deveria aparecer: %s", body)
+	}
+	for _, bad := range []string{"months=7", "months=abc", "months=0"} {
+		if rec := do(s, "GET", "/api/projection?"+bad, "", nil, c); rec.Code != 400 {
+			t.Errorf("%s = %d", bad, rec.Code)
+		}
+	}
+	if rec := do(s, "GET", "/api/projection", "", nil, c); rec.Code != 200 || r.known["to"].Format("2006-01") != "2027-09" {
+		t.Errorf("padrão são 12 meses: %d %v", rec.Code, r.known)
+	}
+	if rec := do(s, "GET", "/api/projection", "", nil); rec.Code != 401 {
 		t.Errorf("sem sessão = %d", rec.Code)
 	}
 }
