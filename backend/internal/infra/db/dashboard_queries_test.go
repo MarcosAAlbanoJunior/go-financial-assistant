@@ -228,3 +228,63 @@ func TestInvestments_SaveSnapshotsAndHistory(t *testing.T) {
 		}
 	}
 }
+
+func TestInvestments_EstimatesMonthsBeforeFirstSnapshot(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	const item = "of-test-est-item"
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM investments WHERE item_id = $1`, item) })
+
+	day := func(m time.Month, d int) time.Time { return time.Date(1999, m, d, 0, 0, 0, 0, time.UTC) }
+	mv := func(id string, m time.Month, d int, amount float64) ports.ExternalMovement {
+		return ports.ExternalMovement{ID: id, Day: day(m, d), Amount: amount}
+	}
+	// A: aplicou 1000 em fev e 100 em mar. B: aplicou 500 em jan e resgatou 150 em mar.
+	// Primeira sincronização em 15/abr, com saldos 1100 e 400.
+	a := ports.ExternalInvestment{ID: "of-test-est-a", Type: "FIXED_INCOME", Name: "A", Balance: 1100,
+		Movements: []ports.ExternalMovement{mv("a1", time.February, 10, 1000), mv("a2", time.March, 20, 100)}}
+	b := ports.ExternalInvestment{ID: "of-test-est-b", Type: "FIXED_INCOME", Name: "B", Balance: 400,
+		Movements: []ports.ExternalMovement{mv("b1", time.January, 5, 500), mv("b2", time.March, 10, -150)}}
+	if err := repo.SaveInvestments(ctx, item, []ports.ExternalInvestment{a, b}, day(time.April, 15)); err != nil {
+		t.Fatal(err)
+	}
+	// Gravar de novo não duplica movimentações.
+	if err := repo.SaveInvestments(ctx, item, []ports.ExternalInvestment{a, b}, day(time.April, 16)); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM investment_movements m JOIN investments i ON i.id = m.investment_id WHERE i.item_id = $1`, item).Scan(&n)
+	if n != 4 {
+		t.Errorf("movimentações duplicadas: %d", n)
+	}
+
+	hist, err := repo.PortfolioHistory(ctx, time.Date(1998, 12, 1, 0, 0, 0, 0, time.UTC), apr1999)
+	if err != nil || len(hist) != 5 {
+		t.Fatalf("histórico: %v %v", hist, err)
+	}
+	want := []struct {
+		balance   *float64
+		estimated bool
+	}{
+		{nil, true},          // dez/98: nada existia
+		{ptrTo(550), true},   // jan: só B (500 aplicados; o resgate de 150 em mar ainda não tinha ocorrido => 400+150)
+		{ptrTo(1550), true},  // fev: A = 1100 - 100 = 1000; B = 550
+		{ptrTo(1500), true},  // mar: A = 1100; B = 400
+		{ptrTo(1500), false}, // abr: saldo exato gravado
+	}
+	for i, w := range want {
+		got := hist[i]
+		if got.Estimated != w.estimated || (got.Balance == nil) != (w.balance == nil) || (w.balance != nil && *got.Balance != *w.balance) {
+			t.Errorf("mês %d: got balance=%v estimated=%v, esperado %v/%v", i, deref(got.Balance), got.Estimated, deref(w.balance), w.estimated)
+		}
+	}
+}
+
+func ptrTo(v float64) *float64 { return &v }
+
+func deref(p *float64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}

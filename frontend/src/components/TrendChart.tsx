@@ -24,12 +24,11 @@ export function TrendChart({ title, series, variant = 'bars', rows, stale }: Pro
     <CartesianGrid key="grid" vertical={false} stroke="var(--grid)" />,
     <XAxis key="x" dataKey="label" tickLine={false} axisLine={{ stroke: 'var(--axis)' }} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />,
     <YAxis key="y" tickFormatter={formatBRLCompact} tickLine={false} axisLine={false} width={72} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />,
-    <Tooltip key="tip" content={ChartTooltip} cursor={variant === 'bars' ? { fill: 'var(--grid)', opacity: 0.5 } : { stroke: 'var(--axis)' }} />,
+    <Tooltip key="tip" content={(props) => <ChartTooltip {...props} series={series} />} cursor={variant === 'bars' ? { fill: 'var(--grid)', opacity: 0.5 } : { stroke: 'var(--axis)' }} />,
   ]
   const activeDot = { r: 4, stroke: 'var(--surface)', strokeWidth: 2 }
   // Com um único ponto não há linha para ver: mostra o ponto.
-  const points = series.length === 1 ? knownMonths(rows, series[0].key) : 0
-  const dot = points === 1 ? { r: 4, stroke: 'var(--surface)', strokeWidth: 2 } : false
+  const dotFor = (key: string) => (knownMonths(rows, key) === 1 ? { r: 4, stroke: 'var(--surface)', strokeWidth: 2 } : false)
 
   return (
     <section className="card chart-card" aria-labelledby={titleId}>
@@ -70,14 +69,14 @@ export function TrendChart({ title, series, variant = 'bars', rows, stale }: Pro
                 <LineChart data={rows} margin={MARGIN}>
                   {axes}
                   {series.map((s) => (
-                    <Line key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={dot} activeDot={activeDot} />
+                    <Line key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={dotFor(s.key)} activeDot={activeDot} />
                   ))}
                 </LineChart>
               ) : (
                 <AreaChart data={rows} margin={MARGIN}>
                   {axes}
                   {series.map((s) => (
-                    <Area key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} fill={s.color} fillOpacity={0.1} dot={dot} activeDot={activeDot} />
+                    <Area key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} fill={s.color} fillOpacity={0.1} dot={dotFor(s.key)} activeDot={activeDot} />
                   ))}
                 </AreaChart>
               )}
@@ -90,13 +89,17 @@ export function TrendChart({ title, series, variant = 'bars', rows, stale }: Pro
 }
 
 // React escapa o texto: nomes e valores vindos da API nunca entram como HTML.
-function ChartTooltip({ active, payload }: TooltipContentProps) {
+function ChartTooltip({ active, payload, series }: TooltipContentProps & { series: Series[] }) {
   if (!active || !payload?.length) return null
   const row = payload[0].payload as ChartRow
+  const secondary = new Set(series.filter((s) => s.secondary).map((s) => s.key))
+  const hasPrimary = series.some((s) => !s.secondary && row[s.key] !== null && row[s.key] !== undefined)
   return (
     <div className="tooltip">
       <p className="tooltip-title">{formatMonthLong(row.month)}</p>
-      {payload.filter((p) => p.value !== null && p.value !== undefined).map((p) => (
+      {payload
+        .filter((p) => p.value !== null && p.value !== undefined && !(hasPrimary && secondary.has(String(p.dataKey))))
+        .map((p) => (
         <div className="tooltip-row" key={String(p.dataKey)}>
           <i style={{ borderColor: p.color }} aria-hidden="true" />
           <strong>{formatBRL(Number(p.value))}</strong>

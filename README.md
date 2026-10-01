@@ -178,6 +178,7 @@ Se algum `PLUGGY_*` estiver preenchido, os três são obrigatórios. Sem nenhum,
 - **Classificação:** a categoria vem do Pluggy; quando ele não classifica a despesa, palavras da descrição decidem (iFood, posto, farmácia, assinaturas...). Pix para pessoas e o que não for óbvio ficam em "Outros". As regras estão em `backend/internal/infra/pluggy/mapper.go`.
 - **Aplicação automática do Itaú** ("APLIC AUT MAIS") é ignorada: é só o banco varrendo o saldo da conta para um CDB e de volta.
 - **Histórico:** a primeira sincronização busca `SYNC_LOOKBACK_DAYS` dias (padrão 60). Para trazer o ano todo (o Pluggy guarda 12 meses), use `SYNC_LOOKBACK_DAYS=365` uma vez e envie `/sync`; é idempotente e pode voltar ao padrão depois.
+- **Histórico estimado:** o Pluggy não informa saldos passados, então os meses anteriores à primeira sincronização são **estimados** pelas movimentações de cada posição (saldo do primeiro registro menos o aplicado depois, sem contar rendimentos, o que os deixa um pouco acima do real) e aparecem em cinza com um aviso. Da primeira sincronização em diante o saldo é o exato. Depende de o banco entregar as movimentações; o log "investimentos sincronizados" mostra quantas vieram.
 - **Investimentos:** se o banco conectado tiver posições (CDB, fundos, ações, previdência...), o app guarda o saldo líquido de cada uma a cada sincronização (tabela `investments`, mais o saldo diário em `investment_balances`). O Pluggy não informa saldos passados, então o histórico do patrimônio começa na primeira sincronização. Titular, CNPJ do emissor e número da posição são descartados.
 - **Contas e cartões** são guardados na tabela `accounts` (nome, tipo, 4 últimos dígitos, saldo e limite do cartão), e cada transação aponta para a conta de origem. O app **não** guarda CPF, nome do titular nem o número completo da conta. Transações sincronizadas antes dessa tabela ganham a conta na primeira sincronização depois da atualização, desde que estejam dentro de `SYNC_LOOKBACK_DAYS`.
 
@@ -199,7 +200,7 @@ O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `fronten
    - **Gastos**: despesas do mês por categoria, forma de pagamento e conta/cartão.
    - **Comparações**: despesas por categoria no mês escolhido contra o anterior, e a evolução de receitas e despesas em 6, 12 ou 24 meses.
    - **Transações**: lista manual e do Open Finance, com filtros por mês, tipo, categoria, forma de pagamento, conta e busca na descrição, paginada.
-   - **Investimentos**: o patrimônio investido hoje (saldo real das posições do Open Finance, total, por tipo e por produto), a evolução desse saldo ao longo do tempo (a partir da primeira sincronização) e o fluxo de dinheiro: aplicado, resgatado e líquido acumulado por mês, em 6, 12 ou 24 meses.
+   - **Investimentos**: o patrimônio investido hoje (saldo real das posições do Open Finance, total, por tipo e por produto), a evolução desse saldo ao longo do tempo (exato desde a primeira sincronização, estimado antes dela) e o fluxo de dinheiro: aplicado, resgatado e líquido acumulado por mês, em 6, 12 ou 24 meses.
    - **Contas**: saldo das contas correntes e limite usado dos cartões.
 
    O mês e os filtros ficam na URL (`?mes=AAAA-MM`), então dá para guardar ou compartilhar a visão. Os gráficos têm visão em tabela, e o tema claro/escuro segue o sistema (botão no topo para trocar).

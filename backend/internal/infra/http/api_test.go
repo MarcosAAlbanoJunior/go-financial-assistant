@@ -55,7 +55,8 @@ func (f *fakeReader) PortfolioHistory(_ context.Context, from, to time.Time) ([]
 		return nil, f.err
 	}
 	v := 1500.5
-	return []ports.PortfolioMonth{{Month: from}, {Month: to, Balance: &v}}, nil
+	est := 1400.0
+	return []ports.PortfolioMonth{{Month: from, Balance: &est, Estimated: true}, {Month: to, Balance: &v}}, nil
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
 
@@ -360,7 +361,7 @@ func TestAPI_PortfolioHistory(t *testing.T) {
 	s := newTestAPI(t, &fakeReader{})
 	c := login(t, s)
 	body := do(s, "GET", "/api/portfolio/history?from=2026-08&to=2026-09", "", nil, c).Body.String()
-	if !strings.Contains(body, `{"month":"2026-08","balance":null}`) || !strings.Contains(body, `{"month":"2026-09","balance":1500.5}`) {
+	if !strings.Contains(body, `{"month":"2026-08","balance":1400,"estimated":true}`) || !strings.Contains(body, `{"month":"2026-09","balance":1500.5,"estimated":false}`) {
 		t.Errorf("histórico inesperado: %s", body)
 	}
 	if rec := do(s, "GET", "/api/portfolio/history?from=2020-01&to=2026-09", "", nil, c); rec.Code != 400 {
