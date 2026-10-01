@@ -166,3 +166,65 @@ func TestDashboard_TransactionsFilterAndPaging(t *testing.T) {
 		t.Errorf("paginação: total=%d len=%d", total, len(txs))
 	}
 }
+
+func TestInvestments_SaveSnapshotsAndHistory(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	const item = "of-test-inv-item"
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM investments WHERE item_id = $1`, item) })
+
+	save := func(day time.Time, positions ...ports.ExternalInvestment) {
+		t.Helper()
+		if err := repo.SaveInvestments(ctx, item, positions, day); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cdb := func(balance float64) ports.ExternalInvestment {
+		return ports.ExternalInvestment{ID: "of-test-cdb", Type: "FIXED_INCOME", Subtype: "CDB", Name: "CDB teste", Balance: balance, Amount: balance + 10}
+	}
+	fund := func(balance float64) ports.ExternalInvestment {
+		return ports.ExternalInvestment{ID: "of-test-fund", Type: "MUTUAL_FUND", Name: "Fundo teste", Balance: balance}
+	}
+
+	// Março: duas posições (a primeira com dois saldos no mês: vale o último). Abril: o fundo foi resgatado.
+	save(mar1999, cdb(1000), fund(500))
+	save(mar1999.AddDate(0, 0, 20), cdb(1010), fund(500))
+	save(apr1999.AddDate(0, 0, 5), cdb(1020))
+
+	var active, total int
+	pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FILTER (WHERE active), COUNT(*) FROM investments WHERE item_id = $1`, item).Scan(&active, &total)
+	if active != 1 || total != 2 {
+		t.Errorf("o fundo resgatado deveria ficar inativo: ativas=%d total=%d", active, total)
+	}
+
+	hist, err := repo.PortfolioHistory(ctx, mar1999.AddDate(0, -1, 0), apr1999)
+	if err != nil || len(hist) != 3 {
+		t.Fatalf("histórico: %v %v", hist, err)
+	}
+	if hist[0].Balance != nil {
+		t.Errorf("antes do primeiro registro o saldo é desconhecido (nil), got %v", *hist[0].Balance)
+	}
+	if hist[1].Balance == nil || *hist[1].Balance != 1510 {
+		t.Errorf("março = 1010 + 500, got %v", hist[1].Balance)
+	}
+	if hist[2].Balance == nil || *hist[2].Balance != 1020 {
+		t.Errorf("abril = 1020 + 0 (resgatado), got %v", hist[2].Balance)
+	}
+
+	// Posição que volta a aparecer é reativada.
+	save(apr1999.AddDate(0, 0, 10), cdb(1030), fund(5))
+	pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FILTER (WHERE active) FROM investments WHERE item_id = $1`, item).Scan(&active)
+	if active != 2 {
+		t.Errorf("posição que voltou deveria ser reativada, ativas=%d", active)
+	}
+
+	positions, err := repo.Positions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range positions {
+		if p.Name == "CDB teste" && (p.Balance != 1030 || p.Amount != 1040 || p.Subtype != "CDB") {
+			t.Errorf("posição incorreta: %+v", p)
+		}
+	}
+}

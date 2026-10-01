@@ -44,6 +44,7 @@ type mockPurchaseRepo struct {
 	findPaymentDetailsByMonthFn    func(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error)
 	findIncomeTotalByMonthFn       func(ctx context.Context, month time.Time) (float64, error)
 	findTransferNetByMonthFn       func(ctx context.Context, month time.Time) (float64, float64, error)
+	saveInvestmentsFn              func(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error
 	linkExternalAccountFn          func(ctx context.Context, id string, accountID uuid.UUID) (bool, error)
 	upsertAccountFn                func(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error)
 	reconcileExternalFn            func(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error)
@@ -126,6 +127,13 @@ func (m *mockPurchaseRepo) ExistsPaymentByDateAndAmount(ctx context.Context, dat
 		return m.existsPaymentByDateAndAmountFn(ctx, date, amount)
 	}
 	return false, nil
+}
+
+func (m *mockPurchaseRepo) SaveInvestments(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error {
+	if m.saveInvestmentsFn != nil {
+		return m.saveInvestmentsFn(ctx, itemID, positions, day)
+	}
+	return nil
 }
 
 func (m *mockPurchaseRepo) UpsertAccount(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error) {

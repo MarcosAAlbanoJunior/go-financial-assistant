@@ -18,6 +18,9 @@ type mockProvider struct {
 	errs   map[string]error
 	from   time.Time
 	block  chan struct{}
+
+	positions    []ports.ExternalInvestment
+	positionsErr error
 }
 
 func (m *mockProvider) FetchItem(_ context.Context, itemID string, from time.Time) (ports.ItemData, error) {
@@ -29,6 +32,10 @@ func (m *mockProvider) FetchItem(_ context.Context, itemID string, from time.Tim
 		Accounts:     []ports.ExternalAccount{{ID: "acc", ItemID: itemID, Type: "BANK", Name: "Conta"}},
 		Transactions: m.byItem[itemID],
 	}, m.errs[itemID]
+}
+
+func (m *mockProvider) FetchInvestments(context.Context, string) ([]ports.ExternalInvestment, error) {
+	return m.positions, m.positionsErr
 }
 
 func extTx(id string, kind domain.PurchaseKind) ports.ExternalTransaction {
@@ -213,5 +220,43 @@ func TestSync_AccountFailureSkipsItsTransactions(t *testing.T) {
 
 	if _, err := newSync(repo, prov, "item").Sync(context.Background()); err == nil || saved != 0 {
 		t.Errorf("sem conta salva a transação não pode ser gravada: saved=%d err=%v", saved, err)
+	}
+}
+
+func TestSync_SavesInvestmentsIndependentlyOfTransactions(t *testing.T) {
+	var gotItem string
+	var gotPositions []ports.ExternalInvestment
+	repo := &mockPurchaseRepo{saveInvestmentsFn: func(_ context.Context, item string, p []ports.ExternalInvestment, _ time.Time) error {
+		gotItem, gotPositions = item, p
+		return nil
+	}}
+	prov := &mockProvider{
+		positions: []ports.ExternalInvestment{{ID: "inv1", Balance: 100}, {ID: "inv2", Balance: 50}},
+		errs:      map[string]error{"item": errors.New("transações fora do ar")},
+	}
+
+	res, err := newSync(repo, prov, "item").Sync(context.Background())
+	if err == nil {
+		t.Error("a falha das transações ainda deve ser reportada")
+	}
+	if gotItem != "item" || len(gotPositions) != 2 || res.Positions != 2 {
+		t.Errorf("posições deveriam ser salvas mesmo com as transações falhando: item=%q n=%d res=%+v", gotItem, len(gotPositions), res)
+	}
+}
+
+func TestSync_InvestmentFailureIsNotAnError(t *testing.T) {
+	saved := false
+	repo := &mockPurchaseRepo{saveInvestmentsFn: func(context.Context, string, []ports.ExternalInvestment, time.Time) error {
+		saved = true
+		return nil
+	}}
+	prov := &mockProvider{
+		byItem:       map[string][]ports.ExternalTransaction{"item": {extTx("t1", domain.KindExpense)}},
+		positionsErr: errors.New("item sem produto de investimentos"),
+	}
+
+	res, err := newSync(repo, prov, "item").Sync(context.Background())
+	if err != nil || res.Inserted != 1 || saved || res.Positions != 0 {
+		t.Errorf("sem investimentos não é falha e não deve gravar nada: %+v saved=%v err=%v", res, saved, err)
 	}
 }

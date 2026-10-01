@@ -33,6 +33,9 @@ func (h *Handler) handleSync(ctx context.Context) {
 
 	msg := fmt.Sprintf("✅ Sincronização concluída\n🆕 %d novo(s)\n🔗 %d conciliado(s) com lançamentos manuais\n♻️ %d já existiam",
 		result.Inserted, result.Reconciled, result.Existing)
+	if result.Positions > 0 {
+		msg += fmt.Sprintf("\n📈 %d posição(ões) de investimento atualizada(s)", result.Positions)
+	}
 	if err != nil {
 		h.logger.Error("erro na sincronização do Open Finance", "error", err)
 		msg += "\n⚠️ Alguns itens falharam; veja os logs."
