@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
 func tx(typ, category string, amount float64) transaction {
@@ -138,7 +139,7 @@ func fakePluggy(t *testing.T, auths *atomic.Int32) *Client {
 			io.WriteString(w, `{"totalPages":1,"results":[]}`)
 			return
 		}
-		io.WriteString(w, `{"totalPages":1,"results":[{"id":"acc1","type":"BANK"}]}`)
+		io.WriteString(w, `{"totalPages":1,"results":[{"id":"acc1","type":"BANK","name":"  Conta   Corrente ","number":"0001/12345-0","balance":150.5,"taxNumber":"123","owner":"Fulano"}]}`)
 	}))
 	mux.HandleFunc("/v2/transactions", guard(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -159,18 +160,23 @@ func fakePluggy(t *testing.T, auths *atomic.Int32) *Client {
 	return c
 }
 
-func TestFetchTransactions_PaginatesAndAuthenticatesOnce(t *testing.T) {
+func TestFetchItem_PaginatesAndAuthenticatesOnce(t *testing.T) {
 	var auths atomic.Int32
 	c := fakePluggy(t, &auths)
 
-	got, err := c.FetchTransactions(context.Background(), "item", time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
+	got, err := c.FetchItem(context.Background(), "item", time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].ID != "t1" || got[1].ID != "t2" || got[1].Kind != domain.KindIncome {
-		t.Errorf("transações inesperadas: %+v", got)
+	txs := got.Transactions
+	if len(txs) != 2 || txs[0].ID != "t1" || txs[1].ID != "t2" || txs[1].Kind != domain.KindIncome || txs[0].AccountID != "acc1" {
+		t.Errorf("transações inesperadas: %+v", txs)
 	}
-	if _, err := c.FetchTransactions(context.Background(), "item", time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+	want := ports.ExternalAccount{ID: "acc1", ItemID: "item", Type: "BANK", Name: "Conta Corrente", Last4: "3450", Balance: 150.5}
+	if len(got.Accounts) != 1 || got.Accounts[0] != want {
+		t.Errorf("conta inesperada: %+v", got.Accounts)
+	}
+	if _, err := c.FetchItem(context.Background(), "item", time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if auths.Load() != 1 {
@@ -178,12 +184,12 @@ func TestFetchTransactions_PaginatesAndAuthenticatesOnce(t *testing.T) {
 	}
 }
 
-func TestFetchTransactions_ReauthenticatesOn401(t *testing.T) {
+func TestFetchItem_ReauthenticatesOn401(t *testing.T) {
 	var auths atomic.Int32
 	c := fakePluggy(t, &auths)
 	c.apiKey, c.apiKeyExp = "STALE", time.Now().Add(time.Hour)
 
-	if _, err := c.FetchTransactions(context.Background(), "item", time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := c.FetchItem(context.Background(), "item", time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("deveria renovar a apiKey e repetir: %v", err)
 	}
 	if auths.Load() != 1 {
@@ -191,9 +197,9 @@ func TestFetchTransactions_ReauthenticatesOn401(t *testing.T) {
 	}
 }
 
-func TestFetchTransactions_ItemWithoutAccounts(t *testing.T) {
+func TestFetchItem_ItemWithoutAccounts(t *testing.T) {
 	c := fakePluggy(t, new(atomic.Int32))
-	if _, err := c.FetchTransactions(context.Background(), "empty", time.Now()); err != ErrNoAccounts {
+	if _, err := c.FetchItem(context.Background(), "empty", time.Now()); err != ErrNoAccounts {
 		t.Errorf("esperava ErrNoAccounts, got %v", err)
 	}
 }
@@ -210,5 +216,27 @@ func TestAuthFailure_DoesNotLeakSecrets(t *testing.T) {
 	bad.clientSecret = "SUPER-SECRET"
 	if _, err := bad.authenticate(context.Background(), false); err == nil || strings.Contains(err.Error(), "SUPER-SECRET") {
 		t.Errorf("erro de credencial inválida não deve conter o segredo: %v", err)
+	}
+}
+
+func TestAccountToExternal_CreditCard(t *testing.T) {
+	limit, available := 5000.0, 3200.0
+	a := account{ID: "c1", Type: "CREDIT", Name: "Cartão Gold", Number: "xxxx8670", Balance: 1800}
+	a.CreditData = &struct {
+		CreditLimit          *float64 `json:"creditLimit"`
+		AvailableCreditLimit *float64 `json:"availableCreditLimit"`
+	}{&limit, &available}
+
+	got := a.toExternal("item")
+	if got.Last4 != "8670" || *got.CreditLimit != 5000 || *got.AvailableCreditLimit != 3200 {
+		t.Errorf("cartão inesperado: %+v", got)
+	}
+}
+
+func TestLast4(t *testing.T) {
+	for in, want := range map[string]string{"xxxx8670": "8670", "0001/12345-0": "3450", "12": "12", "": ""} {
+		if got := last4(in); got != want {
+			t.Errorf("last4(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

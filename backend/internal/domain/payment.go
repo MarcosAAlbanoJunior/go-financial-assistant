@@ -23,7 +23,8 @@ type Payment struct {
 	DueDate           *time.Time
 	ReferenceMonth    *time.Time
 	PaidAt            *time.Time
-	ExternalID        *string // ID na origem (Open Finance); nil em lançamentos manuais
+	ExternalID        *string    // ID na origem (Open Finance); nil em lançamentos manuais
+	AccountID         *uuid.UUID // conta de origem (Open Finance); nil em lançamentos manuais
 	CreatedAt         time.Time
 }
 
