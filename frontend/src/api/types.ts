@@ -45,8 +45,10 @@ export interface Portfolio {
 
 export interface PortfolioMonth {
   month: string
-  /** Saldo total ao fim do mês; null antes do primeiro registro (o histórico começa na primeira sincronização). */
+  /** Saldo total ao fim do mês; null quando não há como saber. */
   balance: number | null
+  /** true nos meses anteriores à primeira sincronização: valor reconstruído pelas movimentações, não o saldo exato. */
+  estimated: boolean
 }
 
 export type BreakdownBy = 'category' | 'payment_method' | 'account'

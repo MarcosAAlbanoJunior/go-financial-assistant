@@ -135,6 +135,14 @@ func (r *PostgresPurchaseRepository) SaveInvestments(ctx context.Context, itemID
 		`, id, day, p.Balance); err != nil {
 			return fmt.Errorf("erro ao salvar saldo da posição: %w", err)
 		}
+		for _, m := range p.Movements {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO investment_movements (investment_id, external_id, day, amount) VALUES ($1, $2, $3::date, $4)
+				ON CONFLICT (investment_id, external_id) DO UPDATE SET day = EXCLUDED.day, amount = EXCLUDED.amount
+			`, id, m.ID, m.Day, m.Amount); err != nil {
+				return fmt.Errorf("erro ao salvar movimentação do investimento: %w", err)
+			}
+		}
 		seen = append(seen, p.ID)
 	}
 

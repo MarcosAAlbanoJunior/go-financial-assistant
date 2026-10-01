@@ -211,3 +211,5 @@ table.tx td { vertical-align: top; }
 }
 
 .section-title { font-size: 1.125rem; font-weight: 600; margin: 28px 0 12px; }
+
+.notice { margin-top: 12px; padding: 10px 14px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--surface); font-size: 0.875rem; color: var(--text-secondary); }

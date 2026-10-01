@@ -11,6 +11,8 @@ export interface Series {
   key: string
   name: string
   color: string
+  /** Série de apoio (ex.: estimativa): no tooltip só aparece quando as demais estão vazias na linha. */
+  secondary?: boolean
 }
 
 export const INCOME_EXPENSE: Series[] = [
@@ -37,10 +39,28 @@ export const toInvestmentRows = (months: InvestmentMonth[]): ChartRow[] =>
     cumulative: m.cumulative,
   }))
 
-export const BALANCE: Series[] = [{ key: 'balance', name: 'Saldo real', color: 'var(--series-1)' }]
+export const PORTFOLIO: Series[] = [
+  { key: 'balance', name: 'Saldo real', color: 'var(--series-1)' },
+  { key: 'estimated', name: 'Estimado', color: 'var(--series-prev)', secondary: true },
+]
 
-export const toPortfolioRows = (months: PortfolioMonth[]): ChartRow[] =>
-  months.map((m) => ({ month: m.month, label: formatMonthShort(m.month), balance: m.balance }))
+/**
+ * Separa o saldo exato do estimado em duas séries. O primeiro mês exato também entra na série
+ * estimada, para a linha cinza encontrar a azul em vez de terminar um mês antes.
+ */
+export function toPortfolioRows(months: PortfolioMonth[]): ChartRow[] {
+  return months.map((m, i) => {
+    const row: ChartRow = { month: m.month, label: formatMonthShort(m.month), balance: null, estimated: null }
+    if (m.balance === null) return row
+    if (m.estimated) {
+      row.estimated = m.balance
+    } else {
+      row.balance = m.balance
+      if (months[i - 1]?.estimated && months[i - 1].balance !== null) row.estimated = m.balance
+    }
+    return row
+  })
+}
 
 /** Quantos meses têm saldo registrado (o histórico começa na primeira sincronização). */
 export const knownMonths = (rows: ChartRow[], key: string) => rows.filter((r) => r[key] !== null).length

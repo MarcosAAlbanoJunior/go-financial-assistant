@@ -5,6 +5,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- **Histórico estimado do patrimônio**: a sincronização lê as movimentações de cada posição (`GET /investments/{id}/transactions`) e a curva "Saldo ao longo do tempo" reconstrói os meses anteriores à primeira sincronização (saldo do primeiro registro menos o que foi aplicado depois do mês, sem contar rendimentos). Esses meses aparecem em cinza como **Estimado**, com um aviso na tela; da primeira sincronização em diante o saldo é o exato informado pelo banco. A API de histórico ganhou o campo `estimated`.
+- Migration `008_create_investment_movements.sql`.
 - **Saldo real dos investimentos** via `GET /investments` do Pluggy: cada sincronização grava as posições (tipo, subtipo, nome do produto, saldo líquido e valor bruto) e o saldo do dia, formando o histórico do patrimônio. Posições que somem do Pluggy (resgatadas) ficam inativas com saldo zero. Falha ou ausência de investimentos não conta como erro da sincronização.
 - API: `GET /api/portfolio` (posições, total e total por tipo) e `GET /api/portfolio/history?from=&to=` (saldo ao fim de cada mês, `null` antes do primeiro registro).
 - Migration `007_create_investments.sql`.
@@ -54,6 +56,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ### Migração
 - Quem já importou do Itaú antes dessa mudança tem movimentos "APLIC AUT MAIS" gravados. Para removê-los: `docker compose exec -T postgres psql -U finassist -d finassist -c "DELETE FROM purchases WHERE id IN (SELECT p.id FROM purchases p JOIN payments pay ON pay.purchase_id = p.id WHERE p.kind = 'TRANSFER' AND pay.external_id IS NOT NULL AND p.description ILIKE '%aplic aut mais%')"`.
+- Aplique também a migration 008 (movimentações de investimento): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/008_create_investment_movements.sql`. A estimativa aparece depois da próxima sincronização.
 - Aplique também a migration 007 (investimentos): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/007_create_investments.sql`. O histórico do patrimônio começa na primeira sincronização depois dela (o Pluggy não informa saldos passados).
 - Aplique a migration 006 (depende da 005): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/006_create_accounts.sql`. O próximo `/sync` (ou a sincronização automática) preenche a conta das transações já importadas dentro de `SYNC_LOOKBACK_DAYS`.
 - Bancos já criados precisam aplicar a migration 005 antes de ligar o Open Finance: `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/005_add_payment_external_id.sql`.

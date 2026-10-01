@@ -5,8 +5,8 @@ import { QueryState } from '../components/QueryState'
 import { RankedBars } from '../components/RankedBars'
 import { StatTile } from '../components/StatTile'
 import { TrendChart } from '../components/TrendChart'
-import { APPLIED_REDEEMED, BALANCE, CUMULATIVE, knownMonths, toInvestmentRows, toPortfolioRows } from '../lib/chart'
-import { formatBRL, formatMonthTitle } from '../lib/format'
+import { APPLIED_REDEEMED, CUMULATIVE, knownMonths, PORTFOLIO, toInvestmentRows, toPortfolioRows } from '../lib/chart'
+import { formatBRL, formatMonthLong, formatMonthTitle } from '../lib/format'
 import { summarizeInvestments } from '../lib/investments'
 import { groupPositions } from '../lib/portfolio'
 import { shiftMonth } from '../lib/months'
@@ -101,12 +101,29 @@ export default function Investments() {
               <QueryState query={history}>
                 {(h) => {
                   const rows = toPortfolioRows(h)
-                  return knownMonths(rows, 'balance') === 0 ? null : (
-                    <TrendChart title="Saldo real ao longo do tempo" series={BALANCE} variant="area" rows={rows} stale={history.isPlaceholderData} />
+                  if (knownMonths(rows, 'balance') + knownMonths(rows, 'estimated') === 0) return null
+                  const firstExact = rows.find((r) => r.balance !== null)
+                  const hasEstimate = knownMonths(rows, 'estimated') > 0
+                  return (
+                    <>
+                      <TrendChart title="Saldo ao longo do tempo" series={hasEstimate ? PORTFOLIO : PORTFOLIO.slice(0, 1)} variant="area" rows={rows} stale={history.isPlaceholderData} />
+                      <p className="notice" role="note">
+                        <span aria-hidden="true">ⓘ</span>{' '}
+                        {hasEstimate && firstExact ? (
+                          <>
+                            Os meses anteriores a {formatMonthLong(firstExact.month)} são uma <strong>estimativa</strong>: foram reconstruídos
+                            a partir das aplicações e resgates de cada produto e não descontam os rendimentos do período, então tendem a ficar
+                            um pouco acima do real. De {formatMonthLong(firstExact.month)} em diante, o valor é o saldo exato informado pelo
+                            banco (a partir da conexão com o Pluggy).
+                          </>
+                        ) : (
+                          <>O saldo exato começa na primeira sincronização com o banco: o Pluggy não informa saldos passados.</>
+                        )}
+                      </p>
+                    </>
                   )
                 }}
               </QueryState>
-              <p className="tile-note">O histórico começa na primeira sincronização com o banco: o Pluggy não informa saldos passados.</p>
             </>
           )
         }}
