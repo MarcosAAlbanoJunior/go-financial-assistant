@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
 )
 
@@ -22,6 +24,7 @@ const (
 	maxPageSize     = 100
 	maxSearchLen    = 100
 	maxLoginBody    = 1 << 10
+	maxRuleBody     = 1 << 10
 )
 
 var (
@@ -60,6 +63,8 @@ func (s *Server) MountAPI(password string, reader ports.DashboardReader) error {
 	s.mux.Handle("GET /api/timeseries", protected(a.timeseries))
 	s.mux.Handle("GET /api/breakdown", protected(a.breakdown))
 	s.mux.Handle("GET /api/investments", protected(a.investments))
+	s.mux.Handle("GET /api/budget", protected(a.budget))
+	s.mux.Handle("PUT /api/expense-rules", protected(a.setExpenseRule))
 	s.mux.Handle("GET /api/portfolio", protected(a.portfolio))
 	s.mux.Handle("GET /api/portfolio/history", protected(a.portfolioHistory))
 	s.mux.Handle("GET /api/transactions", protected(a.transactions))
@@ -180,6 +185,95 @@ func (a *api) investments(w http.ResponseWriter, r *http.Request) {
 		out[i] = item{formatMonth(m.Month), m.Applied, m.Redeemed, m.Cumulative}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// budgetMonths é a janela usada para reconhecer contas que se repetem (e para a evolução).
+const budgetMonths = 12
+
+// budget: despesas do mês divididas em fixas, parceladas e variáveis, e a evolução mês a mês.
+func (a *api) budget(w http.ResponseWriter, r *http.Request) {
+	to, ok := a.monthParam(w, r, "month", true)
+	if !ok {
+		return
+	}
+	from := to.AddDate(0, -(budgetMonths - 1), 0)
+	rows, err := a.reader.ExpenseKeyMonths(r.Context(), from, to)
+	if err != nil {
+		a.fail(w, "orçamento", err)
+		return
+	}
+	rules, err := a.reader.ExpenseRules(r.Context())
+	if err != nil {
+		a.fail(w, "orçamento", err)
+		return
+	}
+	b := usecase.BuildBudget(rows, rules, from, to)
+
+	type month struct {
+		Month       string  `json:"month"`
+		Fixed       float64 `json:"fixed"`
+		Installment float64 `json:"installment"`
+		Variable    float64 `json:"variable"`
+	}
+	type item struct {
+		Key           string  `json:"key"`
+		Label         string  `json:"label"`
+		Category      string  `json:"category"`
+		CategoryLabel string  `json:"categoryLabel"`
+		Class         string  `json:"class"`
+		Manual        bool    `json:"manual"`
+		Total         float64 `json:"total"`
+		Count         int     `json:"count"`
+		Day           int     `json:"day"`
+		Paid          bool    `json:"paid"`
+		Months        int     `json:"months"`
+	}
+	series := make([]month, len(b.Series))
+	for i, m := range b.Series {
+		series[i] = month{formatMonth(m.Month), m.Fixed, m.Installment, m.Variable}
+	}
+	items := make([]item, len(b.Items))
+	for i, it := range b.Items {
+		items[i] = item{it.Key, it.Label, it.Category, domain.Category(it.Category).Label(), string(it.Class), it.Manual, it.Total, it.Count, it.Day, it.Paid, it.Months}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"month": formatMonth(to), "series": series, "items": items})
+}
+
+var ruleKeyRE = regexp.MustCompile(`^[a-zà-ÿ ]{1,120}$`)
+
+// setExpenseRule corrige à mão se uma conta é fixa ou variável; "AUTO" volta à detecção automática.
+// É a única escrita da API (além do login), então exige JSON e mesma origem, como o login.
+func (a *api) setExpenseRule(w http.ResponseWriter, r *http.Request) {
+	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "requisição não permitida")
+		return
+	}
+	var body struct {
+		Key   string `json:"key"`
+		Class string `json:"class"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRuleBody)).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "corpo inválido")
+		return
+	}
+	var class ports.ExpenseClass
+	switch body.Class {
+	case "FIXED", "VARIABLE":
+		class = ports.ExpenseClass(body.Class)
+	case "AUTO":
+	default:
+		writeError(w, http.StatusBadRequest, "class deve ser FIXED, VARIABLE ou AUTO")
+		return
+	}
+	if !ruleKeyRE.MatchString(body.Key) {
+		writeError(w, http.StatusBadRequest, "key inválida")
+		return
+	}
+	if err := a.reader.SetExpenseRule(r.Context(), body.Key, class); err != nil {
+		a.fail(w, "regra de despesa", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 var positionTypeLabels = map[string]string{
