@@ -1,10 +1,11 @@
 import { useSearchParams } from 'react-router'
-import { useInvestments } from '../api/client'
+import { useInvestments, usePortfolio, usePortfolioHistory } from '../api/client'
 import { MonthFilter } from '../components/MonthFilter'
 import { QueryState } from '../components/QueryState'
+import { RankedBars } from '../components/RankedBars'
 import { StatTile } from '../components/StatTile'
 import { TrendChart } from '../components/TrendChart'
-import { APPLIED_REDEEMED, CUMULATIVE, toInvestmentRows } from '../lib/chart'
+import { APPLIED_REDEEMED, BALANCE, CUMULATIVE, knownMonths, toInvestmentRows, toPortfolioRows } from '../lib/chart'
 import { formatBRL, formatMonthTitle } from '../lib/format'
 import { summarizeInvestments } from '../lib/investments'
 import { shiftMonth } from '../lib/months'
@@ -17,7 +18,10 @@ export default function Investments() {
   const [params, setParams] = useSearchParams()
   const requested = Number(params.get('meses'))
   const months = RANGES.includes(requested) ? requested : 12
-  const query = useInvestments(shiftMonth(month, -(months - 1)), month)
+  const from = shiftMonth(month, -(months - 1))
+  const query = useInvestments(from, month)
+  const portfolio = usePortfolio()
+  const history = usePortfolioHistory(from, month)
 
   return (
     <>
@@ -43,6 +47,68 @@ export default function Investments() {
         ))}
       </div>
 
+      <h2 className="section-title">Patrimônio investido</h2>
+      <QueryState query={portfolio}>
+        {(p) =>
+          p.positions.length === 0 ? (
+            <p className="state">
+              Nenhuma posição de investimento sincronizada. Conecte uma instituição com investimentos no Open Finance (veja o
+              README).
+            </p>
+          ) : (
+            <>
+              <div className="tiles">
+                <StatTile label="Saldo atual" value={formatBRL(p.total)} note={`${p.positions.length} posição(ões), líquido de impostos`} />
+              </div>
+              <div className="grid-2 section-gap">
+                <section className="card" aria-labelledby="h-type">
+                  <h2 className="chart-title" id="h-type">
+                    Por tipo
+                  </h2>
+                  <RankedBars items={p.byType} stale={false} empty="Sem posições." />
+                </section>
+                <section className="card" aria-labelledby="h-pos">
+                  <h2 className="chart-title" id="h-pos">
+                    Posições
+                  </h2>
+                  <div className="table-scroll">
+                    <table className="data tx">
+                      <thead>
+                        <tr>
+                          <th scope="col">Produto</th>
+                          <th scope="col">Saldo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {p.positions.map((pos) => (
+                          <tr key={pos.id}>
+                            <td className="left">
+                              {pos.name}
+                              <span className="tx-meta always">{[pos.typeLabel, pos.subtype].filter(Boolean).join(' · ')}</span>
+                            </td>
+                            <td className="amount">{formatBRL(pos.balance)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+              <QueryState query={history}>
+                {(h) => {
+                  const rows = toPortfolioRows(h)
+                  return knownMonths(rows, 'balance') === 0 ? null : (
+                    <TrendChart title="Saldo real ao longo do tempo" series={BALANCE} variant="area" rows={rows} stale={history.isPlaceholderData} />
+                  )
+                }}
+              </QueryState>
+              <p className="tile-note">O histórico começa na primeira sincronização com o banco: o Pluggy não informa saldos passados.</p>
+            </>
+          )
+        }
+      </QueryState>
+
+      <h2 className="section-title">Aplicações e resgates</h2>
       <QueryState query={query}>
         {(data) => {
           const stale = query.isPlaceholderData

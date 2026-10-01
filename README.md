@@ -196,7 +196,7 @@ O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `fronten
    - **Gastos**: despesas do mês por categoria, forma de pagamento e conta/cartão.
    - **Comparações**: despesas por categoria no mês escolhido contra o anterior, e a evolução de receitas e despesas em 6, 12 ou 24 meses.
    - **Transações**: lista manual e do Open Finance, com filtros por mês, tipo, categoria, forma de pagamento, conta e busca na descrição, paginada.
-   - **Investimentos**: aplicado, resgatado e líquido acumulado (aplicado − resgatado, desde o primeiro lançamento) por mês, em 6, 12 ou 24 meses. É o fluxo de dinheiro para investimentos, não o saldo das posições.
+   - **Investimentos**: o patrimônio investido hoje (saldo real das posições do Open Finance, total, por tipo e por produto), a evolução desse saldo ao longo do tempo (a partir da primeira sincronização) e o fluxo de dinheiro: aplicado, resgatado e líquido acumulado por mês, em 6, 12 ou 24 meses.
    - **Contas**: saldo das contas correntes e limite usado dos cartões.
 
    O mês e os filtros ficam na URL (`?mes=AAAA-MM`), então dá para guardar ou compartilhar a visão. Os gráficos têm visão em tabela, e o tema claro/escuro segue o sistema (botão no topo para trocar).

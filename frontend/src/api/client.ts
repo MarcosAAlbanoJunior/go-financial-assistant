@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, InvestmentMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionPage } from './types'
+import type { Account, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -68,5 +68,14 @@ export const useInvestments = (from: string, to: string) =>
   useQuery({
     queryKey: ['investments', from, to],
     queryFn: () => request<InvestmentMonth[]>(`/api/investments?from=${from}&to=${to}`),
+    placeholderData: keepPreviousData,
+  })
+
+export const usePortfolio = () => useQuery({ queryKey: ['portfolio'], queryFn: () => request<Portfolio>('/api/portfolio') })
+
+export const usePortfolioHistory = (from: string, to: string) =>
+  useQuery({
+    queryKey: ['portfolio-history', from, to],
+    queryFn: () => request<PortfolioMonth[]>(`/api/portfolio/history?from=${from}&to=${to}`),
     placeholderData: keepPreviousData,
   })

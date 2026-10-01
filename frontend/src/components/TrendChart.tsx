@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { TooltipContentProps } from 'recharts'
-import type { ChartRow, Series } from '../lib/chart'
+import { knownMonths, type ChartRow, type Series } from '../lib/chart'
 import { formatBRL, formatBRLCompact, formatMonthLong } from '../lib/format'
 
 const MARGIN = { top: 8, right: 8, bottom: 0, left: 0 }
@@ -27,6 +27,9 @@ export function TrendChart({ title, series, variant = 'bars', rows, stale }: Pro
     <Tooltip key="tip" content={ChartTooltip} cursor={variant === 'bars' ? { fill: 'var(--grid)', opacity: 0.5 } : { stroke: 'var(--axis)' }} />,
   ]
   const activeDot = { r: 4, stroke: 'var(--surface)', strokeWidth: 2 }
+  // Com um único ponto não há linha para ver: mostra o ponto.
+  const points = series.length === 1 ? knownMonths(rows, series[0].key) : 0
+  const dot = points === 1 ? { r: 4, stroke: 'var(--surface)', strokeWidth: 2 } : false
 
   return (
     <section className="card chart-card" aria-labelledby={titleId}>
@@ -67,14 +70,14 @@ export function TrendChart({ title, series, variant = 'bars', rows, stale }: Pro
                 <LineChart data={rows} margin={MARGIN}>
                   {axes}
                   {series.map((s) => (
-                    <Line key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={false} activeDot={activeDot} />
+                    <Line key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={dot} activeDot={activeDot} />
                   ))}
                 </LineChart>
               ) : (
                 <AreaChart data={rows} margin={MARGIN}>
                   {axes}
                   {series.map((s) => (
-                    <Area key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} fill={s.color} fillOpacity={0.1} dot={false} activeDot={activeDot} />
+                    <Area key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} fill={s.color} fillOpacity={0.1} dot={dot} activeDot={activeDot} />
                   ))}
                 </AreaChart>
               )}
@@ -93,7 +96,7 @@ function ChartTooltip({ active, payload }: TooltipContentProps) {
   return (
     <div className="tooltip">
       <p className="tooltip-title">{formatMonthLong(row.month)}</p>
-      {payload.map((p) => (
+      {payload.filter((p) => p.value !== null && p.value !== undefined).map((p) => (
         <div className="tooltip-row" key={String(p.dataKey)}>
           <i style={{ borderColor: p.color }} aria-hidden="true" />
           <strong>{formatBRL(Number(p.value))}</strong>
@@ -122,7 +125,7 @@ function DataTable({ rows, series }: { rows: ChartRow[]; series: Series[] }) {
           <tr key={r.month}>
             <th scope="row">{r.label}</th>
             {series.map((s) => (
-              <td key={s.key}>{formatBRL(Number(r[s.key]))}</td>
+              <td key={s.key}>{r[s.key] === null ? '—' : formatBRL(Number(r[s.key]))}</td>
             ))}
           </tr>
         ))}
