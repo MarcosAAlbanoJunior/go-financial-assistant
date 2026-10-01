@@ -10,6 +10,7 @@ import (
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/google/uuid"
 )
 
 type mockProvider struct {
@@ -19,17 +20,20 @@ type mockProvider struct {
 	block  chan struct{}
 }
 
-func (m *mockProvider) FetchTransactions(_ context.Context, itemID string, from time.Time) ([]ports.ExternalTransaction, error) {
+func (m *mockProvider) FetchItem(_ context.Context, itemID string, from time.Time) (ports.ItemData, error) {
 	m.from = from
 	if m.block != nil {
 		<-m.block
 	}
-	return m.byItem[itemID], m.errs[itemID]
+	return ports.ItemData{
+		Accounts:     []ports.ExternalAccount{{ID: "acc", ItemID: itemID, Type: "BANK", Name: "Conta"}},
+		Transactions: m.byItem[itemID],
+	}, m.errs[itemID]
 }
 
 func extTx(id string, kind domain.PurchaseKind) ports.ExternalTransaction {
 	return ports.ExternalTransaction{
-		ID: id, Date: time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC), Description: "Mercado",
+		ID: id, AccountID: "acc", Date: time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC), Description: "Mercado",
 		Amount: 42.5, Kind: kind, Category: domain.CategoryMarket, PaymentMethod: domain.PaymentMethodPix,
 		RawInput: "[open finance]",
 	}
@@ -88,8 +92,8 @@ func TestSync_PendingCardTransactionStaysPending(t *testing.T) {
 func TestSync_IsIdempotent(t *testing.T) {
 	saved := 0
 	repo := &mockPurchaseRepo{
-		existsExternalIDFn: func(context.Context, string) (bool, error) { return true, nil },
-		saveExternalFn:     func(context.Context, *domain.Purchase, *domain.Payment) error { saved++; return nil },
+		linkExternalAccountFn: func(context.Context, string, uuid.UUID) (bool, error) { return true, nil },
+		saveExternalFn:        func(context.Context, *domain.Purchase, *domain.Payment) error { saved++; return nil },
 	}
 	prov := &mockProvider{byItem: map[string][]ports.ExternalTransaction{"item": {extTx("t1", domain.KindExpense)}}}
 
@@ -102,7 +106,7 @@ func TestSync_IsIdempotent(t *testing.T) {
 func TestSync_ReconcilesWithManualEntry(t *testing.T) {
 	saved := 0
 	repo := &mockPurchaseRepo{
-		reconcileExternalFn: func(context.Context, ports.ExternalTransaction) (bool, error) { return true, nil },
+		reconcileExternalFn: func(context.Context, ports.ExternalTransaction, uuid.UUID) (bool, error) { return true, nil },
 		saveExternalFn:      func(context.Context, *domain.Purchase, *domain.Payment) error { saved++; return nil },
 	}
 	prov := &mockProvider{byItem: map[string][]ports.ExternalTransaction{"item": {extTx("t1", domain.KindExpense)}}}
@@ -159,4 +163,55 @@ func TestSync_RejectsConcurrentRuns(t *testing.T) {
 	}
 	close(prov.block)
 	<-done
+}
+
+func TestSync_LinksPaymentToAccount(t *testing.T) {
+	accountID := uuid.New()
+	var upserted ports.ExternalAccount
+	var saved *domain.Payment
+	var linkedTo, reconciledTo uuid.UUID
+	repo := &mockPurchaseRepo{
+		upsertAccountFn: func(_ context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
+			upserted = a
+			return accountID, nil
+		},
+		linkExternalAccountFn: func(_ context.Context, id string, acc uuid.UUID) (bool, error) {
+			linkedTo = acc
+			return id == "old", nil
+		},
+		reconcileExternalFn: func(_ context.Context, tx ports.ExternalTransaction, acc uuid.UUID) (bool, error) {
+			reconciledTo = acc
+			return tx.ID == "manual", nil
+		},
+		saveExternalFn: func(_ context.Context, _ *domain.Purchase, pa *domain.Payment) error { saved = pa; return nil },
+	}
+	prov := &mockProvider{byItem: map[string][]ports.ExternalTransaction{"item": {
+		extTx("old", domain.KindExpense), extTx("manual", domain.KindExpense), extTx("new", domain.KindExpense),
+	}}}
+
+	res, err := newSync(repo, prov, "item").Sync(context.Background())
+	if err != nil || res.Existing != 1 || res.Reconciled != 1 || res.Inserted != 1 {
+		t.Fatalf("resultado inesperado: %+v, %v", res, err)
+	}
+	if upserted.ID != "acc" || upserted.ItemID != "item" {
+		t.Errorf("conta não salva: %+v", upserted)
+	}
+	if linkedTo != accountID || reconciledTo != accountID || saved.AccountID == nil || *saved.AccountID != accountID {
+		t.Error("as três vias deveriam vincular o pagamento à conta")
+	}
+}
+
+func TestSync_AccountFailureSkipsItsTransactions(t *testing.T) {
+	saved := 0
+	repo := &mockPurchaseRepo{
+		upsertAccountFn: func(context.Context, ports.ExternalAccount) (uuid.UUID, error) {
+			return uuid.Nil, errors.New("db error")
+		},
+		saveExternalFn: func(context.Context, *domain.Purchase, *domain.Payment) error { saved++; return nil },
+	}
+	prov := &mockProvider{byItem: map[string][]ports.ExternalTransaction{"item": {extTx("t1", domain.KindExpense)}}}
+
+	if _, err := newSync(repo, prov, "item").Sync(context.Background()); err == nil || saved != 0 {
+		t.Errorf("sem conta salva a transação não pode ser gravada: saved=%d err=%v", saved, err)
+	}
 }

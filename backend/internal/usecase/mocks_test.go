@@ -44,8 +44,9 @@ type mockPurchaseRepo struct {
 	findPaymentDetailsByMonthFn    func(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error)
 	findIncomeTotalByMonthFn       func(ctx context.Context, month time.Time) (float64, error)
 	findTransferNetByMonthFn       func(ctx context.Context, month time.Time) (float64, float64, error)
-	existsExternalIDFn             func(ctx context.Context, id string) (bool, error)
-	reconcileExternalFn            func(ctx context.Context, tx ports.ExternalTransaction) (bool, error)
+	linkExternalAccountFn          func(ctx context.Context, id string, accountID uuid.UUID) (bool, error)
+	upsertAccountFn                func(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error)
+	reconcileExternalFn            func(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error)
 	saveExternalFn                 func(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error
 	existsPaymentByDateAndAmountFn func(ctx context.Context, date time.Time, amount float64) (bool, error)
 }
@@ -127,16 +128,23 @@ func (m *mockPurchaseRepo) ExistsPaymentByDateAndAmount(ctx context.Context, dat
 	return false, nil
 }
 
-func (m *mockPurchaseRepo) ExistsExternalID(ctx context.Context, id string) (bool, error) {
-	if m.existsExternalIDFn != nil {
-		return m.existsExternalIDFn(ctx, id)
+func (m *mockPurchaseRepo) UpsertAccount(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
+	if m.upsertAccountFn != nil {
+		return m.upsertAccountFn(ctx, a)
+	}
+	return uuid.New(), nil
+}
+
+func (m *mockPurchaseRepo) LinkExternalAccount(ctx context.Context, id string, accountID uuid.UUID) (bool, error) {
+	if m.linkExternalAccountFn != nil {
+		return m.linkExternalAccountFn(ctx, id, accountID)
 	}
 	return false, nil
 }
 
-func (m *mockPurchaseRepo) ReconcileExternal(ctx context.Context, tx ports.ExternalTransaction) (bool, error) {
+func (m *mockPurchaseRepo) ReconcileExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
 	if m.reconcileExternalFn != nil {
-		return m.reconcileExternalFn(ctx, tx)
+		return m.reconcileExternalFn(ctx, tx, accountID)
 	}
 	return false, nil
 }
