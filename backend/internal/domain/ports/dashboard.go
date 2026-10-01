@@ -122,6 +122,8 @@ type PortfolioMonth struct {
 // DashboardReader reúne as consultas de leitura do dashboard. As agregações são feitas
 // no banco; um mês é identificado pelo seu primeiro dia.
 type DashboardReader interface {
+	BudgetReader
+
 	// MonthlyTotals devolve uma linha por mês de from a to (inclusive), com zeros nos meses vazios.
 	MonthlyTotals(ctx context.Context, from, to time.Time) ([]MonthTotals, error)
 	InvestmentSeries(ctx context.Context, from, to time.Time) ([]InvestmentMonth, error)
@@ -136,4 +138,37 @@ type DashboardReader interface {
 	// PortfolioHistory devolve o saldo total ao fim de cada mês de from a to. Só existe a
 	// partir da primeira sincronização de investimentos.
 	PortfolioHistory(ctx context.Context, from, to time.Time) ([]PortfolioMonth, error)
+}
+
+// ExpenseKeyMonth soma, em um mês, as despesas de uma mesma conta (descrição normalizada em Key).
+type ExpenseKeyMonth struct {
+	Key         string
+	Label       string // descrição de exemplo, como veio do banco
+	Category    string
+	Month       time.Time
+	Total       float64
+	Count       int
+	Day         int  // dia do mês do último lançamento
+	AllPaid     bool // nenhum lançamento pendente
+	Installment bool // parcelada (tipo INSTALLMENT ou "n/m" na descrição)
+	Recurring   bool // cadastrada como recorrente
+}
+
+// ExpenseClass é a classificação de uma despesa para o orçamento.
+type ExpenseClass string
+
+const (
+	ClassFixed       ExpenseClass = "FIXED"
+	ClassInstallment ExpenseClass = "INSTALLMENT"
+	ClassVariable    ExpenseClass = "VARIABLE"
+)
+
+// BudgetReader lê e grava o que a tela de orçamento precisa.
+type BudgetReader interface {
+	// ExpenseKeyMonths devolve as despesas agrupadas por conta e mês, de from a to (primeiros dias dos meses).
+	ExpenseKeyMonths(ctx context.Context, from, to time.Time) ([]ExpenseKeyMonth, error)
+	// ExpenseRules devolve as correções manuais (chave -> FIXED ou VARIABLE).
+	ExpenseRules(ctx context.Context) (map[string]ExpenseClass, error)
+	// SetExpenseRule grava a correção manual; class vazio apaga e volta à detecção automática.
+	SetExpenseRule(ctx context.Context, key string, class ExpenseClass) error
 }
