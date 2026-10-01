@@ -169,6 +169,8 @@ type BudgetReader interface {
 	ExpenseKeyMonths(ctx context.Context, from, to time.Time) ([]ExpenseKeyMonth, error)
 	// ExpenseRules devolve as correções manuais (chave -> FIXED ou VARIABLE).
 	ExpenseRules(ctx context.Context) (map[string]ExpenseClass, error)
+	// KnownInstallments soma, por mês (de from a to), as parcelas já cadastradas de compras parceladas.
+	KnownInstallments(ctx context.Context, from, to time.Time) (map[time.Time]float64, error)
 	// SetExpenseRule grava a correção manual; class vazio apaga e volta à detecção automática.
 	SetExpenseRule(ctx context.Context, key string, class ExpenseClass) error
 }

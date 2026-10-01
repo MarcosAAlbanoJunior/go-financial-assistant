@@ -7,6 +7,7 @@ import (
 	"mime"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -43,11 +44,15 @@ type api struct {
 
 // MountAPI registra a API do dashboard. Tudo, exceto o login, exige sessão.
 func (s *Server) MountAPI(password string, reader ports.DashboardReader) error {
+	return s.mountAPI(password, reader, time.Now)
+}
+
+func (s *Server) mountAPI(password string, reader ports.DashboardReader, now func() time.Time) error {
 	sess, err := newSessions(password)
 	if err != nil {
 		return err
 	}
-	a := &api{reader: reader, sessions: sess, logger: s.logger, now: time.Now}
+	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now}
 
 	// Login com limite apertado contra tentativa de força bruta; o restante, mais folgado.
 	loginLimiter := newIPRateLimiter(5, time.Minute)
@@ -64,6 +69,7 @@ func (s *Server) MountAPI(password string, reader ports.DashboardReader) error {
 	s.mux.Handle("GET /api/breakdown", protected(a.breakdown))
 	s.mux.Handle("GET /api/investments", protected(a.investments))
 	s.mux.Handle("GET /api/budget", protected(a.budget))
+	s.mux.Handle("GET /api/projection", protected(a.projection))
 	s.mux.Handle("PUT /api/expense-rules", protected(a.setExpenseRule))
 	s.mux.Handle("GET /api/portfolio", protected(a.portfolio))
 	s.mux.Handle("GET /api/portfolio/history", protected(a.portfolioHistory))
@@ -237,6 +243,65 @@ func (a *api) budget(w http.ResponseWriter, r *http.Request) {
 		items[i] = item{it.Key, it.Label, it.Category, domain.Category(it.Category).Label(), string(it.Class), it.Manual, it.Total, it.Count, it.Day, it.Paid, it.Months}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"month": formatMonth(to), "series": series, "items": items})
+}
+
+var projectionRanges = []int{6, 12, 24}
+
+// projection: base da projeção (premissas e parcelas já conhecidas) a partir do mês atual.
+// O simulador de financiamento soma o cenário em cima desta base, no navegador.
+func (a *api) projection(w http.ResponseWriter, r *http.Request) {
+	months := 12
+	if raw := r.URL.Query().Get("months"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || !slices.Contains(projectionRanges, n) {
+			writeError(w, http.StatusBadRequest, "months deve ser 6, 12 ou 24")
+			return
+		}
+		months = n
+	}
+	now := a.now().UTC()
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	rows, err := a.reader.ExpenseKeyMonths(r.Context(), start.AddDate(0, -budgetMonths, 0), start.AddDate(0, -1, 0))
+	if err == nil {
+		var rules map[string]ports.ExpenseClass
+		if rules, err = a.reader.ExpenseRules(r.Context()); err == nil {
+			var totals []ports.MonthTotals
+			if totals, err = a.reader.MonthlyTotals(r.Context(), start.AddDate(0, -budgetMonths, 0), start.AddDate(0, -1, 0)); err == nil {
+				var known map[time.Time]float64
+				if known, err = a.reader.KnownInstallments(r.Context(), start, start.AddDate(0, months-1, 0)); err == nil {
+					a.writeProjection(w, usecase.BuildProjection(rows, rules, incomeByMonth(totals), known, start, months))
+					return
+				}
+			}
+		}
+	}
+	a.fail(w, "projeção", err)
+}
+
+func incomeByMonth(totals []ports.MonthTotals) map[time.Time]float64 {
+	out := make(map[time.Time]float64, len(totals))
+	for _, t := range totals {
+		out[t.Month.UTC()] = t.Income
+	}
+	return out
+}
+
+func (a *api) writeProjection(w http.ResponseWriter, p usecase.Projection) {
+	type month struct {
+		Month       string  `json:"month"`
+		Fixed       float64 `json:"fixed"`
+		Installment float64 `json:"installment"`
+		Variable    float64 `json:"variable"`
+	}
+	months := make([]month, len(p.Months))
+	for i, m := range p.Months {
+		months[i] = month{formatMonth(m.Month), m.Fixed, m.Installment, m.Variable}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"assumptions": map[string]any{"income": p.Assumptions.Income, "fixed": p.Assumptions.Fixed, "variable": p.Assumptions.Variable, "basedOn": p.Assumptions.BasedOn},
+		"months":      months,
+	})
 }
 
 var ruleKeyRE = regexp.MustCompile(`^[a-zà-ÿ ]{1,120}$`)
