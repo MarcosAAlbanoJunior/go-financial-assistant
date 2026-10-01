@@ -24,6 +24,10 @@ type fakeReader struct {
 	filter    ports.TransactionFilter
 	by        ports.BreakdownDimension
 	groupBy   ports.GroupBy
+	from, to  time.Time
+	rules     map[string]ports.ExpenseClass
+	ruleKey   string
+	ruleClass ports.ExpenseClass
 	err       error
 }
 
@@ -62,6 +66,21 @@ func (f *fakeReader) PortfolioHistory(_ context.Context, from, to time.Time) ([]
 func (f *fakeReader) TransactionGroups(_ context.Context, flt ports.TransactionFilter, by ports.GroupBy) ([]ports.TransactionGroup, error) {
 	f.filter, f.groupBy = flt, by
 	return []ports.TransactionGroup{{Key: "FOOD", Count: 3, Expense: 90.5}, {Key: "SALARY", Count: 1, Income: 5000}}, f.err
+}
+func (f *fakeReader) ExpenseKeyMonths(_ context.Context, from, to time.Time) ([]ports.ExpenseKeyMonth, error) {
+	f.from, f.to = from, to
+	return []ports.ExpenseKeyMonth{
+		{Key: "netflix", Label: "NETFLIX 12/09", Category: "ENTERTAINMENT", Month: to.AddDate(0, -1, 0), Total: 44.9, Count: 1, Day: 12, AllPaid: true},
+		{Key: "netflix", Label: "NETFLIX 12/10", Category: "ENTERTAINMENT", Month: to.AddDate(0, -2, 0), Total: 44.9, Count: 1, Day: 12, AllPaid: true},
+		{Key: "netflix", Label: "NETFLIX 12/11", Category: "ENTERTAINMENT", Month: to, Total: 44.9, Count: 1, Day: 12, AllPaid: false},
+	}, f.err
+}
+func (f *fakeReader) ExpenseRules(context.Context) (map[string]ports.ExpenseClass, error) {
+	return f.rules, f.err
+}
+func (f *fakeReader) SetExpenseRule(_ context.Context, key string, class ports.ExpenseClass) error {
+	f.ruleKey, f.ruleClass = key, class
+	return f.err
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
 
@@ -415,5 +434,67 @@ func TestAPI_TransactionGroups(t *testing.T) {
 	do(s, "GET", "/api/transactions?day=2026-09-03", "", nil, c)
 	if r.filter.Day == nil || r.filter.Day.Format("2006-01-02") != "2026-09-03" {
 		t.Errorf("day não chegou ao filtro: %+v", r.filter)
+	}
+}
+
+func TestAPI_Budget(t *testing.T) {
+	r := &fakeReader{}
+	s := newTestAPI(t, r)
+	c := login(t, s)
+
+	rec := do(s, "GET", "/api/budget?month=2026-11", "", nil, c)
+	body := rec.Body.String()
+	if rec.Code != 200 || r.to.Format("2006-01") != "2026-11" || r.from.Format("2006-01") != "2025-12" {
+		t.Fatalf("janela de 12 meses até o mês pedido: %d %s from=%v to=%v", rec.Code, body, r.from, r.to)
+	}
+	for _, want := range []string{`"class":"FIXED"`, `"categoryLabel":"Lazer"`, `"months":3`, `"paid":false`, `"fixed":44.9`, `"month":"2026-11"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("falta %s em %s", want, body)
+		}
+	}
+	if strings.Count(body, `"installment"`) != 12 {
+		t.Errorf("a série deveria ter 12 meses: %s", body)
+	}
+	if rec := do(s, "GET", "/api/budget", "", nil, c); rec.Code != 400 {
+		t.Errorf("sem mês = %d", rec.Code)
+	}
+	if rec := do(s, "GET", "/api/budget?month=2026-11", "", nil); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
+	}
+}
+
+func TestAPI_SetExpenseRule(t *testing.T) {
+	r := &fakeReader{}
+	s := newTestAPI(t, r)
+	c := login(t, s)
+	json := map[string]string{"Content-Type": "application/json"}
+
+	if rec := do(s, "PUT", "/api/expense-rules", `{"key":"netflix","class":"FIXED"}`, json, c); rec.Code != 200 || r.ruleKey != "netflix" || r.ruleClass != ports.ClassFixed {
+		t.Errorf("FIXED: %d %q %q", rec.Code, r.ruleKey, r.ruleClass)
+	}
+	if rec := do(s, "PUT", "/api/expense-rules", `{"key":"débito mercado","class":"AUTO"}`, json, c); rec.Code != 200 || r.ruleClass != "" {
+		t.Errorf("AUTO apaga a regra: %d %q", rec.Code, r.ruleClass)
+	}
+
+	for name, tc := range map[string]struct {
+		body string
+		hdr  map[string]string
+		want int
+	}{
+		"classe inválida":  {`{"key":"netflix","class":"PARCELADA"}`, json, 400},
+		"chave com SQL":    {`{"key":"x'; drop table payments;--","class":"FIXED"}`, json, 400},
+		"chave maiúscula":  {`{"key":"Netflix","class":"FIXED"}`, json, 400},
+		"chave vazia":      {`{"key":"","class":"FIXED"}`, json, 400},
+		"chave longa":      {`{"key":"` + strings.Repeat("a", 121) + `","class":"FIXED"}`, json, 400},
+		"corpo inválido":   {`nao-json`, json, 400},
+		"form (CSRF)":      {`key=netflix&class=FIXED`, map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, 403},
+		"origem diferente": {`{"key":"netflix","class":"FIXED"}`, map[string]string{"Content-Type": "application/json", "Origin": "https://evil.example"}, 403},
+	} {
+		if rec := do(s, "PUT", "/api/expense-rules", tc.body, tc.hdr, c); rec.Code != tc.want {
+			t.Errorf("%s: %d, esperava %d", name, rec.Code, tc.want)
+		}
+	}
+	if rec := do(s, "PUT", "/api/expense-rules", `{"key":"netflix","class":"FIXED"}`, json); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
 	}
 }

@@ -332,3 +332,56 @@ func TestDashboard_TransactionGroupsAndDayFilter(t *testing.T) {
 		t.Error("agrupamento desconhecido deve ser recusado")
 	}
 }
+
+func TestBudget_ExpenseKeyMonthsAndRules(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM expense_rules WHERE key LIKE 'zzteste%'`) })
+
+	jan, feb := time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(1999, 2, 1, 0, 0, 0, 0, time.UTC)
+	// A mesma conta em dois meses, com números e datas diferentes na descrição: vira uma chave só.
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryEntertainment, desc: "ZZTeste Assinatura 03/01", amount: 20, date: jan.AddDate(0, 0, 4)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryEntertainment, desc: "ZZTeste Assinatura 03/02", amount: 20, date: feb.AddDate(0, 0, 9), status: domain.PaymentStatusPending})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryShopping, desc: "ZZTeste Geladeira (2/12)", amount: 150, date: feb})
+	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "ZZTeste salário", amount: 900, date: feb})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "ZZTeste cancelada", amount: 5, date: feb, status: domain.PaymentStatusCancelled})
+
+	rows, err := repo.ExpenseKeyMonths(ctx, jan, feb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]ports.ExpenseKeyMonth{}
+	for _, r := range rows {
+		got[r.Key] = append(got[r.Key], r)
+	}
+	sub := got["zzteste assinatura"]
+	if len(sub) != 2 || sub[0].Total != 20 || sub[0].Day != 5 || !sub[0].AllPaid || sub[1].AllPaid || sub[1].Day != 10 || sub[0].Installment {
+		t.Errorf("assinatura (mesma chave nos dois meses, o 2º pendente): %+v", sub)
+	}
+	if sub[0].Category != "ENTERTAINMENT" || sub[0].Label != "ZZTeste Assinatura 03/01" {
+		t.Errorf("categoria e descrição de exemplo: %+v", sub[0])
+	}
+	if p := got["zzteste geladeira"]; len(p) != 1 || !p[0].Installment {
+		t.Errorf("(2/12) é parcelada: %+v", p)
+	}
+	if len(got["zzteste sal rio"])+len(got["zzteste salario"])+len(got["zzteste cancelada"]) != 0 {
+		t.Errorf("renda e cancelada não entram: %+v", got)
+	}
+
+	if err := repo.SetExpenseRule(ctx, "zzteste assinatura", ports.ClassFixed); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.SetExpenseRule(ctx, "zzteste assinatura", ports.ClassVariable); err != nil { // atualiza
+		t.Fatal(err)
+	}
+	rules, _ := repo.ExpenseRules(ctx)
+	if rules["zzteste assinatura"] != ports.ClassVariable {
+		t.Errorf("regra gravada: %v", rules)
+	}
+	if err := repo.SetExpenseRule(ctx, "zzteste assinatura", ""); err != nil {
+		t.Fatal(err)
+	}
+	if rules, _ = repo.ExpenseRules(ctx); len(rules["zzteste assinatura"]) != 0 {
+		t.Errorf("AUTO apaga a regra: %v", rules)
+	}
+}
