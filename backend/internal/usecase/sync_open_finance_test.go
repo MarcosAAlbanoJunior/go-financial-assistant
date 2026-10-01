@@ -99,8 +99,8 @@ func TestSync_PendingCardTransactionStaysPending(t *testing.T) {
 func TestSync_IsIdempotent(t *testing.T) {
 	saved := 0
 	repo := &mockPurchaseRepo{
-		linkExternalAccountFn: func(context.Context, string, uuid.UUID) (bool, error) { return true, nil },
-		saveExternalFn:        func(context.Context, *domain.Purchase, *domain.Payment) error { saved++; return nil },
+		refreshExternalFn: func(context.Context, ports.ExternalTransaction, uuid.UUID) (bool, error) { return true, nil },
+		saveExternalFn:    func(context.Context, *domain.Purchase, *domain.Payment) error { saved++; return nil },
 	}
 	prov := &mockProvider{byItem: map[string][]ports.ExternalTransaction{"item": {extTx("t1", domain.KindExpense)}}}
 
@@ -182,9 +182,9 @@ func TestSync_LinksPaymentToAccount(t *testing.T) {
 			upserted = a
 			return accountID, nil
 		},
-		linkExternalAccountFn: func(_ context.Context, id string, acc uuid.UUID) (bool, error) {
+		refreshExternalFn: func(_ context.Context, tx ports.ExternalTransaction, acc uuid.UUID) (bool, error) {
 			linkedTo = acc
-			return id == "old", nil
+			return tx.ID == "old", nil
 		},
 		reconcileExternalFn: func(_ context.Context, tx ports.ExternalTransaction, acc uuid.UUID) (bool, error) {
 			reconciledTo = acc
