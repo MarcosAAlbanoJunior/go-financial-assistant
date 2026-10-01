@@ -76,6 +76,14 @@ func TestBuildBudget_FewMonthsOfHistory(t *testing.T) {
 		t.Errorf("com 2 meses: %+v", b.Items)
 	}
 
+	// Com 2 meses, valor que varia (mesmo pouco) não basta: 5% no máximo.
+	rows = append(monthsOf("wellhub", 100, 100), monthsOf("birigui", 296, 228)...)
+	rows = append(rows, monthsOf("netflix", 44.9, 45.9)...)
+	b = BuildBudget(rows, nil, month(2026, time.April), month(2026, time.May))
+	if classOf(t, b, "birigui").Class != ports.ClassVariable || classOf(t, b, "netflix").Class != ports.ClassFixed {
+		t.Errorf("2 meses exigem valor quase igual: %+v", b.Items)
+	}
+
 	// Um mês só: não há como saber o que se repete.
 	one := BuildBudget(monthsOf("wellhub", 100), nil, month(2026, time.April), month(2026, time.April))
 	if classOf(t, one, "wellhub").Class != ports.ClassVariable {

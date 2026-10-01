@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Budget, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -86,4 +86,19 @@ export const useTransactionGroups = (query: string, by: 'category' | 'day') =>
     queryKey: ['transaction-groups', by, query],
     queryFn: () => request<TransactionGroup[]>(`/api/transactions/groups?${query}&by=${by}`),
     placeholderData: keepPreviousData,
+  })
+
+export const useBudget = (month: string) =>
+  useQuery({
+    queryKey: ['budget', month],
+    queryFn: () => request<Budget>(`/api/budget?month=${month}`),
+    placeholderData: keepPreviousData,
+  })
+
+/** Corrige à mão se uma conta é fixa ou variável; "AUTO" volta à detecção automática. */
+export const setExpenseRule = (key: string, cls: 'FIXED' | 'VARIABLE' | 'AUTO') =>
+  request('/api/expense-rules', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, class: cls }),
   })

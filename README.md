@@ -201,6 +201,7 @@ O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `fronten
    - **Comparações**: despesas por categoria no mês escolhido contra o anterior, e a evolução de receitas e despesas em 6, 12 ou 24 meses.
    - **Transações**: lançamentos manuais e do Open Finance com filtros por mês, tipo, categoria, forma de pagamento, conta e busca na descrição. Três visões: **por categoria** (cards coloridos com ícone, que abrem para mostrar os lançamentos), **por dia** e **lista** paginada.
    - **Investimentos**: o patrimônio investido hoje (saldo real das posições do Open Finance, total, por tipo e por produto), a evolução desse saldo ao longo do tempo (exato desde a primeira sincronização, estimado antes dela) e o fluxo de dinheiro: aplicado, resgatado e líquido acumulado por mês, em 6, 12 ou 24 meses.
+   - **Orçamento**: despesas do mês em **fixas, parceladas e variáveis**, com a parte da receita já comprometida, a evolução por mês e cards das contas. Conta fixa é a que se repete (até 2 vezes por mês, valor parecido; precisa de pelo menos 3 meses de histórico, ou 2 quando só há 2, e então o valor tem de ser quase igual). Parcelada é a que tem "n/m" na descrição. Dá para corrigir à mão ("Marcar como fixa", "Não é fixa") e voltar ao automático. Quanto mais histórico (`SYNC_LOOKBACK_DAYS=365`), melhor a detecção.
    - **Contas**: saldo das contas correntes e limite usado dos cartões.
 
    O mês e os filtros ficam na URL (`?mes=AAAA-MM`), então dá para guardar ou compartilhar a visão. Os gráficos têm visão em tabela, e o tema claro/escuro segue o sistema (botão no topo para trocar).
@@ -211,7 +212,7 @@ O container escuta só em `127.0.0.1`. Para acessar de outro dispositivo, ponha 
 
 ## API do dashboard
 
-Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON **somente leitura** sob `/api`, que alimenta o front-end. Sem a variável, a API nem é montada.
+Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (a única escrita, além do login, é a correção manual de contas fixas), que alimenta o front-end. Sem a variável, a API nem é montada.
 
 - **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`) devolve um cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
 - **Proteção contra CSRF:** o login e o logout exigem JSON e recusam requisições cujo `Origin` não seja o próprio host, além do `SameSite=Strict`.
@@ -226,6 +227,8 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 | `GET /api/investments?from=&to=` | aplicado, resgatado e **líquido acumulado desde o primeiro lançamento** |
 | `GET /api/transactions?month=&kind=&category=&payment_method=&account=&q=&page=&limit=` | lista paginada (padrão 50, máx. 100), manual e Open Finance |
 | `GET /api/accounts` | contas e cartões, com saldo e limite |
+| `GET /api/budget?month=` | despesas do mês e dos 11 anteriores por classe (fixas, parceladas, variáveis) e as contas do mês |
+| `PUT /api/expense-rules` | corrige a classe de uma conta (`FIXED`, `VARIABLE` ou `AUTO`); só JSON na mesma origem |
 | `GET /api/portfolio` | posições de investimento (saldo real do Open Finance), total e total por tipo |
 | `GET /api/portfolio/history?from=&to=` | saldo total ao fim de cada mês (existe a partir da primeira sincronização) |
 
