@@ -37,6 +37,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Pacote `internal/chat` com a lógica de conversa independente de canal.
 
 ### Alterado
+- O menu do dashboard virou uma **barra lateral com seções** (Visão geral; Dia a dia: Transações, Gastos, Orçamento, Contas e cartões; Planejamento: Projeção, Comparações; Patrimônio: Investimentos), com ícones, tema e sair no rodapé. Em telas estreitas vira uma gaveta aberta por um botão (fecha com Esc, ao tocar fora ou ao navegar).
 - Transferências (aplicação e resgate de investimento) passam a ter a categoria **Investimento** e receitas cuja descrição indica salário passam a ter **Salário/Renda**, em vez de tudo cair em "Outros". Lançamentos já importados em "Outros" são promovidos na próxima sincronização.
 - Open Finance: a aplicação e o resgate automáticos do Itaú ("APLIC AUT MAIS") deixaram de virar Transferência, pois só varrem o saldo da conta e inflavam o fluxo de investimentos. Rendimentos pagos por eles e aportes manuais (como Cofrinhos) continuam entrando.
 - Open Finance: despesas que o Pluggy deixa em "Outros" agora são classificadas por palavras da descrição (ex.: iFood, posto de combustível, farmácia, assinaturas digitais; regras em `backend/internal/infra/pluggy/mapper.go`). A categoria do Pluggy, quando útil, sempre vale mais. A cada sincronização, despesas já importadas que estavam em "Outros" são promovidas pelas regras.
@@ -51,6 +52,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - `httpserver.NewServer` expõe só `/health`; as rotas do WhatsApp são adicionadas por `MountWhatsApp`.
 
 ### Corrigido
+- Nos cards agrupados de Transações, os de **Investimento** e **Salário/Renda** mostravam um texto longo no lugar do valor, que se sobrepunha ao título. Agora o valor aparece com uma legenda curta embaixo.
 - Bancos novos não recebiam as migrations 002 a 004 (o compose montava só a 001), o que causava `column "kind" of relation "purchases" does not exist` ao registrar a primeira despesa. Agora toda a pasta `migrations/` é montada no `initdb`.
 
 ### Segurança
