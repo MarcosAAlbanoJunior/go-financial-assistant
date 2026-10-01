@@ -97,6 +97,19 @@ func (s *SyncOpenFinance) syncInvestments(ctx context.Context, itemID string, re
 		return
 	}
 	result.Positions += len(positions)
+
+	// Mostra se o banco entrega as movimentações, de que depende a estimativa do histórico.
+	var withMovements, failed, total int
+	for _, p := range positions {
+		total += len(p.Movements)
+		if len(p.Movements) > 0 {
+			withMovements++
+		}
+		if p.MovementsFailed {
+			failed++
+		}
+	}
+	s.logger.Info("investimentos sincronizados", "positions", len(positions), "with_movements", withMovements, "movements", total, "movements_failed", failed)
 }
 
 func (s *SyncOpenFinance) syncOne(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID, result *SyncResult) error {
