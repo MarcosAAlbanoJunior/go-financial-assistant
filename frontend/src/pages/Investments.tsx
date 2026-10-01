@@ -8,6 +8,7 @@ import { TrendChart } from '../components/TrendChart'
 import { APPLIED_REDEEMED, BALANCE, CUMULATIVE, knownMonths, toInvestmentRows, toPortfolioRows } from '../lib/chart'
 import { formatBRL, formatMonthTitle } from '../lib/format'
 import { summarizeInvestments } from '../lib/investments'
+import { groupPositions } from '../lib/portfolio'
 import { shiftMonth } from '../lib/months'
 import { useMonth } from '../lib/useMonth'
 
@@ -49,8 +50,9 @@ export default function Investments() {
 
       <h2 className="section-title">Patrimônio investido</h2>
       <QueryState query={portfolio}>
-        {(p) =>
-          p.positions.length === 0 ? (
+        {(p) => {
+          const groups = groupPositions(p.positions)
+          return groups.length === 0 ? (
             <p className="state">
               Nenhuma posição de investimento sincronizada. Conecte uma instituição com investimentos no Open Finance (veja o
               README).
@@ -58,7 +60,7 @@ export default function Investments() {
           ) : (
             <>
               <div className="tiles">
-                <StatTile label="Saldo atual" value={formatBRL(p.total)} note={`${p.positions.length} posição(ões), líquido de impostos`} />
+                <StatTile label="Saldo atual" value={formatBRL(p.total)} note={`${groups.length} produto(s), líquido de impostos`} />
               </div>
               <div className="grid-2 section-gap">
                 <section className="card" aria-labelledby="h-type">
@@ -80,13 +82,15 @@ export default function Investments() {
                         </tr>
                       </thead>
                       <tbody>
-                        {p.positions.map((pos) => (
-                          <tr key={pos.id}>
+                        {groups.map((g) => (
+                          <tr key={g.key}>
                             <td className="left">
-                              {pos.name}
-                              <span className="tx-meta always">{[pos.typeLabel, pos.subtype].filter(Boolean).join(' · ')}</span>
+                              {g.name}
+                              <span className="tx-meta always">
+                                {[g.typeLabel, g.subtype, g.count > 1 ? `${g.count} aplicações` : ''].filter(Boolean).join(' · ')}
+                              </span>
                             </td>
-                            <td className="amount">{formatBRL(pos.balance)}</td>
+                            <td className="amount">{formatBRL(g.balance)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -105,7 +109,7 @@ export default function Investments() {
               <p className="tile-note">O histórico começa na primeira sincronização com o banco: o Pluggy não informa saldos passados.</p>
             </>
           )
-        }
+        }}
       </QueryState>
 
       <h2 className="section-title">Aplicações e resgates</h2>
