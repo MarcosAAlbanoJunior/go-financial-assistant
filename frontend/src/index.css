@@ -199,6 +199,7 @@ table.tx td { vertical-align: top; }
 .bars .delta { margin-top: 0; white-space: nowrap; }
 
 /* Em telas estreitas, categoria e conta descem para baixo da descrição */
+.tx-meta.always { display: block; }
 .tx-meta { display: none; font-size: 0.75rem; color: var(--text-muted); }
 @media (max-width: 720px) {
   .col-wide { display: none; }
@@ -208,3 +209,5 @@ table.tx td { vertical-align: top; }
   table.tx th, table.tx td { padding: 6px 4px; }
   table.tx td:first-child { white-space: nowrap; }
 }
+
+.section-title { font-size: 1.125rem; font-weight: 600; margin: 28px 0 12px; }
