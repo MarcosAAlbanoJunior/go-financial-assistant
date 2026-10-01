@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toMonthRows } from './chart'
+import { toInvestmentRows, toMonthRows } from './chart'
 import { deltaPercent, formatBRL, formatBRLCompact, formatMonthLong, formatMonthShort, formatMonthTitle, formatPercent } from './format'
 
 // Intl usa espaço sem quebra entre "R$" e o valor; normalizamos para comparar.
@@ -44,5 +44,15 @@ describe('toMonthRows', () => {
     ])
     expect(rows.map((r) => r.label)).toEqual(['ago/26', 'set/26'])
     expect(rows[1]).toMatchObject({ income: 10, expense: 259.62 })
+  })
+})
+
+describe('toInvestmentRows', () => {
+  it('mantém o acumulado de cada mês', () => {
+    const rows = toInvestmentRows([
+      { month: '2026-08', applied: 100, redeemed: 0, cumulative: 100 },
+      { month: '2026-09', applied: 0, redeemed: 30, cumulative: 70 },
+    ])
+    expect(rows[1]).toMatchObject({ label: 'set/26', redeemed: 30, cumulative: 70 })
   })
 })

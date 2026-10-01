@@ -16,6 +16,14 @@ export interface Summary {
   bankBalance: number | null
 }
 
+export interface InvestmentMonth {
+  month: string
+  applied: number
+  redeemed: number
+  /** Aplicado - resgatado, somado desde o primeiro lançamento (não só dentro da janela). */
+  cumulative: number
+}
+
 export type BreakdownBy = 'category' | 'payment_method' | 'account'
 
 export interface BreakdownItem {

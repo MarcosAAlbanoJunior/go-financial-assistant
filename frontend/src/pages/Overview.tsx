@@ -1,8 +1,8 @@
 import { useSummary, useTimeseries } from '../api/client'
 import { MonthFilter } from '../components/MonthFilter'
-import { MonthlyChart } from '../components/MonthlyChart'
+import { TrendChart } from '../components/TrendChart'
 import { StatTile } from '../components/StatTile'
-import { toMonthRows } from '../lib/chart'
+import { INCOME_EXPENSE, toMonthRows } from '../lib/chart'
 import { formatBRL, formatMonthTitle } from '../lib/format'
 import { shiftMonth } from '../lib/months'
 import { useMonth } from '../lib/useMonth'
@@ -38,7 +38,7 @@ export default function Overview() {
           </button>
         </div>
       ) : (
-        series.data && <MonthlyChart title="Receitas e despesas por mês" rows={toMonthRows(series.data)} stale={series.isPlaceholderData} />
+        series.data && <TrendChart series={INCOME_EXPENSE} title="Receitas e despesas por mês" rows={toMonthRows(series.data)} stale={series.isPlaceholderData} />
       )}
     </>
   )
