@@ -141,6 +141,17 @@ func fakePluggy(t *testing.T, auths *atomic.Int32) *Client {
 		}
 		io.WriteString(w, `{"totalPages":1,"results":[{"id":"acc1","type":"BANK","name":"  Conta   Corrente ","number":"0001/12345-0","balance":150.5,"taxNumber":"123","owner":"Fulano"}]}`)
 	}))
+	mux.HandleFunc("/investments", guard(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("itemId") == "empty" {
+			io.WriteString(w, `{"total":0,"totalPages":1,"results":[]}`)
+			return
+		}
+		if r.URL.Query().Get("page") == "2" {
+			io.WriteString(w, `{"totalPages":2,"results":[{"id":"inv2","type":"MUTUAL_FUND","subtype":"MULTIMARKET_FUND","name":"Fundo X","balance":10.5,"amount":12}]}`)
+			return
+		}
+		io.WriteString(w, `{"totalPages":2,"results":[{"id":"inv1","type":"FIXED_INCOME","subtype":"CDB","name":"  CDB   BANCO  ","balance":1000.25,"amount":1100,"owner":"Fulano","number":"123456","code":"X","issuerCNPJ":"00000000000191"}]}`)
+	}))
 	mux.HandleFunc("/v2/transactions", guard(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		if q.Get("accountId") != "acc1" || q.Get("dateFrom") != "2026-08-01" {
@@ -238,5 +249,34 @@ func TestLast4(t *testing.T) {
 		if got := last4(in); got != want {
 			t.Errorf("last4(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestFetchInvestments_PaginatesAndDropsPersonalData(t *testing.T) {
+	c := fakePluggy(t, new(atomic.Int32))
+	got, err := c.FetchInvestments(context.Background(), "item")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ports.ExternalInvestment{
+		{ID: "inv1", ItemID: "item", Type: "FIXED_INCOME", Subtype: "CDB", Name: "CDB BANCO", Balance: 1000.25, Amount: 1100},
+		{ID: "inv2", ItemID: "item", Type: "MUTUAL_FUND", Subtype: "MULTIMARKET_FUND", Name: "Fundo X", Balance: 10.5, Amount: 12},
+	}
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("posições inesperadas: %+v", got)
+	}
+
+	if none, err := c.FetchInvestments(context.Background(), "empty"); err != nil || len(none) != 0 {
+		t.Errorf("item sem investimentos deveria vir vazio: %v %v", none, err)
+	}
+}
+
+func TestInvestmentName(t *testing.T) {
+	long := investment{Name: strings.Repeat("ã", 300)}.toExternal("i")
+	if n := len([]rune(long.Name)); n != maxInvestmentNameLen {
+		t.Errorf("nome deveria ser truncado em %d runas, got %d", maxInvestmentNameLen, n)
+	}
+	if got := (investment{Name: "  "}).toExternal("i").Name; got != "Investimento" {
+		t.Errorf("nome vazio: %q", got)
 	}
 }

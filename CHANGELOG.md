@@ -5,6 +5,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- **Saldo real dos investimentos** via `GET /investments` do Pluggy: cada sincronização grava as posições (tipo, subtipo, nome do produto, saldo líquido e valor bruto) e o saldo do dia, formando o histórico do patrimônio. Posições que somem do Pluggy (resgatadas) ficam inativas com saldo zero. Falha ou ausência de investimentos não conta como erro da sincronização.
+- API: `GET /api/portfolio` (posições, total e total por tipo) e `GET /api/portfolio/history?from=&to=` (saldo ao fim de cada mês, `null` antes do primeiro registro).
+- Migration `007_create_investments.sql`.
 - Tela **Investimentos** no dashboard: aplicado e resgatado por mês e líquido acumulado, em 6, 12 ou 24 meses. Mostra o fluxo de aplicações e resgates, não o saldo das posições.
 - Telas **Gastos** (despesas do mês por categoria, forma de pagamento e conta/cartão), **Comparações** (categoria no mês escolhido contra o anterior e evolução em 6, 12 ou 24 meses), **Transações** (lista com filtros por mês, tipo, categoria, forma de pagamento, conta e busca, com paginação) e **Contas** (saldo e limite usado dos cartões) no dashboard.
 - **Dashboard em React** (`frontend/`: Vite, TypeScript, TanStack Query, React Router e Recharts) com login, tema claro/escuro e a tela **Visão geral**: receitas, despesas, saldo do mês, "em conta" e investimentos com a variação sobre o mês anterior, e o gráfico de receitas e despesas dos últimos 12 meses (com visão em tabela). O mês vai na URL (`?mes=AAAA-MM`).
@@ -39,6 +42,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Bancos novos não recebiam as migrations 002 a 004 (o compose montava só a 001), o que causava `column "kind" of relation "purchases" does not exist` ao registrar a primeira despesa. Agora toda a pasta `migrations/` é montada no `initdb`.
 
 ### Segurança
+- Investimentos: o app descarta titular, CNPJ do emissor, código e número da posição (dados pessoais segundo o Pluggy) na leitura; só o nome do produto, truncado em 120 caracteres, é guardado.
 - API do dashboard: senha comparada em tempo constante, sessão assinada com HMAC e chave aleatória por boot, login limitado a 5 tentativas por minuto por IP, login/logout exigem JSON e mesma origem (CSRF), parâmetros validados por lista fechada (nunca interpolados no SQL, e `%`/`_` da busca são escapados), respostas com `Cache-Control: no-store` e erros internos genéricos (o detalhe vai só para o log). A API nunca expõe `external_id` nem o texto bruto original.
 - Contas: o app lê do Pluggy apenas nome, tipo, saldo, limites e os 4 últimos dígitos do número; CPF, nome do titular e número completo são descartados na leitura e nunca chegam ao banco nem aos logs.
 - Open Finance: erros do cliente Pluggy nunca incluem credenciais nem URL, o cursor de paginação só é aceito se apontar para o próprio Pluggy (a requisição leva a `apiKey`) e `PLUGGY_ITEM_IDS` é validado como UUID.
@@ -46,6 +50,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - No Telegram, só o `TELEGRAM_CHAT_ID` configurado, em conversa privada, é atendido, e o token é removido dos erros de rede para não vazar em logs.
 
 ### Migração
+- Aplique também a migration 007 (investimentos): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/007_create_investments.sql`. O histórico do patrimônio começa na primeira sincronização depois dela (o Pluggy não informa saldos passados).
 - Aplique a migration 006 (depende da 005): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/006_create_accounts.sql`. O próximo `/sync` (ou a sincronização automática) preenche a conta das transações já importadas dentro de `SYNC_LOOKBACK_DAYS`.
 - Bancos já criados precisam aplicar a migration 005 antes de ligar o Open Finance: `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/005_add_payment_external_id.sql`.
 - Bancos já criados com o compose antigo não reexecutam o `initdb`: aplique à mão as migrations que faltarem, por exemplo `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/002_add_kind_to_purchases.sql` (e as seguintes).
