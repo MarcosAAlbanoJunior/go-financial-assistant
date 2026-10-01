@@ -430,3 +430,30 @@ func (r *PostgresPurchaseRepository) SetExpenseRule(ctx context.Context, key str
 	}
 	return nil
 }
+
+func (r *PostgresPurchaseRepository) KnownInstallments(ctx context.Context, from, to time.Time) (map[time.Time]float64, error) {
+	query := `
+		SELECT ` + paymentMonth + ` AS month, SUM(pay.amount)
+		FROM payments pay
+		JOIN purchases p ON p.id = pay.purchase_id
+		WHERE p.kind = 'EXPENSE' AND p.type = 'INSTALLMENT' AND pay.status != 'CANCELLED'
+		  AND ` + paymentMonth + ` BETWEEN $1::date AND $2::date
+		GROUP BY 1
+	`
+	rows, err := r.db.Pool.Query(ctx, query, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar parcelas futuras: %w", err)
+	}
+	defer rows.Close()
+
+	result := map[time.Time]float64{}
+	for rows.Next() {
+		var m time.Time
+		var total float64
+		if err := rows.Scan(&m, &total); err != nil {
+			return nil, fmt.Errorf("erro ao escanear parcelas futuras: %w", err)
+		}
+		result[m.UTC()] = total
+	}
+	return result, rows.Err()
+}

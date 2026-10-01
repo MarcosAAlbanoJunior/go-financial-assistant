@@ -43,8 +43,9 @@ type BudgetMonth struct {
 }
 
 type Budget struct {
-	Series []BudgetMonth
-	Items  []BudgetItem // contas do último mês da janela, da maior para a menor
+	Series  []BudgetMonth
+	Items   []BudgetItem                  // contas do último mês da janela, da maior para a menor
+	Classes map[string]ports.ExpenseClass // classe de toda conta da janela, pela chave
 }
 
 // BuildBudget classifica cada conta como fixa, parcelada ou variável e soma por mês.
@@ -84,7 +85,10 @@ func BuildBudget(rows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseCla
 		verdicts[key] = v
 	}
 
-	var b Budget
+	b := Budget{Classes: make(map[string]ports.ExpenseClass, len(verdicts))}
+	for key, v := range verdicts {
+		b.Classes[key] = v.class
+	}
 	index := map[time.Time]int{}
 	for m := from; !m.After(to); m = m.AddDate(0, 1, 0) {
 		index[m] = len(b.Series)
