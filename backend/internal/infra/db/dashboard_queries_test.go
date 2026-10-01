@@ -288,3 +288,47 @@ func deref(p *float64) any {
 	}
 	return *p
 }
+
+func TestDashboard_TransactionGroupsAndDayFilter(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "grp-a", amount: 30, date: mar1999.AddDate(0, 0, 1)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "grp-b", amount: 20, date: mar1999.AddDate(0, 0, 1)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryMarket, desc: "grp-c", amount: 70, date: mar1999.AddDate(0, 0, 4)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "grp-d", amount: 900, date: mar1999.AddDate(0, 0, 4)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "grp-e", amount: 9, date: apr1999})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "grp-cancel", amount: 500, date: mar1999, status: domain.PaymentStatusCancelled})
+
+	f := ports.TransactionFilter{Month: &mar1999}
+	byCat, err := repo.TransactionGroups(ctx, f, ports.GroupByCategory)
+	if err != nil || len(byCat) != 3 {
+		t.Fatalf("por categoria: %+v %v", byCat, err)
+	}
+	if byCat[0].Key != "MARKET" || byCat[0].Expense != 70 || byCat[1].Key != "FOOD" || byCat[1].Expense != 50 || byCat[1].Count != 2 {
+		t.Errorf("ordem e somas: %+v (o cancelado e abril não contam)", byCat)
+	}
+	if byCat[2].Key != "SALARY" || byCat[2].Income != 900 || byCat[2].Expense != 0 {
+		t.Errorf("renda separada da despesa: %+v", byCat[2])
+	}
+
+	byDay, err := repo.TransactionGroups(ctx, f, ports.GroupByDay)
+	if err != nil || len(byDay) != 2 || byDay[0].Key != "1999-03-05" || byDay[1].Key != "1999-03-02" || byDay[1].Expense != 50 {
+		t.Errorf("por dia (mais recente primeiro): %+v %v", byDay, err)
+	}
+
+	// Mesmos filtros da lista: tipo e busca restringem os grupos.
+	onlyFood := ports.TransactionFilter{Month: &mar1999, Kind: "EXPENSE", Search: "grp-a"}
+	if g, _ := repo.TransactionGroups(ctx, onlyFood, ports.GroupByCategory); len(g) != 1 || g[0].Expense != 30 {
+		t.Errorf("filtro por tipo e busca: %+v", g)
+	}
+
+	day := mar1999.AddDate(0, 0, 1)
+	txs, total, err := repo.Transactions(ctx, ports.TransactionFilter{Day: &day, Limit: 50})
+	if err != nil || total != 2 || len(txs) != 2 {
+		t.Errorf("filtro por dia: total=%d %v", total, err)
+	}
+	if _, err := repo.TransactionGroups(ctx, f, "x; DROP TABLE payments"); err == nil {
+		t.Error("agrupamento desconhecido deve ser recusado")
+	}
+}
