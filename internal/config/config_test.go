@@ -285,3 +285,58 @@ func TestLoad_WhatsApp_StillRequiresEvolutionVars(t *testing.T) {
 		t.Error("esperava erro sem OWNER_PHONE no canal whatsapp")
 	}
 }
+
+const itemA = "11111111-2222-3333-4444-555555555555"
+
+func openFinanceEnv() map[string]string {
+	env := validEnv()
+	env["PLUGGY_CLIENT_ID"] = "client-id"
+	env["PLUGGY_CLIENT_SECRET"] = "client-secret"
+	env["PLUGGY_ITEM_IDS"] = itemA + ", 66666666-7777-8888-9999-000000000000"
+	return env
+}
+
+func TestLoad_OpenFinanceDisabledByDefault(t *testing.T) {
+	setEnv(t, validEnv())
+	cfg, err := Load()
+	if err != nil || cfg.OpenFinanceEnabled() {
+		t.Errorf("Open Finance deveria ficar desligado sem variáveis: %v", err)
+	}
+}
+
+func TestLoad_OpenFinance_Success(t *testing.T) {
+	setEnv(t, openFinanceEnv())
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("esperava sucesso, got: %v", err)
+	}
+	if !cfg.OpenFinanceEnabled() || len(cfg.PluggyItemIDs) != 2 || cfg.PluggyItemIDs[0] != itemA {
+		t.Errorf("config incorreta: %+v", cfg)
+	}
+	if cfg.OpenFinanceSyncInterval.Hours() != 6 || cfg.OpenFinanceLookbackDays != 60 {
+		t.Errorf("defaults incorretos: %v %d", cfg.OpenFinanceSyncInterval, cfg.OpenFinanceLookbackDays)
+	}
+}
+
+func TestLoad_OpenFinance_Invalid(t *testing.T) {
+	cases := map[string]func(map[string]string){
+		"sem secret":    func(e map[string]string) { delete(e, "PLUGGY_CLIENT_SECRET") },
+		"sem itens":     func(e map[string]string) { delete(e, "PLUGGY_ITEM_IDS") },
+		"item inválido": func(e map[string]string) { e["PLUGGY_ITEM_IDS"] = "../admin" },
+		"intervalo 0":   func(e map[string]string) { e["SYNC_INTERVAL_HOURS"] = "0" },
+		"janela 400":    func(e map[string]string) { e["SYNC_LOOKBACK_DAYS"] = "400" },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			env := openFinanceEnv()
+			mutate(env)
+			for _, k := range []string{"PLUGGY_CLIENT_SECRET", "PLUGGY_ITEM_IDS"} {
+				t.Setenv(k, "")
+			}
+			setEnv(t, env)
+			if _, err := Load(); err == nil {
+				t.Error("esperava erro de configuração")
+			}
+		})
+	}
+}
