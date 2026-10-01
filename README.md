@@ -175,10 +175,12 @@ Se algum `PLUGGY_*` estiver preenchido, os três são obrigatórios. Sem nenhum,
 - **Conciliação com o manual:** se você registrou "gastei 45 no almoço" e depois o Pix chega pelo banco, o assistente liga os dois em vez de contar duas vezes (mesmo tipo e valor, data com até 3 dias de diferença; recorrentes casam no mesmo mês).
 - **Sem dupla contagem no cartão:** pagamento de fatura e transferência entre contas do mesmo titular são ignorados, porque as compras do cartão já entram uma a uma. Aplicações e resgates de investimento viram **Transferência**.
 - Compras parceladas no cartão chegam parcela a parcela, com a descrição `(2/3)`.
+- **Contas e cartões** são guardados na tabela `accounts` (nome, tipo, 4 últimos dígitos, saldo e limite do cartão), e cada transação aponta para a conta de origem. O app **não** guarda CPF, nome do titular nem o número completo da conta. Transações sincronizadas antes dessa tabela ganham a conta na primeira sincronização depois da atualização, desde que estejam dentro de `SYNC_LOOKBACK_DAYS`.
 
 **Limitações**
 - O Meu Pluggy atualiza os dados cerca de **uma vez por dia** e não permite forçar atualização; `/sync` só busca o que o Pluggy já tem.
 - Estornos no cartão não são subtraídos das despesas.
+- O saldo de um cartão é o valor que o Pluggy informa (em geral a fatura atual). Ele só atualiza quando o Pluggy atualiza.
 - Transações alteradas ou removidas depois no banco não são atualizadas aqui.
 - A classificação usa as categorias do Pluggy (mapeamento em `internal/infra/pluggy/mapper.go`); o que não for reconhecido vira "Outros".
 

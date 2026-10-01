@@ -10,6 +10,7 @@ import (
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/google/uuid"
 )
 
 var ErrSyncInProgress = errors.New("já existe uma sincronização em andamento")
@@ -48,13 +49,30 @@ func (s *SyncOpenFinance) Sync(ctx context.Context) (SyncResult, error) {
 	var result SyncResult
 	var errs []error
 	for _, itemID := range s.itemIDs {
-		txs, err := s.provider.FetchTransactions(ctx, itemID, from)
+		data, err := s.provider.FetchItem(ctx, itemID, from)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("item %s: %w", itemID, err))
 			continue
 		}
-		for _, tx := range txs {
-			if err := s.syncOne(ctx, tx, &result); err != nil {
+
+		accountIDs := make(map[string]uuid.UUID, len(data.Accounts))
+		for _, acc := range data.Accounts {
+			id, err := s.repo.UpsertAccount(ctx, acc)
+			if err != nil {
+				s.logger.Error("erro ao salvar conta", "account_id", acc.ID, "error", err)
+				errs = append(errs, err)
+				continue
+			}
+			accountIDs[acc.ID] = id
+		}
+
+		for _, tx := range data.Transactions {
+			accountID, ok := accountIDs[tx.AccountID]
+			if !ok {
+				errs = append(errs, fmt.Errorf("transação %s sem conta salva", tx.ID))
+				continue
+			}
+			if err := s.syncOne(ctx, tx, accountID, &result); err != nil {
 				s.logger.Error("erro ao sincronizar transação", "external_id", tx.ID, "error", err)
 				errs = append(errs, err)
 			}
@@ -63,8 +81,8 @@ func (s *SyncOpenFinance) Sync(ctx context.Context) (SyncResult, error) {
 	return result, errors.Join(errs...)
 }
 
-func (s *SyncOpenFinance) syncOne(ctx context.Context, tx ports.ExternalTransaction, result *SyncResult) error {
-	exists, err := s.repo.ExistsExternalID(ctx, tx.ID)
+func (s *SyncOpenFinance) syncOne(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID, result *SyncResult) error {
+	exists, err := s.repo.LinkExternalAccount(ctx, tx.ID, accountID)
 	if err != nil {
 		return err
 	}
@@ -73,7 +91,7 @@ func (s *SyncOpenFinance) syncOne(ctx context.Context, tx ports.ExternalTransact
 		return nil
 	}
 
-	reconciled, err := s.repo.ReconcileExternal(ctx, tx)
+	reconciled, err := s.repo.ReconcileExternal(ctx, tx, accountID)
 	if err != nil {
 		return err
 	}
@@ -88,7 +106,7 @@ func (s *SyncOpenFinance) syncOne(ctx context.Context, tx ports.ExternalTransact
 	}
 
 	payment := domain.NewPayment(purchase.ID, tx.Amount, domain.PaymentStatusPaid)
-	payment.DueDate, payment.PaidAt, payment.ExternalID = &tx.Date, &tx.Date, &tx.ID
+	payment.DueDate, payment.PaidAt, payment.ExternalID, payment.AccountID = &tx.Date, &tx.Date, &tx.ID, &accountID
 	if tx.Pending {
 		payment.Status, payment.PaidAt = domain.PaymentStatusPending, nil
 	}
