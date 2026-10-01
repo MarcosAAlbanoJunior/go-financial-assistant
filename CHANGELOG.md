@@ -29,6 +29,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Pacote `internal/chat` com a lógica de conversa independente de canal.
 
 ### Alterado
+- Open Finance: a aplicação e o resgate automáticos do Itaú ("APLIC AUT MAIS") deixaram de virar Transferência, pois só varrem o saldo da conta e inflavam o fluxo de investimentos. Rendimentos pagos por eles e aportes manuais (como Cofrinhos) continuam entrando.
+- Open Finance: despesas que o Pluggy deixa em "Outros" agora são classificadas por palavras da descrição (ex.: iFood, posto de combustível, farmácia, assinaturas digitais; regras em `backend/internal/infra/pluggy/mapper.go`). A categoria do Pluggy, quando útil, sempre vale mais. A cada sincronização, despesas já importadas que estavam em "Outros" são promovidas pelas regras.
+- `ports.PurchaseRepository.LinkExternalAccount` virou `RefreshExternal`, que também promove a categoria.
 - A porta `3000` do app no `docker-compose.yml` passou a escutar apenas em `127.0.0.1`. O webhook da Evolution API usa a rede interna do compose e não é afetado.
 - O rate limit por IP passou a considerar `X-Real-IP` quando a requisição vem de um proxy da rede privada.
 - `ports.OpenFinanceProvider.FetchTransactions` virou `FetchItem` e devolve também as contas; `ExistsExternalID` virou `LinkExternalAccount`, que além de checar vincula a conta a transações sincronizadas antes da migration 006.
@@ -50,6 +53,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - No Telegram, só o `TELEGRAM_CHAT_ID` configurado, em conversa privada, é atendido, e o token é removido dos erros de rede para não vazar em logs.
 
 ### Migração
+- Quem já importou do Itaú antes dessa mudança tem movimentos "APLIC AUT MAIS" gravados. Para removê-los: `docker compose exec -T postgres psql -U finassist -d finassist -c "DELETE FROM purchases WHERE id IN (SELECT p.id FROM purchases p JOIN payments pay ON pay.purchase_id = p.id WHERE p.kind = 'TRANSFER' AND pay.external_id IS NOT NULL AND p.description ILIKE '%aplic aut mais%')"`.
 - Aplique também a migration 007 (investimentos): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/007_create_investments.sql`. O histórico do patrimônio começa na primeira sincronização depois dela (o Pluggy não informa saldos passados).
 - Aplique a migration 006 (depende da 005): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/006_create_accounts.sql`. O próximo `/sync` (ou a sincronização automática) preenche a conta das transações já importadas dentro de `SYNC_LOOKBACK_DAYS`.
 - Bancos já criados precisam aplicar a migration 005 antes de ligar o Open Finance: `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/005_add_payment_external_id.sql`.

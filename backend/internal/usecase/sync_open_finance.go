@@ -100,7 +100,7 @@ func (s *SyncOpenFinance) syncInvestments(ctx context.Context, itemID string, re
 }
 
 func (s *SyncOpenFinance) syncOne(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID, result *SyncResult) error {
-	exists, err := s.repo.LinkExternalAccount(ctx, tx.ID, accountID)
+	exists, err := s.repo.RefreshExternal(ctx, tx, accountID)
 	if err != nil {
 		return err
 	}

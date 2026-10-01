@@ -45,7 +45,7 @@ type mockPurchaseRepo struct {
 	findIncomeTotalByMonthFn       func(ctx context.Context, month time.Time) (float64, error)
 	findTransferNetByMonthFn       func(ctx context.Context, month time.Time) (float64, float64, error)
 	saveInvestmentsFn              func(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error
-	linkExternalAccountFn          func(ctx context.Context, id string, accountID uuid.UUID) (bool, error)
+	refreshExternalFn              func(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error)
 	upsertAccountFn                func(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error)
 	reconcileExternalFn            func(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error)
 	saveExternalFn                 func(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error
@@ -143,9 +143,9 @@ func (m *mockPurchaseRepo) UpsertAccount(ctx context.Context, a ports.ExternalAc
 	return uuid.New(), nil
 }
 
-func (m *mockPurchaseRepo) LinkExternalAccount(ctx context.Context, id string, accountID uuid.UUID) (bool, error) {
-	if m.linkExternalAccountFn != nil {
-		return m.linkExternalAccountFn(ctx, id, accountID)
+func (m *mockPurchaseRepo) RefreshExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
+	if m.refreshExternalFn != nil {
+		return m.refreshExternalFn(ctx, tx, accountID)
 	}
 	return false, nil
 }

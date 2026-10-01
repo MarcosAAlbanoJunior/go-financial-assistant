@@ -44,9 +44,10 @@ type PurchaseRepository interface {
 	// Open Finance
 	// UpsertAccount cria ou atualiza a conta e devolve seu ID interno.
 	UpsertAccount(ctx context.Context, account ExternalAccount) (uuid.UUID, error)
-	// LinkExternalAccount informa se a transação já foi sincronizada e, se ainda não tinha
-	// conta de origem (sincronizada antes da tabela de contas), vincula-a.
-	LinkExternalAccount(ctx context.Context, externalID string, accountID uuid.UUID) (bool, error)
+	// RefreshExternal informa se a transação já foi sincronizada. Se sim, vincula a conta de
+	// origem (quando ainda não tinha, pois foi sincronizada antes da tabela de contas) e promove
+	// a categoria de uma despesa que estava em OTHER (regras novas de classificação).
+	RefreshExternal(ctx context.Context, tx ExternalTransaction, accountID uuid.UUID) (bool, error)
 	// SaveInvestments grava as posições do item e o saldo de hoje; posições do item que não
 	// vieram na lista (resgatadas) ficam inativas com saldo zero a partir de hoje.
 	SaveInvestments(ctx context.Context, itemID string, positions []ExternalInvestment, day time.Time) error
