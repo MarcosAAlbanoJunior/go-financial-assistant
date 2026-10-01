@@ -10,7 +10,7 @@ interface Props {
   title: string
   series: Series[]
   /** Colunas comparam meses lado a lado; linhas e área mostram a tendência de períodos longos. */
-  variant?: 'bars' | 'lines' | 'area'
+  variant?: 'bars' | 'stack' | 'lines' | 'area'
   rows: ChartRow[]
   /** Dados antigos mantidos na tela enquanto os novos carregam. */
   stale: boolean
@@ -24,7 +24,7 @@ export function TrendChart({ title, series, variant = 'bars', rows, stale }: Pro
     <CartesianGrid key="grid" vertical={false} stroke="var(--grid)" />,
     <XAxis key="x" dataKey="label" tickLine={false} axisLine={{ stroke: 'var(--axis)' }} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />,
     <YAxis key="y" tickFormatter={formatBRLCompact} tickLine={false} axisLine={false} width={72} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />,
-    <Tooltip key="tip" content={(props) => <ChartTooltip {...props} series={series} />} cursor={variant === 'bars' ? { fill: 'var(--grid)', opacity: 0.5 } : { stroke: 'var(--axis)' }} />,
+    <Tooltip key="tip" content={(props) => <ChartTooltip {...props} series={series} />} cursor={variant === 'bars' || variant === 'stack' ? { fill: 'var(--grid)', opacity: 0.5 } : { stroke: 'var(--axis)' }} />,
   ]
   const activeDot = { r: 4, stroke: 'var(--surface)', strokeWidth: 2 }
   // Com um único ponto não há linha para ver: mostra o ponto.
@@ -63,6 +63,14 @@ export function TrendChart({ title, series, variant = 'bars', rows, stale }: Pro
                   {axes}
                   {series.map((s) => (
                     <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} maxBarSize={16} radius={[4, 4, 0, 0]} />
+                  ))}
+                </BarChart>
+              ) : variant === 'stack' ? (
+                <BarChart data={rows} margin={MARGIN} barCategoryGap="20%">
+                  {axes}
+                  {/* O vão de 2px na cor da superfície separa os segmentos empilhados. */}
+                  {series.map((s) => (
+                    <Bar key={s.key} dataKey={s.key} name={s.name} stackId="stack" fill={s.color} stroke="var(--surface)" strokeWidth={2} maxBarSize={24} />
                   ))}
                 </BarChart>
               ) : variant === 'lines' ? (

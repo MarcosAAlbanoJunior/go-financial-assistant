@@ -5,6 +5,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- Tela **Orçamento**: as despesas do mês divididas em **fixas, parceladas e variáveis** (barra dividida, quanto da receita já está comprometido, evolução mensal em colunas empilhadas e cards das contas com ícone, valor, dia e situação paga/pendente). A conta fixa é detectada pela repetição (mesma descrição, até 2 vezes por mês, valor parecido; com só 2 meses de histórico o valor precisa ser quase idêntico) e pode ser corrigida à mão, com volta ao automático.
+- API: `GET /api/budget?month=` e `PUT /api/expense-rules` (única escrita da API além do login; exige JSON e mesma origem). Migration `009_create_expense_rules.sql`.
 - **Transações agrupadas**: a tela ganhou as visões **Por categoria** (padrão), **Por dia** e **Lista**, com cards coloridos e ícones por categoria (`lucide-react`), totais no topo (despesas, receitas, investimentos e lançamentos) e detalhe sob demanda ao abrir um card. A cor e o ícone de cada categoria são os mesmos em todas as telas (inclusive Gastos).
 - API: `GET /api/transactions/groups?by=category|day` (somas no SQL sob os mesmos filtros da lista) e filtro `day=AAAA-MM-DD` em `/api/transactions`.
 - **Histórico estimado do patrimônio**: a sincronização lê as movimentações de cada posição (`GET /investments/{id}/transactions`) e a curva "Saldo ao longo do tempo" reconstrói os meses anteriores à primeira sincronização (saldo do primeiro registro menos o que foi aplicado depois do mês, sem contar rendimentos). Esses meses aparecem em cinza como **Estimado**, com um aviso na tela; da primeira sincronização em diante o saldo é o exato informado pelo banco. A API de histórico ganhou o campo `estimated`.
@@ -59,6 +61,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ### Migração
 - Quem já importou do Itaú antes dessa mudança tem movimentos "APLIC AUT MAIS" gravados. Para removê-los: `docker compose exec -T postgres psql -U finassist -d finassist -c "DELETE FROM purchases WHERE id IN (SELECT p.id FROM purchases p JOIN payments pay ON pay.purchase_id = p.id WHERE p.kind = 'TRANSFER' AND pay.external_id IS NOT NULL AND p.description ILIKE '%aplic aut mais%')"`.
+- Aplique também a migration 009 (regras de contas fixas): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/009_create_expense_rules.sql`.
 - Aplique também a migration 008 (movimentações de investimento): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/008_create_investment_movements.sql`. A estimativa aparece depois da próxima sincronização.
 - Aplique também a migration 007 (investimentos): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/007_create_investments.sql`. O histórico do patrimônio começa na primeira sincronização depois dela (o Pluggy não informa saldos passados).
 - Aplique a migration 006 (depende da 005): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/006_create_accounts.sql`. O próximo `/sync` (ou a sincronização automática) preenche a conta das transações já importadas dentro de `SYNC_LOOKBACK_DAYS`.
