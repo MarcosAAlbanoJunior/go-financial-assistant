@@ -42,13 +42,16 @@ func TestBuildProjection_AveragesAndKnownInstallments(t *testing.T) {
 	rows = append(rows,
 		ports.ExpenseKeyMonth{Key: "tv", Label: "TV (9/12)", Month: month(2026, time.August), Total: 50, Count: 1, Installment: true},
 		ports.ExpenseKeyMonth{Key: "tv", Label: "TV (10/12)", Month: month(2026, time.September), Total: 50, Count: 1, Installment: true})
-	income := map[time.Time]float64{month(2026, time.August): 5000, month(2026, time.September): 7000}
+	income := []ports.IncomePayment{
+		{Key: "salario", Label: "Salário", Month: month(2026, time.August), Amount: 5000},
+		{Key: "salario", Label: "Salário", Month: month(2026, time.September), Amount: 7000},
+	}
 	known := map[time.Time]float64{month(2026, time.December): 300} // parcela cadastrada à mão
 
 	p := BuildProjection(rows, nil, income, known, start, 4)
 
 	a := p.Assumptions
-	if a.BasedOn != 2 || a.Income != 6000 || a.Fixed != 100 || a.Variable != 500 {
+	if a.BasedOn != 2 || a.Income != 6000 || len(a.IncomeSources) != 1 || a.Fixed != 100 || a.Variable != 500 {
 		t.Errorf("premissas (média dos 2 meses com dados): %+v", a)
 	}
 	if len(p.Months) != 4 || !p.Months[0].Month.Equal(start) {
@@ -81,5 +84,70 @@ func TestBuildProjection_FinishedInstallmentsAndGaps(t *testing.T) {
 	got := []float64{p.Months[0].Installment, p.Months[1].Installment, p.Months[2].Installment}
 	if got[0] != 200 || got[1] != 200 || got[2] != 0 {
 		t.Errorf("parcelas restantes: %v", got)
+	}
+}
+
+func inc(key string, m time.Month, amount float64) ports.IncomePayment {
+	return ports.IncomePayment{Key: key, Label: key, Month: month(2026, m), Amount: amount}
+}
+
+func TestEstimateIncome_OneOffPaymentDoesNotInflateTheSalary(t *testing.T) {
+	months := []time.Time{month(2026, time.August), month(2026, time.September)}
+	payments := []ports.IncomePayment{
+		inc("salário empresa", time.August, 6362),
+		inc("entrada empresa", time.August, 1700),
+		inc("salário empresa", time.September, 6372),
+		inc("entrada empresa", time.September, 1700),
+		inc("salário empresa", time.September, 9352),   // adiantamento de férias: mesma descrição do salário
+		inc("pix recebido fulano", time.September, 72), // só em um mês: eventual
+		inc("pix recebido fulano", time.September, 100),
+	}
+	got := EstimateIncome(payments, months)
+
+	var total float64
+	for _, s := range got {
+		total += s.Monthly
+	}
+	// salário: mediana dos pagamentos (6372) x 1 por mês (mediana inferior de 1 e 2); entrada: 1700.
+	if len(got) != 2 || got[0].Label != "salário empresa" || got[0].Monthly != 6372 || got[1].Monthly != 1700 || total != 8072 {
+		t.Errorf("renda estimada: %+v (total %v)", got, total)
+	}
+}
+
+func TestEstimateIncome_NeededMonthsAdaptToHistory(t *testing.T) {
+	three := []time.Time{month(2026, time.July), month(2026, time.August), month(2026, time.September)}
+	payments := []ports.IncomePayment{
+		inc("salário", time.July, 5000), inc("salário", time.August, 5000), inc("salário", time.September, 5000),
+		inc("bônus", time.August, 3000), inc("bônus", time.September, 3000), // 2 de 3 meses: eventual
+	}
+	if got := EstimateIncome(payments, three); len(got) != 1 || got[0].Monthly != 5000 {
+		t.Errorf("com 3 meses de dados, 2 aparições não é recorrente: %+v", got)
+	}
+
+	// Com um mês só não há como distinguir: tudo entra.
+	one := []time.Time{month(2026, time.September)}
+	if got := EstimateIncome([]ports.IncomePayment{inc("salário", time.September, 5000), inc("bônus", time.September, 800)}, one); len(got) != 2 {
+		t.Errorf("com 1 mês tudo entra: %+v", got)
+	}
+
+	// Fora da janela não conta; sem pagamentos, nada.
+	if got := EstimateIncome([]ports.IncomePayment{inc("salário", time.January, 9999)}, three); len(got) != 0 {
+		t.Errorf("fora da janela: %+v", got)
+	}
+	if got := EstimateIncome(nil, three); len(got) != 0 {
+		t.Errorf("sem pagamentos: %+v", got)
+	}
+}
+
+func TestEstimateIncome_MedianAndCounts(t *testing.T) {
+	months := []time.Time{month(2026, time.July), month(2026, time.August), month(2026, time.September)}
+	// Quinzena: dois pagamentos por mês, um deles com valor atípico no último mês.
+	payments := []ports.IncomePayment{
+		inc("quinzena", time.July, 2000), inc("quinzena", time.July, 2000),
+		inc("quinzena", time.August, 2000), inc("quinzena", time.August, 2000),
+		inc("quinzena", time.September, 2000), inc("quinzena", time.September, 7000),
+	}
+	if got := EstimateIncome(payments, months); len(got) != 1 || got[0].Monthly != 4000 {
+		t.Errorf("mediana 2000 x 2 por mês: %+v", got)
 	}
 }
