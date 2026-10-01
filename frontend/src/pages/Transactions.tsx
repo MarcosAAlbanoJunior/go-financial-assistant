@@ -181,14 +181,18 @@ function DayCards({ query }: { query: string }) {
   )
 }
 
-/** Valor do cabeçalho: despesa quando há; receitas e investimentos viram linhas menores. */
+/**
+ * Valor do cabeçalho do card: a despesa quando há. Sem despesa, o grupo é de receita ou de
+ * investimento, e o valor vem com uma legenda curta embaixo (nunca texto longo no lugar do valor).
+ */
 function amounts(g: TransactionGroup) {
   const extras = [g.income > 0 && `Receitas ${formatBRL(g.income)}`, g.transfer > 0 && `Investimento ${formatBRL(g.transfer)}`].filter(
     (e): e is string => !!e,
   )
   if (g.expense > 0) return { amount: `-${formatBRL(g.expense)}`, extras }
-  const [first, ...rest] = extras
-  return { amount: first ?? formatBRL(0), extras: rest }
+  if (g.income > 0) return { amount: `+${formatBRL(g.income)}`, extras: ['Receitas', ...(g.transfer > 0 ? [`Investimento ${formatBRL(g.transfer)}`] : [])] }
+  if (g.transfer > 0) return { amount: formatBRL(g.transfer), extras: ['Aplicações e resgates'] }
+  return { amount: formatBRL(0), extras: [] }
 }
 
 /** Lançamentos de um grupo aberto; busca só quando o card é expandido. */
