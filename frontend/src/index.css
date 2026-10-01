@@ -16,6 +16,7 @@
   --bad: #b02a2a;
   --accent: #2a78d6;
   --focus: #2a78d6;
+  --series-prev: #a9a8a1;
   --meter-track: #cde2fb;
   --warning: #fab219;
   --critical: #d03b3b;
@@ -37,6 +38,7 @@
     --bad: #ec6b6b;
     --accent: #3987e5;
     --focus: #6da7ec;
+    --series-prev: #6f6e69;
     --meter-track: #0d366b;
   }
 }
@@ -56,6 +58,7 @@
   --bad: #ec6b6b;
   --accent: #3987e5;
   --focus: #6da7ec;
+  --series-prev: #6f6e69;
   --meter-track: #0d366b;
 }
 
@@ -189,3 +192,19 @@ table.tx td { vertical-align: top; }
 .amount-caption { display: block; font-size: 0.6875rem; color: var(--text-muted); }
 .pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; font-size: 0.875rem; color: var(--text-secondary); flex-wrap: wrap; }
 .pager-pos { margin: 0 8px; }
+
+.bar-track.thin { height: 8px; margin: 0; flex: 1; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.bar-amount { min-width: 92px; text-align: right; font-size: 0.8125rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.bars .delta { margin-top: 0; white-space: nowrap; }
+
+/* Em telas estreitas, categoria e conta descem para baixo da descrição */
+.tx-meta { display: none; font-size: 0.75rem; color: var(--text-muted); }
+@media (max-width: 720px) {
+  .col-wide { display: none; }
+  .tx-meta { display: block; }
+  .card { padding: 12px; }
+  table.tx { font-size: 0.78rem; }
+  table.tx th, table.tx td { padding: 6px 4px; }
+  table.tx td:first-child { white-space: nowrap; }
+}
