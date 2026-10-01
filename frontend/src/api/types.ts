@@ -89,6 +89,38 @@ export interface Transaction {
   source: 'MANUAL' | 'OPEN_FINANCE'
 }
 
+export type ExpenseClass = 'FIXED' | 'INSTALLMENT' | 'VARIABLE'
+
+export interface BudgetMonth {
+  month: string
+  fixed: number
+  installment: number
+  variable: number
+}
+
+export interface BudgetItem {
+  /** Descrição normalizada: identifica a mesma conta em meses diferentes. */
+  key: string
+  label: string
+  category: string
+  categoryLabel: string
+  class: ExpenseClass
+  /** A classe veio de uma correção manual, não da detecção automática. */
+  manual: boolean
+  total: number
+  count: number
+  day: number
+  paid: boolean
+  /** Em quantos dos últimos 12 meses a conta aparece. */
+  months: number
+}
+
+export interface Budget {
+  month: string
+  series: BudgetMonth[]
+  items: BudgetItem[]
+}
+
 export interface TransactionGroup {
   /** Categoria (enum) ou data AAAA-MM-DD. */
   key: string

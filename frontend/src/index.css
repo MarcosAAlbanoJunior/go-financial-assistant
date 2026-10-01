@@ -12,6 +12,7 @@
   --border: rgba(11, 11, 11, 0.1);
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  --series-3: #1baf7a;
   --good: #006300;
   --bad: #b02a2a;
   --accent: #2a78d6;
@@ -43,6 +44,7 @@
     --border: rgba(255, 255, 255, 0.1);
     --series-1: #3987e5;
     --series-2: #d95926;
+    --series-3: #199e70;
     --good: #0ca30c;
     --bad: #ec6b6b;
     --accent: #3987e5;
@@ -72,6 +74,7 @@
   --border: rgba(255, 255, 255, 0.1);
   --series-1: #3987e5;
   --series-2: #d95926;
+  --series-3: #199e70;
   --good: #0ca30c;
   --bad: #ec6b6b;
   --accent: #3987e5;
@@ -272,3 +275,29 @@ table.tx td { vertical-align: top; }
 
 .bar-label { display: inline-flex; align-items: center; gap: 8px; }
 .bar-label .chip { width: 24px; height: 24px; border-radius: 7px; }
+
+/* Orçamento */
+.split-bar { display: flex; gap: 2px; height: 20px; margin: 12px 0 14px; }
+.split-bar > span { min-width: 4px; background: var(--c); }
+.split-bar > span:first-child { border-radius: 4px 0 0 4px; }
+.split-bar > span:last-child { border-radius: 0 4px 4px 0; }
+.split-legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.875rem; color: var(--text-secondary); }
+.split-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.split-legend i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
+.split-legend strong { color: var(--text-primary); font-weight: 600; }
+
+.bill-section { margin-top: 24px; }
+.bill-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 1.0625rem; font-weight: 600; }
+.bill-head .count { font-weight: 400; font-size: 0.8125rem; color: var(--text-muted); }
+.bill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.bill { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--c); border-radius: 12px; padding: 14px 16px; }
+.bill-top { display: flex; align-items: center; gap: 12px; }
+.bill-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bill-name strong { overflow-wrap: anywhere; }
+.bill-meta { font-size: 0.75rem; color: var(--text-muted); }
+.bill-amount { font-weight: 600; white-space: nowrap; }
+.bill-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8125rem; color: var(--text-secondary); }
+.status { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; border: 1px solid var(--border); }
+.status-paid { color: var(--good); }
+.status-pending { color: var(--text-secondary); }
+.btn-small { padding: 3px 10px; font-size: 0.8125rem; margin-left: auto; }

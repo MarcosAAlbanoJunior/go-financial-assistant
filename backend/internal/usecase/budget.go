@@ -14,8 +14,10 @@ const (
 	minFixedMonthsNeeded = 2
 	// ...no máximo 2 vezes por mês (mais que isso é hábito de consumo, não conta)...
 	maxFixedPerMonth = 2
-	// ...e com valor parecido: (maior - menor) / mediana dos totais mensais até 30%.
-	maxFixedSpread = 0.30
+	// ...e com valor parecido: (maior - menor) / mediana dos totais mensais até 30%. Com só 2 meses
+	// de dados, um acaso é muito mais provável, então o valor precisa ser praticamente o mesmo.
+	maxFixedSpread    = 0.30
+	maxFixedSpreadTwo = 0.05
 )
 
 // BudgetItem é uma conta (descrição normalizada) no mês escolhido.
@@ -139,5 +141,9 @@ func looksFixed(list []ports.ExpenseKeyMonth, needed int) bool {
 	if len(totals)%2 == 0 {
 		median = (totals[len(totals)/2-1] + totals[len(totals)/2]) / 2
 	}
-	return median > 0 && (totals[len(totals)-1]-totals[0])/median <= maxFixedSpread
+	limit := maxFixedSpread
+	if needed == minFixedMonthsNeeded {
+		limit = maxFixedSpreadTwo
+	}
+	return median > 0 && (totals[len(totals)-1]-totals[0])/median <= limit
 }
