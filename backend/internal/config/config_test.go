@@ -13,13 +13,13 @@ func setEnv(t *testing.T, vars map[string]string) {
 
 func validEnv() map[string]string {
 	return map[string]string{
-		"PORT":                     "8080",
-		"DATABASE_URL":             "postgres://user:pass@localhost/db",
-		"GEMINI_API_KEY":    "gemini-key",
-		"EVOLUTION_API_URL": "http://evolution:8080",
-		"EVOLUTION_INSTANCE":       "my-instance",
-		"EVOLUTION_API_KEY":        "evo-key",
-		"OWNER_PHONE":              "5511999999999",
+		"PORT":               "8080",
+		"DATABASE_URL":       "postgres://user:pass@localhost/db",
+		"GEMINI_API_KEY":     "gemini-key",
+		"EVOLUTION_API_URL":  "http://evolution:8080",
+		"EVOLUTION_INSTANCE": "my-instance",
+		"EVOLUTION_API_KEY":  "evo-key",
+		"OWNER_PHONE":        "5511999999999",
 	}
 }
 
@@ -336,6 +336,30 @@ func TestLoad_OpenFinance_Invalid(t *testing.T) {
 			setEnv(t, env)
 			if _, err := Load(); err == nil {
 				t.Error("esperava erro de configuração")
+			}
+		})
+	}
+}
+
+func TestLoad_DashboardPassword(t *testing.T) {
+	for name, tc := range map[string]struct {
+		password string
+		wantErr  bool
+	}{
+		"ausente (API desligada)": {"", false},
+		"forte":                   {"uma-senha-bem-longa", false},
+		"curta":                   {"curta", true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			env := validEnv()
+			env["DASHBOARD_PASSWORD"] = tc.password
+			setEnv(t, env)
+			cfg, err := Load()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if err == nil && cfg.DashboardPassword != tc.password {
+				t.Errorf("senha não carregada")
 			}
 		})
 	}
