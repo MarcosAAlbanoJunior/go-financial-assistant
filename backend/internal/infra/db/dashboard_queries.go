@@ -457,3 +457,30 @@ func (r *PostgresPurchaseRepository) KnownInstallments(ctx context.Context, from
 	}
 	return result, rows.Err()
 }
+
+func (r *PostgresPurchaseRepository) IncomePayments(ctx context.Context, from, to time.Time) ([]ports.IncomePayment, error) {
+	query := `
+		SELECT ` + expenseKey + ` AS key, p.description, ` + paymentMonth + ` AS month, pay.amount
+		FROM payments pay
+		JOIN purchases p ON p.id = pay.purchase_id
+		WHERE p.kind = 'INCOME' AND pay.status != 'CANCELLED' AND p.description IS NOT NULL
+		  AND ` + paymentMonth + ` BETWEEN $1::date AND $2::date
+		  AND ` + expenseKey + ` <> ''
+		ORDER BY 3, 4 DESC
+	`
+	rows, err := r.db.Pool.Query(ctx, query, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar entradas de renda: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ports.IncomePayment
+	for rows.Next() {
+		var i ports.IncomePayment
+		if err := rows.Scan(&i.Key, &i.Label, &i.Month, &i.Amount); err != nil {
+			return nil, fmt.Errorf("erro ao escanear entrada de renda: %w", err)
+		}
+		result = append(result, i)
+	}
+	return result, rows.Err()
+}

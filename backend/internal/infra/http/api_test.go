@@ -76,6 +76,9 @@ func (f *fakeReader) ExpenseKeyMonths(_ context.Context, from, to time.Time) ([]
 		{Key: "netflix", Label: "NETFLIX 12/11", Category: "ENTERTAINMENT", Month: to, Total: 44.9, Count: 1, Day: 12, AllPaid: false},
 	}, f.err
 }
+func (f *fakeReader) IncomePayments(_ context.Context, from, to time.Time) ([]ports.IncomePayment, error) {
+	return []ports.IncomePayment{{Key: "salario", Label: "Salário", Month: to, Amount: 5000}}, f.err
+}
 func (f *fakeReader) KnownInstallments(_ context.Context, from, to time.Time) (map[time.Time]float64, error) {
 	f.known = map[string]time.Time{"from": from, "to": to}
 	return map[time.Time]float64{from.AddDate(0, 2, 0): 300}, f.err

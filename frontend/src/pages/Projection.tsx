@@ -9,7 +9,7 @@ import { TrendChart } from '../components/TrendChart'
 import { BUDGET, type ChartRow, type Series } from '../lib/chart'
 import { formatBRL, formatMonthLong, formatMonthShort, formatPercent } from '../lib/format'
 import { currentMonth } from '../lib/months'
-import { costOf, defaultStart, loadScenarios, saveScenarios, simulate, verdict, type Premises, type Row, type Scenario } from '../lib/simulation'
+import { costOf, defaultStart, loadPremises, loadScenarios, savePremises, saveScenarios, simulate, verdict, type Premises, type Row, type Scenario } from '../lib/simulation'
 
 const RANGES = [6, 12, 24]
 
@@ -30,7 +30,11 @@ export default function Projection() {
 
   const [scenarios, setScenarios] = useState<Scenario[]>(loadScenarios)
   const [adding, setAdding] = useState(false)
-  const [override, setOverride] = useState<Partial<Premises>>({})
+  const [override, setOverride] = useState<Partial<Premises>>(loadPremises)
+  const updateOverride = (next: Partial<Premises>) => {
+    setOverride(next)
+    savePremises(next)
+  }
 
   const update = (next: Scenario[]) => {
     setScenarios(next)
@@ -79,14 +83,25 @@ export default function Projection() {
                 <h2 className="chart-title" id="prem-title">Premissas de um mês comum</h2>
                 <p className="tile-note">
                   {a.basedOn > 0
-                    ? `Médias dos últimos ${a.basedOn} ${a.basedOn === 1 ? 'mês' : 'meses'} com dados. Edite para testar outros cenários (ex.: renda menor).`
+                    ? `Baseadas nos últimos ${a.basedOn} ${a.basedOn === 1 ? 'mês' : 'meses'} com dados. Edite para testar outros cenários (ex.: renda menor); o que você editar fica salvo neste navegador.`
                     : 'Ainda não há histórico: informe os valores abaixo.'}
                 </p>
+                {a.incomeSources.length > 0 && (
+                  <p className="tile-note">
+                    A renda vem de cada fonte que se repete, pelo valor típico (mediana), então um pagamento fora do padrão, como adiantamento de férias, não pesa:{' '}
+                    {a.incomeSources.map((s) => `${s.label} ${formatBRL(s.monthly)}`).join(' · ')}.
+                  </p>
+                )}
                 <div className="form-grid">
-                  <PremiseField label="Renda mensal" value={premises.income} base={a.income} onChange={(x) => setOverride({ ...override, income: x })} />
-                  <PremiseField label="Contas fixas" value={premises.fixed} base={a.fixed} onChange={(x) => setOverride({ ...override, fixed: x })} />
-                  <PremiseField label="Gastos variáveis" value={premises.variable} base={a.variable} onChange={(x) => setOverride({ ...override, variable: x })} />
+                  <PremiseField label="Renda mensal" value={premises.income} base={a.income} onChange={(x) => updateOverride({ ...override, income: x })} />
+                  <PremiseField label="Contas fixas" value={premises.fixed} base={a.fixed} onChange={(x) => updateOverride({ ...override, fixed: x })} />
+                  <PremiseField label="Gastos variáveis" value={premises.variable} base={a.variable} onChange={(x) => updateOverride({ ...override, variable: x })} />
                 </div>
+                {Object.keys(override).length > 0 && (
+                  <button type="button" className="link" onClick={() => updateOverride({})}>
+                    Voltar a todos os valores calculados
+                  </button>
+                )}
               </section>
 
               <div className="bill-section">

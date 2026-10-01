@@ -14,10 +14,17 @@ const averageMonths = 3
 
 // Assumptions são as premissas da projeção: o que se espera de um mês comum daqui para a frente.
 type Assumptions struct {
-	Income   float64
-	Fixed    float64
-	Variable float64
-	BasedOn  int // quantos meses com dados sustentam as médias (0 = sem histórico)
+	Income        float64
+	IncomeSources []IncomeSource // de onde vem a renda estimada
+	Fixed         float64
+	Variable      float64
+	BasedOn       int // quantos meses com dados sustentam as médias (0 = sem histórico)
+}
+
+// IncomeSource é uma fonte de renda recorrente e quanto ela rende em um mês comum.
+type IncomeSource struct {
+	Label   string
+	Monthly float64
 }
 
 type ProjectedMonth struct {
@@ -51,18 +58,20 @@ func parseInstallment(label string) (current, total int, ok bool) {
 
 // BuildProjection projeta `months` meses a partir de start (primeiro dia do mês, em geral o mês atual).
 //
-//   - Renda, fixas e variáveis valem a média dos últimos meses completos com dados (anteriores a start);
+//   - Fixas e variáveis valem a média dos últimos meses completos com dados (anteriores a start);
+//   - a renda é estimada por fonte (EstimateIncome), para pagamentos fora do padrão não pesarem;
 //   - parcelas são as já conhecidas: as que faltam das compras parceladas no cartão (inferidas do "n/m" da
 //     descrição, já que o banco só informa a parcela do mês) e as cadastradas, em knownInstallments.
 //
-// rows são as despesas por conta dos 12 meses completos antes de start; incomeByMonth, a renda de cada mês.
-func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseClass, incomeByMonth map[time.Time]float64,
+// rows são as despesas por conta dos 12 meses completos antes de start; incomes, as entradas de renda no mesmo período.
+func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseClass, incomes []ports.IncomePayment,
 	knownInstallments map[time.Time]float64, start time.Time, months int) Projection {
 
 	b := BuildBudget(rows, rules, start.AddDate(0, -12, 0), start.AddDate(0, -1, 0))
 
 	// Médias dos últimos meses que tiveram alguma despesa.
 	var a Assumptions
+	var used []time.Time
 	for i := len(b.Series) - 1; i >= 0 && a.BasedOn < averageMonths; i-- {
 		m := b.Series[i]
 		if m.Fixed+m.Installment+m.Variable <= 0 {
@@ -71,11 +80,15 @@ func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.Expens
 		a.BasedOn++
 		a.Fixed += m.Fixed
 		a.Variable += m.Variable
-		a.Income += incomeByMonth[m.Month]
+		used = append(used, m.Month)
 	}
 	if a.BasedOn > 0 {
 		n := float64(a.BasedOn)
-		a.Fixed, a.Variable, a.Income = a.Fixed/n, a.Variable/n, a.Income/n
+		a.Fixed, a.Variable = a.Fixed/n, a.Variable/n
+		a.IncomeSources = EstimateIncome(incomes, used)
+		for _, src := range a.IncomeSources {
+			a.Income += src.Monthly
+		}
 	}
 
 	// Parcelas que faltam: a última aparição de cada conta parcelada diz em que parcela está.
@@ -103,4 +116,60 @@ func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.Expens
 	}
 	sort.Slice(p.Months, func(i, j int) bool { return p.Months[i].Month.Before(p.Months[j].Month) })
 	return p
+}
+
+// EstimateIncome estima a renda de um mês comum olhando cada fonte (mesma descrição) nos meses dados.
+// Para cada fonte recorrente, vale a mediana dos pagamentos vezes quantas vezes ela costuma cair por mês,
+// então um pagamento fora do padrão (adiantamento de férias, 13º) não pesa. Fonte que aparece em menos
+// meses do que o necessário (3, ou todos quando há menos de 3) é eventual e fica de fora.
+func EstimateIncome(payments []ports.IncomePayment, months []time.Time) []IncomeSource {
+	inWindow := map[time.Time]bool{}
+	for _, m := range months {
+		inWindow[m] = true
+	}
+	type source struct {
+		label    string
+		amounts  []float64
+		perMonth map[time.Time]int
+	}
+	sources := map[string]*source{}
+	for _, p := range payments {
+		if !inWindow[p.Month] {
+			continue
+		}
+		s := sources[p.Key]
+		if s == nil {
+			s = &source{label: p.Label, perMonth: map[time.Time]int{}}
+			sources[p.Key] = s
+		}
+		s.amounts = append(s.amounts, p.Amount)
+		s.perMonth[p.Month]++
+	}
+
+	needed := max(1, min(maxFixedMonthsNeeded, len(months)))
+	var result []IncomeSource
+	for _, s := range sources {
+		if len(s.perMonth) < needed {
+			continue
+		}
+		counts := make([]float64, 0, len(s.perMonth))
+		for _, c := range s.perMonth {
+			counts = append(counts, float64(c))
+		}
+		sort.Float64s(counts)
+		perMonth := counts[(len(counts)-1)/2] // mediana inferior: na dúvida, o menos otimista
+		result = append(result, IncomeSource{Label: s.label, Monthly: median(s.amounts) * perMonth})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Monthly > result[j].Monthly })
+	return result
+}
+
+func median(values []float64) float64 {
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	n := len(sorted)
+	if n%2 == 1 {
+		return sorted[n/2]
+	}
+	return (sorted[n/2-1] + sorted[n/2]) / 2
 }

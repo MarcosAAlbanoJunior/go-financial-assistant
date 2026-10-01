@@ -141,13 +141,10 @@ func looksFixed(list []ports.ExpenseKeyMonth, needed int) bool {
 		totals[i] = r.Total
 	}
 	sort.Float64s(totals)
-	median := totals[len(totals)/2]
-	if len(totals)%2 == 0 {
-		median = (totals[len(totals)/2-1] + totals[len(totals)/2]) / 2
-	}
+	med := median(totals)
 	limit := maxFixedSpread
 	if needed == minFixedMonthsNeeded {
 		limit = maxFixedSpreadTwo
 	}
-	return median > 0 && (totals[len(totals)-1]-totals[0])/median <= limit
+	return med > 0 && (totals[len(totals)-1]-totals[0])/med <= limit
 }

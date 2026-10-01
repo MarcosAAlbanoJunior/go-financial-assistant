@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Projection } from '../api/types'
-import { costOf, parseScenarios, priceInstallment, scenarioByMonth, simulate, verdict, type Scenario } from './simulation'
+import { costOf, parsePremises, parseScenarios, priceInstallment, scenarioByMonth, simulate, verdict, type Scenario } from './simulation'
 
 const base: Scenario = {
   id: 'a', name: 'Carro', mode: 'installment', start: '2026-11', parcels: 3, payment: 1000,
@@ -8,7 +8,7 @@ const base: Scenario = {
 }
 
 const projection: Projection = {
-  assumptions: { income: 6000, fixed: 1500, variable: 2500, basedOn: 3 },
+  assumptions: { income: 6000, incomeSources: [], fixed: 1500, variable: 2500, basedOn: 3 },
   months: ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03'].map((month, i) => ({
     month, fixed: 1500, variable: 2500, installment: i === 1 ? 200 : 0,
   })),
@@ -116,5 +116,19 @@ describe('parseScenarios', () => {
     expect(parseScenarios('{{')).toEqual([])
     expect(parseScenarios('{"a":1}')).toEqual([])
     expect(parseScenarios(null)).toEqual([])
+  })
+})
+
+describe('parsePremises', () => {
+  it('lê só números válidos', () => {
+    expect(parsePremises('{"income":8000,"fixed":1500.5,"variable":2500}')).toEqual({ income: 8000, fixed: 1500.5, variable: 2500 })
+    expect(parsePremises('{"income":-1,"fixed":"abc","variable":null,"extra":9}')).toEqual({})
+    expect(parsePremises('{"income":1e12}')).toEqual({})
+  })
+
+  it('formato inválido vira vazio', () => {
+    expect(parsePremises('[1,2]')).toEqual({})
+    expect(parsePremises('{{')).toEqual({})
+    expect(parsePremises(null)).toEqual({})
   })
 })
