@@ -38,7 +38,7 @@ export default function Overview() {
           </button>
         </div>
       ) : (
-        series.data && <MonthlyChart rows={toMonthRows(series.data)} stale={series.isPlaceholderData} />
+        series.data && <MonthlyChart title="Receitas e despesas por mês" rows={toMonthRows(series.data)} stale={series.isPlaceholderData} />
       )}
     </>
   )
