@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 func TestHandleError_InvalidAmount(t *testing.T) {
@@ -31,7 +33,7 @@ func TestHandleError_InvalidPaymentMethod(t *testing.T) {
 func TestHandleError_UnsupportedMessage(t *testing.T) {
 	h := newHandler(&mockAnalyzer{}, &mockMessenger{})
 	rr := httptest.NewRecorder()
-	h.handleError(rr, errUnsupportedMessage)
+	h.handleError(rr, chat.ErrUnsupportedMessage)
 	if rr.Code != 400 {
 		t.Errorf("esperava 400, got %d", rr.Code)
 	}
@@ -40,7 +42,7 @@ func TestHandleError_UnsupportedMessage(t *testing.T) {
 func TestHandleError_InvalidImage(t *testing.T) {
 	h := newHandler(&mockAnalyzer{}, &mockMessenger{})
 	rr := httptest.NewRecorder()
-	h.handleError(rr, errInvalidImage)
+	h.handleError(rr, chat.ErrInvalidImage)
 	if rr.Code != 400 {
 		t.Errorf("esperava 400, got %d", rr.Code)
 	}
@@ -55,26 +57,26 @@ func TestHandleError_Default(t *testing.T) {
 	}
 }
 
-func TestNotifyError_StoresSentID(t *testing.T) {
+func TestHandle_ErrorNotification_StoresSentID(t *testing.T) {
+	analyzer := &mockAnalyzer{
+		executeTextFn: func(_ context.Context, _ usecase.TextInput) (*usecase.ExpenseOutput, error) {
+			return nil, errors.New("algo errado")
+		},
+	}
 	messenger := &mockMessenger{
 		sendTextFn: func(_ context.Context, _, _ string) (string, error) { return "NOTIFY-ID", nil },
 	}
-	h := newHandler(&mockAnalyzer{}, messenger)
-	h.notifyError(context.Background(), errors.New("algo errado"))
+	h := newHandler(analyzer, messenger)
+	body := buildPayload("inst", "5511888888888@s.whatsapp.net", "MSG-ERR", false,
+		evolutionMessage{Conversation: "50 pix"}, "")
+	rr := doRequest(h, body)
 
+	if rr.Code != 500 {
+		t.Errorf("esperava 500, got %d", rr.Code)
+	}
 	if _, ok := h.sentIDs.Load("NOTIFY-ID"); !ok {
 		t.Error("sentID da notificação deveria ter sido armazenado")
 	}
-}
-
-func TestNotifyError_MessengerError(t *testing.T) {
-	messenger := &mockMessenger{
-		sendTextFn: func(_ context.Context, _, _ string) (string, error) {
-			return "", errors.New("falha ao notificar")
-		},
-	}
-	h := newHandler(&mockAnalyzer{}, messenger)
-	h.notifyError(context.Background(), errors.New("erro original"))
 }
 
 func TestDecodeBase64Image_WithPrefix(t *testing.T) {

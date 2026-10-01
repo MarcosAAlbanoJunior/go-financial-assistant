@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: finassist
       POSTGRES_DB: finassist
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/001_create_purchases_and_payments.sql:/docker-entrypoint-initdb.d/001_create_purchases_and_payments.sql
@@ -17,15 +17,17 @@ services:
       timeout: 5s
       retries: 5
 
+  # Canal WhatsApp: só sobe com COMPOSE_PROFILES=whatsapp (ver .env.example).
   evolution:
     image: evoapicloud/evolution-api:v2.3.7
     container_name: finassist-evolution
+    profiles: ["whatsapp"]
     ports:
       - "8082:8080"
     environment:
       CONFIG_SESSION_PHONE_VERSION: "2.3000.1035712111"
 
-      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-}
 
       WEBHOOK_GLOBAL_URL: http://app:3000/webhook
       WEBHOOK_GLOBAL_ENABLED: "true"
@@ -65,8 +67,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: finassist-redis
+    profiles: ["whatsapp"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -86,17 +89,21 @@ services:
       PORT: 3000
       DATABASE_URL: postgres://finassist:finassist@postgres:5432/finassist?sslmode=disable
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      CHANNEL: ${CHANNEL:-whatsapp}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
       EVOLUTION_API_URL: http://evolution:8080
-      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE}
-      ALLOWED_NUMBERS: ${ALLOWED_NUMBERS}
-      OWNER_PHONE: ${OWNER_PHONE}
-      ADMIN_SECRET: ${ADMIN_SECRET}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-}
+      ALLOWED_NUMBERS: ${ALLOWED_NUMBERS:-}
+      OWNER_PHONE: ${OWNER_PHONE:-}
+      ADMIN_SECRET: ${ADMIN_SECRET:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     depends_on:
       postgres:
         condition: service_healthy
       evolution:
         condition: service_healthy
+        required: false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
       interval: 6s

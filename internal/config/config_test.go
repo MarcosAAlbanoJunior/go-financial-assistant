@@ -210,3 +210,78 @@ func TestLoad_AllowedNumbers(t *testing.T) {
 		t.Errorf("esperava 2 números permitidos, got %d", len(cfg.AllowedNumbers))
 	}
 }
+
+func telegramEnv() map[string]string {
+	return map[string]string{
+		"PORT":               "8080",
+		"DATABASE_URL":       "postgres://user:pass@localhost/db",
+		"GEMINI_API_KEY":     "gemini-key",
+		"CHANNEL":            "telegram",
+		"TELEGRAM_BOT_TOKEN": "123:abc",
+		"TELEGRAM_CHAT_ID":   "987654321",
+	}
+}
+
+func TestLoad_DefaultChannelIsWhatsApp(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("esperava sucesso, got: %v", err)
+	}
+	if cfg.Channel != ChannelWhatsApp {
+		t.Errorf("canal padrão esperado whatsapp, got %q", cfg.Channel)
+	}
+}
+
+func TestLoad_Telegram_NoEvolutionVarsRequired(t *testing.T) {
+	setEnv(t, telegramEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("esperava sucesso sem variáveis do WhatsApp, got: %v", err)
+	}
+	if cfg.Channel != ChannelTelegram || cfg.TelegramBotToken != "123:abc" || cfg.TelegramChatID != 987654321 {
+		t.Errorf("config telegram incorreta: %+v", cfg)
+	}
+}
+
+func TestLoad_Telegram_MissingVars(t *testing.T) {
+	for _, key := range []string{"TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"} {
+		env := telegramEnv()
+		env[key] = ""
+		setEnv(t, env)
+		if _, err := Load(); err == nil {
+			t.Errorf("esperava erro sem %s", key)
+		}
+	}
+}
+
+func TestLoad_Telegram_InvalidChatID(t *testing.T) {
+	for _, id := range []string{"abc", "-1001234", "0"} {
+		env := telegramEnv()
+		env["TELEGRAM_CHAT_ID"] = id
+		setEnv(t, env)
+		if _, err := Load(); err == nil {
+			t.Errorf("esperava erro para TELEGRAM_CHAT_ID=%q", id)
+		}
+	}
+}
+
+func TestLoad_InvalidChannel(t *testing.T) {
+	env := validEnv()
+	env["CHANNEL"] = "sms"
+	setEnv(t, env)
+	if _, err := Load(); err == nil {
+		t.Error("esperava erro para CHANNEL inválido")
+	}
+}
+
+func TestLoad_WhatsApp_StillRequiresEvolutionVars(t *testing.T) {
+	env := validEnv()
+	env["OWNER_PHONE"] = ""
+	setEnv(t, env)
+	if _, err := Load(); err == nil {
+		t.Error("esperava erro sem OWNER_PHONE no canal whatsapp")
+	}
+}

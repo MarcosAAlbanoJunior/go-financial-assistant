@@ -6,16 +6,20 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/mdp/qrterminal/v3"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/config"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/db"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/evolution"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/gemini"
 	httpserver "github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/http"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/telegram"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -53,13 +57,43 @@ func main() {
 	analyzeExpense := usecase.NewAnalyzeExpense(purchaseRepo, geminiClient, logger)
 	exportCSV := usecase.NewExportCSV(purchaseRepo)
 
-	evolutionClient := evolution.NewClient(cfg.EvolutionAPIURL, cfg.EvolutionInstance, cfg.EvolutionAPIKey)
-
-	monthlyReport := usecase.NewMonthlyReport(exportCSV, evolutionClient, cfg.OwnerPhone, logger)
-
 	if err := analyzeExpense.GenerateRecurringExpenses(ctx); err != nil {
 		slog.Error("erro ao gerar despesas recorrentes no startup", "error", err)
 	}
+
+	server := httpserver.NewServer(cfg.Port, logger)
+
+	var (
+		messenger ports.Messenger
+		owner     string
+	)
+	switch cfg.Channel {
+	case config.ChannelTelegram:
+		tg := telegram.NewClient(cfg.TelegramBotToken)
+		username, err := tg.GetMe(ctx)
+		if err != nil {
+			slog.Error("falha ao validar TELEGRAM_BOT_TOKEN", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("canal Telegram ativo", "bot", username)
+
+		messenger, owner = tg, strconv.FormatInt(cfg.TelegramChatID, 10)
+		handler := chat.NewHandler(analyzeExpense, exportCSV, tg, owner, logger)
+		go telegram.NewBot(tg, cfg.TelegramChatID, handler, logger).Run(ctx)
+	default:
+		evolutionClient := evolution.NewClient(cfg.EvolutionAPIURL, cfg.EvolutionInstance, cfg.EvolutionAPIKey)
+		connectWhatsApp(ctx, evolutionClient, cfg)
+
+		messenger, owner = evolutionClient, cfg.OwnerPhone
+		server.MountWhatsApp(httpserver.WhatsAppConfig{
+			OwnerPhone:      cfg.OwnerPhone,
+			AllowedNumbers:  cfg.AllowedNumbers,
+			EvolutionAPIURL: cfg.EvolutionAPIURL,
+			AdminSecret:     cfg.AdminSecret,
+		}, evolutionClient, analyzeExpense, exportCSV)
+	}
+
+	monthlyReport := usecase.NewMonthlyReport(exportCSV, messenger, owner, logger)
 
 	go func() {
 		for {
@@ -81,6 +115,18 @@ func main() {
 		}
 	}()
 
+	slog.Info("starting go-financial-assistant", "port", cfg.Port)
+
+	if err := server.Start(ctx); err != nil {
+		slog.Error("server error", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("server stopped gracefully")
+}
+
+// connectWhatsApp aguarda a Evolution API subir e exibe o QR code se o WhatsApp ainda não estiver conectado.
+func connectWhatsApp(ctx context.Context, evolutionClient *evolution.Client, cfg *config.Config) {
 	for {
 		_, err := evolutionClient.EnsureInstance(ctx, cfg.OwnerPhone)
 		if err == nil {
@@ -113,28 +159,4 @@ func main() {
 			fmt.Println("Escaneie o QR code acima com o WhatsApp para conectar.")
 		}
 	}
-
-	server := httpserver.NewServer(
-		httpserver.ServerConfig{
-			Port:            cfg.Port,
-			OwnerPhone:      cfg.OwnerPhone,
-			AllowedNumbers:  cfg.AllowedNumbers,
-			EvolutionAPIURL: cfg.EvolutionAPIURL,
-			AdminSecret:     cfg.AdminSecret,
-		},
-		analyzeExpense,
-		exportCSV,
-		evolutionClient,
-		evolutionClient,
-		logger,
-	)
-
-	slog.Info("starting go-financial-assistant", "port", cfg.Port)
-
-	if err := server.Start(ctx); err != nil {
-		slog.Error("server error", "error", err)
-		os.Exit(1)
-	}
-
-	slog.Info("server stopped gracefully")
 }

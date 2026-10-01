@@ -1,13 +1,9 @@
-package httpserver
+package chat
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -36,33 +32,6 @@ func formatConfirmationQuestion(tx usecase.PendingTransaction, current, total in
 		tx.Amount,
 		tx.Category,
 	)
-}
-
-func (h *webhookHandler) writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
-}
-
-func (h *webhookHandler) writeError(w http.ResponseWriter, msg string, status int) {
-	h.writeJSON(w, status, map[string]string{"error": msg})
-}
-
-func (h *webhookHandler) handleError(w http.ResponseWriter, err error) {
-	h.logger.Error("erro ao processar webhook", "error", err)
-
-	switch {
-	case errors.Is(err, domain.ErrInvalidAmount):
-		h.writeError(w, err.Error(), http.StatusUnprocessableEntity)
-	case errors.Is(err, domain.ErrInvalidPaymentMethod):
-		h.writeError(w, err.Error(), http.StatusBadRequest)
-	case errors.Is(err, errUnsupportedMessage):
-		h.writeError(w, "tipo de mensagem não suportado", http.StatusBadRequest)
-	case errors.Is(err, errInvalidImage):
-		h.writeError(w, "imagem inválida ou corrompida", http.StatusBadRequest)
-	default:
-		h.writeError(w, "erro interno", http.StatusInternalServerError)
-	}
 }
 
 func formatReply(output *usecase.ExpenseOutput) string {
@@ -126,8 +95,3 @@ func formatQueryReply(output *usecase.ExpenseOutput) string {
 
 	return sb.String()
 }
-
-var (
-	errUnsupportedMessage = errors.New("tipo de mensagem não suportado")
-	errInvalidImage       = errors.New("imagem inválida")
-)
