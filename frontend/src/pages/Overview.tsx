@@ -1,49 +1,21 @@
-import { useSearchParams } from 'react-router'
 import { useSummary, useTimeseries } from '../api/client'
+import { MonthFilter } from '../components/MonthFilter'
 import { MonthlyChart } from '../components/MonthlyChart'
 import { StatTile } from '../components/StatTile'
 import { toMonthRows } from '../lib/chart'
 import { formatBRL, formatMonthTitle } from '../lib/format'
-import { currentMonth, isMonth, shiftMonth } from '../lib/months'
+import { shiftMonth } from '../lib/months'
+import { useMonth } from '../lib/useMonth'
 
 export default function Overview() {
-  const [params, setParams] = useSearchParams()
-  const now = currentMonth()
-  const requested = params.get('mes')
-  const month = isMonth(requested) ? requested : now
-
+  const { month, setMonth, now } = useMonth()
   const summary = useSummary(month)
   const series = useTimeseries(shiftMonth(month, -11), month)
-
-  const setMonth = (m: string) => {
-    if (isMonth(m)) setParams({ mes: m })
-  }
 
   return (
     <>
       <h1 className="page-title">{formatMonthTitle(month)}</h1>
-
-      <div className="filters">
-        <button type="button" className="btn" aria-label="Mês anterior" onClick={() => setMonth(shiftMonth(month, -1))}>
-          ←
-        </button>
-        <input
-          type="month"
-          aria-label="Mês"
-          value={month}
-          max={now}
-          onChange={(e) => setMonth(e.target.value)}
-        />
-        <button
-          type="button"
-          className="btn"
-          aria-label="Próximo mês"
-          disabled={month >= now}
-          onClick={() => setMonth(shiftMonth(month, 1))}
-        >
-          →
-        </button>
-      </div>
+      <MonthFilter month={month} now={now} onChange={setMonth} />
 
       {summary.isError && !summary.data ? (
         <div className="state error" role="alert">
