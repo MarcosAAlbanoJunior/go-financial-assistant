@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- Tela **Investimentos** no dashboard: aplicado e resgatado por mês e líquido acumulado, em 6, 12 ou 24 meses. Mostra o fluxo de aplicações e resgates, não o saldo das posições.
 - Telas **Gastos** (despesas do mês por categoria, forma de pagamento e conta/cartão), **Comparações** (categoria no mês escolhido contra o anterior e evolução em 6, 12 ou 24 meses), **Transações** (lista com filtros por mês, tipo, categoria, forma de pagamento, conta e busca, com paginação) e **Contas** (saldo e limite usado dos cartões) no dashboard.
 - **Dashboard em React** (`frontend/`: Vite, TypeScript, TanStack Query, React Router e Recharts) com login, tema claro/escuro e a tela **Visão geral**: receitas, despesas, saldo do mês, "em conta" e investimentos com a variação sobre o mês anterior, e o gráfico de receitas e despesas dos últimos 12 meses (com visão em tabela). O mês vai na URL (`?mes=AAAA-MM`).
 - Serviço `web` no Docker Compose: nginx sem privilégios que serve o front e repassa `/api` ao app (mesma origem, sem CORS), com CSP restritiva e demais cabeçalhos de segurança. Porta configurável por `WEB_PORT` (padrão 8080), publicada só em `127.0.0.1`.
