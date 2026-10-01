@@ -184,6 +184,18 @@ Se algum `PLUGGY_*` estiver preenchido, os três são obrigatórios. Sem nenhum,
 - Transações alteradas ou removidas depois no banco não são atualizadas aqui.
 - A classificação usa as categorias do Pluggy (mapeamento em `internal/infra/pluggy/mapper.go`); o que não for reconhecido vira "Outros".
 
+## Dashboard (front-end)
+
+O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `frontend/` e é servido por um container nginx que também repassa `/api` ao app Go. Como front e API ficam na **mesma origem**, não há CORS e o cookie de sessão não sai do domínio.
+
+1. Defina `DASHBOARD_PASSWORD` no `.env` (mínimo de 12 caracteres).
+2. `docker compose up -d --build` e abra **http://localhost:8080** (mude a porta com `WEB_PORT`).
+3. Entre com a senha. A tela inicial mostra receitas, despesas, saldo do mês, "em conta" e investimentos, com a variação em relação ao mês anterior, e o histórico de 12 meses (há uma visão em tabela para leitores de tela). O mês é escolhido na própria tela ou por `?mes=AAAA-MM`. O tema claro/escuro segue o sistema e pode ser trocado no botão do topo.
+
+O container escuta só em `127.0.0.1`. Para acessar de outro dispositivo, ponha na frente um proxy com **HTTPS** (Caddy, Traefik, Cloudflare Tunnel…) apontando para a porta do dashboard; sem HTTPS a senha e o cookie trafegam em claro. O nginx envia `Content-Security-Policy` restritiva, `X-Frame-Options: DENY`, `nosniff` e `Referrer-Policy: no-referrer`.
+
+**Desenvolvimento** (precisa de Node 22+; com nvm, `nvm use 22`): suba o app (`docker compose up -d`) e rode `make front-dev`; o Vite abre em http://localhost:5173 e repassa `/api` para `127.0.0.1:3000`. `make front-test` roda os testes (Vitest) e o lint; `make front-build` gera o build de produção.
+
 ## API do dashboard
 
 Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON **somente leitura** sob `/api`, que alimenta o front-end. Sem a variável, a API nem é montada.
@@ -350,6 +362,10 @@ backend/                                    aplicação em Go
             pluggy/                         cliente do Open Finance (Meu Pluggy)
             telegram/                       cliente da Bot API e bot (long polling)
     migrations/                             scripts SQL de criação do banco
+frontend/                                   dashboard em React + TypeScript (Vite) e nginx
+    src/api/                                cliente da API e hooks de consulta
+    src/lib/                                formatação, meses e tema (com testes)
+    src/components/, src/pages/             telas e componentes
 docker-compose.yml, Makefile, .env.example  na raiz
 ```
 
