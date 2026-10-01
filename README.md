@@ -184,6 +184,26 @@ Se algum `PLUGGY_*` estiver preenchido, os três são obrigatórios. Sem nenhum,
 - Transações alteradas ou removidas depois no banco não são atualizadas aqui.
 - A classificação usa as categorias do Pluggy (mapeamento em `internal/infra/pluggy/mapper.go`); o que não for reconhecido vira "Outros".
 
+## API do dashboard
+
+Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON **somente leitura** sob `/api`, que alimenta o front-end. Sem a variável, a API nem é montada.
+
+- **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`) devolve um cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
+- **Proteção contra CSRF:** o login e o logout exigem JSON e recusam requisições cujo `Origin` não seja o próprio host, além do `SameSite=Strict`.
+- **Rotas** (`month` e `from`/`to` no formato `AAAA-MM`; a janela de `from`/`to` vai de 1 a 60 meses, padrão: últimos 12):
+
+| Rota | Conteúdo |
+| --- | --- |
+| `POST /api/login`, `POST /api/logout`, `GET /api/me` | sessão |
+| `GET /api/summary?month=` | totais do mês e do mês anterior (receitas, despesas, aplicado, resgatado) e o saldo das contas correntes (`bankBalance`, `null` sem Open Finance) |
+| `GET /api/timeseries?from=&to=` | os mesmos totais, mês a mês |
+| `GET /api/breakdown?month=&by=category\|payment_method\|account` | despesas do mês agrupadas |
+| `GET /api/investments?from=&to=` | aplicado, resgatado e **líquido acumulado desde o primeiro lançamento** |
+| `GET /api/transactions?month=&kind=&category=&payment_method=&account=&q=&page=&limit=` | lista paginada (padrão 50, máx. 100), manual e Open Finance |
+| `GET /api/accounts` | contas e cartões, com saldo e limite |
+
+- **Segurança:** a porta `3000` do app é publicada só em `127.0.0.1`. Para acessar de outra máquina, ponha um proxy com **HTTPS** na frente (sem HTTPS a senha e o cookie trafegam em claro) e repasse `X-Real-IP` e `X-Forwarded-Proto`, usados pelo rate limit e pelo atributo `Secure` do cookie; esses cabeçalhos só são aceitos de IPs da rede privada.
+
 ## Uso
 
 Com o container rodando, envie mensagens para **si mesmo** no WhatsApp ou para o seu bot no Telegram. Os exemplos abaixo valem para os dois canais.
