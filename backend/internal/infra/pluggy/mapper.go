@@ -40,6 +40,9 @@ var (
 		{[]string{"anthropic", "hostinger", "ionos", "spotify", "netflix", "apple.com"}, domain.CategoryEntertainment},
 	}
 
+	// Receitas cuja descrição indica salário (o Pluggy nem sempre classifica como "salary").
+	salaryDescriptions = []string{"salário", "salario", "folha de pagamento"}
+
 	expenseCategories = []struct {
 		keywords []string
 		category domain.Category
@@ -113,7 +116,7 @@ func toExternal(accountType string, t transaction) (ports.ExternalTransaction, b
 		}
 	case inflow:
 		ext.Kind = domain.KindIncome
-		if strings.Contains(category, "salary") {
+		if strings.Contains(category, "salary") || containsAny(strings.ToLower(description), salaryDescriptions) {
 			ext.Category = domain.CategorySalary
 		}
 	default:

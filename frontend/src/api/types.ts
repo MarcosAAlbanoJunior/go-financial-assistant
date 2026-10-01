@@ -89,6 +89,16 @@ export interface Transaction {
   source: 'MANUAL' | 'OPEN_FINANCE'
 }
 
+export interface TransactionGroup {
+  /** Categoria (enum) ou data AAAA-MM-DD. */
+  key: string
+  label: string
+  count: number
+  expense: number
+  income: number
+  transfer: number
+}
+
 export interface TransactionPage {
   items: Transaction[]
   total: number

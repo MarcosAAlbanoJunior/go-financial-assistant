@@ -199,7 +199,7 @@ O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `fronten
    - **Visão geral**: receitas, despesas, saldo do mês, "em conta" e investimentos, com a variação sobre o mês anterior, e o histórico de 12 meses.
    - **Gastos**: despesas do mês por categoria, forma de pagamento e conta/cartão.
    - **Comparações**: despesas por categoria no mês escolhido contra o anterior, e a evolução de receitas e despesas em 6, 12 ou 24 meses.
-   - **Transações**: lista manual e do Open Finance, com filtros por mês, tipo, categoria, forma de pagamento, conta e busca na descrição, paginada.
+   - **Transações**: lançamentos manuais e do Open Finance com filtros por mês, tipo, categoria, forma de pagamento, conta e busca na descrição. Três visões: **por categoria** (cards coloridos com ícone, que abrem para mostrar os lançamentos), **por dia** e **lista** paginada.
    - **Investimentos**: o patrimônio investido hoje (saldo real das posições do Open Finance, total, por tipo e por produto), a evolução desse saldo ao longo do tempo (exato desde a primeira sincronização, estimado antes dela) e o fluxo de dinheiro: aplicado, resgatado e líquido acumulado por mês, em 6, 12 ou 24 meses.
    - **Contas**: saldo das contas correntes e limite usado dos cartões.
 

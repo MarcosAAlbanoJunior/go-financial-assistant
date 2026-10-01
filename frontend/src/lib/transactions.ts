@@ -40,6 +40,23 @@ export function describeAmount(t: Pick<Transaction, 'kind' | 'transferDirection'
   }
 }
 
+/** "2026-09-03" → "qui, 03/09" (dia da semana calculado em UTC, sem deslocar o dia). */
+export function formatDayLabel(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const weekday = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
+  return `${weekday}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`
+}
+
+/** Parâmetros de um filtro extra (categoria ou dia) sobre a query atual, para listar o detalhe de um grupo. */
+export function withGroupFilter(query: string, key: 'category' | 'day', value: string): string {
+  const q = new URLSearchParams(query)
+  q.set(key, value)
+  q.delete('page')
+  q.set('limit', '100')
+  if (key === 'day') q.delete('month')
+  return q.toString()
+}
+
 /** "2026-09-03" → "03/09/2026", sem passar por Date (evita deslocamento de fuso). */
 export function formatDay(iso: string): string {
   const [y, m, d] = iso.split('-')

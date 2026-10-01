@@ -1,19 +1,28 @@
+import { CalendarDays, LayoutGrid, List } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { useAccounts, useTransactions } from '../api/client'
+import { useAccounts, useTransactionGroups, useTransactions } from '../api/client'
+import type { TransactionGroup } from '../api/types'
+import { CategoryChip } from '../components/CategoryChip'
+import { GroupCard } from '../components/GroupCard'
 import { QueryState } from '../components/QueryState'
-import { formatMonthTitle } from '../lib/format'
+import { StatTile } from '../components/StatTile'
+import { TransactionTable } from '../components/TransactionTable'
+import { categoryVisual } from '../lib/categoryVisual'
+import { formatBRL, formatMonthTitle } from '../lib/format'
 import { CATEGORIES, KINDS, PAYMENT_METHODS } from '../lib/labels'
 import { currentMonth, shiftMonth } from '../lib/months'
-import { describeAmount, formatDay, monthFilter, toApiQuery } from '../lib/transactions'
+import { formatDayLabel, monthFilter, toApiQuery, withGroupFilter } from '../lib/transactions'
 
 export default function Transactions() {
   const [params, setParams] = useSearchParams()
   const now = currentMonth()
   const month = monthFilter(params, now)
   const query = toApiQuery(params, now)
-  const result = useTransactions(query)
+  const view = VIEWS.some((v) => v.key === params.get('vista')) ? (params.get('vista') as ViewKey) : 'categoria'
   const accounts = useAccounts()
+  // Os totais do topo vêm dos grupos por categoria, agregados no SQL, qualquer que seja a visão.
+  const categories = useTransactionGroups(query, 'category')
 
   // Qualquer mudança de filtro volta para a primeira página.
   const update = (changes: Record<string, string>) =>
@@ -73,57 +82,143 @@ export default function Transactions() {
         <SearchBox value={params.get('q') ?? ''} onCommit={(q) => update({ q })} />
       </div>
 
-      <QueryState query={result}>
-        {(page) => (
-          <section className={`card chart-body ${result.isPlaceholderData ? 'is-stale' : ''}`} aria-label="Lista de transações">
-            {page.items.length === 0 ? (
-              <p className="state">Nenhuma transação encontrada.</p>
-            ) : (
-              <div className="table-scroll">
-                <table className="data tx">
-                  <thead>
-                    <tr>
-                      <th scope="col">Data</th>
-                      <th scope="col">Descrição</th>
-                      <th scope="col" className="col-wide">Categoria</th>
-                      <th scope="col" className="col-wide">Pagamento</th>
-                      <th scope="col" className="col-wide">Conta</th>
-                      <th scope="col">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {page.items.map((t) => {
-                      const a = describeAmount(t)
-                      return (
-                        <tr key={t.id}>
-                          <td>{formatDay(t.date)}</td>
-                          <td className="left">
-                            {t.description || '—'}
-                            {t.status === 'PENDING' && <span className="badge">Pendente</span>}
-                            {t.source === 'MANUAL' && <span className="badge">Manual</span>}
-                            <span className="tx-meta">
-                              {[t.categoryLabel, t.accountName].filter(Boolean).join(' · ')}
-                            </span>
-                          </td>
-                          <td className="left col-wide">{t.categoryLabel}</td>
-                          <td className="left col-wide">{t.paymentMethodLabel}</td>
-                          <td className="left col-wide">{t.accountName || '—'}</td>
-                          <td className={`amount amount-${a.tone}`}>
-                            {a.text}
-                            <span className="amount-caption">{a.caption}</span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <Pager page={page.page} limit={page.limit} total={page.total} onPage={(n) => update({ pagina: n > 1 ? String(n) : '' })} />
-          </section>
-        )}
-      </QueryState>
+      <Summary groups={categories.data} />
+
+      <div className="view-toggle" role="group" aria-label="Forma de exibir">
+        {VIEWS.map(({ key, label, Icon }) => (
+          <button key={key} type="button" className="btn" aria-pressed={view === key} onClick={() => update({ vista: key === 'categoria' ? '' : key })}>
+            <Icon size={16} aria-hidden="true" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'lista' && <ListView query={query} onPage={(n) => update({ pagina: n > 1 ? String(n) : '' })} />}
+      {view === 'categoria' && (
+        <QueryState query={categories}>
+          {(groups) => <CategoryCards groups={groups} query={query} stale={categories.isPlaceholderData} />}
+        </QueryState>
+      )}
+      {view === 'dia' && <DayCards query={query} />}
     </>
+  )
+}
+
+const VIEWS = [
+  { key: 'categoria', label: 'Por categoria', Icon: LayoutGrid },
+  { key: 'dia', label: 'Por dia', Icon: CalendarDays },
+  { key: 'lista', label: 'Lista', Icon: List },
+] as const
+type ViewKey = (typeof VIEWS)[number]['key']
+
+/** Totais do que está filtrado: despesas, receitas e investimentos. */
+function Summary({ groups }: { groups: TransactionGroup[] | undefined }) {
+  if (!groups) return null
+  const total = groups.reduce(
+    (acc, g) => ({ expense: acc.expense + g.expense, income: acc.income + g.income, transfer: acc.transfer + g.transfer, count: acc.count + g.count }),
+    { expense: 0, income: 0, transfer: 0, count: 0 },
+  )
+  return (
+    <div className="tiles section-gap">
+      <StatTile label="Despesas" value={formatBRL(total.expense)} />
+      <StatTile label="Receitas" value={formatBRL(total.income)} />
+      <StatTile label="Investimentos" value={formatBRL(total.transfer)} note="Aplicações e resgates" />
+      <StatTile label="Lançamentos" value={String(total.count)} />
+    </div>
+  )
+}
+
+function CategoryCards({ groups, query, stale }: { groups: TransactionGroup[]; query: string; stale: boolean }) {
+  if (groups.length === 0) return <p className="state">Nenhuma transação encontrada.</p>
+  const max = Math.max(...groups.map((g) => Math.max(g.expense, g.income, g.transfer)), 1)
+  return (
+    <div className={`group-grid chart-body ${stale ? 'is-stale' : ''}`}>
+      {groups.map((g) => {
+        const { color } = categoryVisual(g.key)
+        return (
+          <GroupCard
+            key={g.key}
+            color={color}
+            icon={<CategoryChip category={g.key} size={20} />}
+            title={g.label}
+            subtitle={`${g.count} ${g.count === 1 ? 'lançamento' : 'lançamentos'}`}
+            {...amounts(g)}
+            share={Math.max(g.expense, g.income, g.transfer) / max}
+          >
+            {() => <GroupDetails query={withGroupFilter(query, 'category', g.key)} hideCategory />}
+          </GroupCard>
+        )
+      })}
+    </div>
+  )
+}
+
+function DayCards({ query }: { query: string }) {
+  const days = useTransactionGroups(query, 'day')
+  return (
+    <QueryState query={days}>
+      {(groups) => {
+        if (groups.length === 0) return <p className="state">Nenhuma transação encontrada.</p>
+        const max = Math.max(...groups.map((g) => Math.max(g.expense, g.income, g.transfer)), 1)
+        return (
+          <div className={`group-grid chart-body ${days.isPlaceholderData ? 'is-stale' : ''}`}>
+            {groups.map((g) => (
+              <GroupCard
+                key={g.key}
+                color="var(--accent)"
+                icon={<span className="chip chip-day">{g.key.slice(8)}</span>}
+                title={formatDayLabel(g.key)}
+                subtitle={`${g.count} ${g.count === 1 ? 'lançamento' : 'lançamentos'}`}
+                {...amounts(g)}
+                share={Math.max(g.expense, g.income, g.transfer) / max}
+              >
+                {() => <GroupDetails query={withGroupFilter(query, 'day', g.key)} />}
+              </GroupCard>
+            ))}
+          </div>
+        )
+      }}
+    </QueryState>
+  )
+}
+
+/** Valor do cabeçalho: despesa quando há; receitas e investimentos viram linhas menores. */
+function amounts(g: TransactionGroup) {
+  const extras = [g.income > 0 && `Receitas ${formatBRL(g.income)}`, g.transfer > 0 && `Investimento ${formatBRL(g.transfer)}`].filter(
+    (e): e is string => !!e,
+  )
+  if (g.expense > 0) return { amount: `-${formatBRL(g.expense)}`, extras }
+  const [first, ...rest] = extras
+  return { amount: first ?? formatBRL(0), extras: rest }
+}
+
+/** Lançamentos de um grupo aberto; busca só quando o card é expandido. */
+function GroupDetails({ query, hideCategory = false }: { query: string; hideCategory?: boolean }) {
+  const result = useTransactions(query)
+  return (
+    <QueryState query={result}>
+      {(page) => (
+        <>
+          <TransactionTable items={page.items} hideCategory={hideCategory} />
+          {page.total > page.items.length && (
+            <p className="tile-note">Mostrando {page.items.length} de {page.total}. Refine os filtros para ver o restante.</p>
+          )}
+        </>
+      )}
+    </QueryState>
+  )
+}
+
+function ListView({ query, onPage }: { query: string; onPage: (n: number) => void }) {
+  const result = useTransactions(query)
+  return (
+    <QueryState query={result}>
+      {(page) => (
+        <section className={`card chart-body ${result.isPlaceholderData ? 'is-stale' : ''}`} aria-label="Lista de transações">
+          {page.items.length === 0 ? <p className="state">Nenhuma transação encontrada.</p> : <TransactionTable items={page.items} />}
+          <Pager page={page.page} limit={page.limit} total={page.total} onPage={onPage} />
+        </section>
+      )}
+    </QueryState>
   )
 }
 

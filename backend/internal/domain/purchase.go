@@ -142,7 +142,7 @@ func NewTransfer(
 	return &Purchase{
 		ID:                uuid.New(),
 		Description:       description,
-		Category:          CategoryOther,
+		Category:          CategoryInvestment, // transferência aqui é sempre aplicação/resgate de investimento
 		PaymentMethod:     paymentMethod,
 		Kind:              KindTransfer,
 		TransferDirection: &direction,

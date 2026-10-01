@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionPage } from './types'
+import type { Account, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -77,5 +77,13 @@ export const usePortfolioHistory = (from: string, to: string) =>
   useQuery({
     queryKey: ['portfolio-history', from, to],
     queryFn: () => request<PortfolioMonth[]>(`/api/portfolio/history?from=${from}&to=${to}`),
+    placeholderData: keepPreviousData,
+  })
+
+/** query já vem montada e codificada (URLSearchParams); by: "category" ou "day". */
+export const useTransactionGroups = (query: string, by: 'category' | 'day') =>
+  useQuery({
+    queryKey: ['transaction-groups', by, query],
+    queryFn: () => request<TransactionGroup[]>(`/api/transactions/groups?${query}&by=${by}`),
     placeholderData: keepPreviousData,
   })
