@@ -48,9 +48,27 @@ type TransactionFilter struct {
 	Category      string
 	PaymentMethod string
 	AccountID     *uuid.UUID
-	Search        string // trecho da descrição
+	Day           *time.Time // um dia específico (sobrepõe Month)
+	Search        string     // trecho da descrição
 	Limit         int
 	Offset        int
+}
+
+type GroupBy string
+
+const (
+	GroupByCategory GroupBy = "category"
+	GroupByDay      GroupBy = "day"
+)
+
+// TransactionGroup soma as transações de um grupo (categoria ou dia) sob os mesmos filtros da lista.
+// Key é o valor do enum (categoria) ou a data AAAA-MM-DD.
+type TransactionGroup struct {
+	Key      string
+	Count    int
+	Expense  float64
+	Income   float64
+	Transfer float64
 }
 
 type Transaction struct {
@@ -110,6 +128,8 @@ type DashboardReader interface {
 	ExpenseBreakdown(ctx context.Context, month time.Time, by BreakdownDimension) ([]BreakdownItem, error)
 	// Transactions devolve a página pedida e o total de linhas que casam com o filtro.
 	Transactions(ctx context.Context, f TransactionFilter) ([]Transaction, int, error)
+	// TransactionGroups agrupa as transações que casam com o filtro (Limit e Offset são ignorados).
+	TransactionGroups(ctx context.Context, f TransactionFilter, by GroupBy) ([]TransactionGroup, error)
 	Accounts(ctx context.Context) ([]Account, error)
 	// Positions devolve as posições de investimento ativas, da maior para a menor.
 	Positions(ctx context.Context) ([]Position, error)
