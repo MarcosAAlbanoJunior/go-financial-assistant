@@ -27,6 +27,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </NavLink>
             <NavLink to="/gastos">Gastos</NavLink>
             <NavLink to="/orcamento">Orçamento</NavLink>
+            <NavLink to="/projecao">Projeção</NavLink>
             <NavLink to="/comparacoes">Comparações</NavLink>
             <NavLink to="/investimentos">Investimentos</NavLink>
             <NavLink to="/transacoes">Transações</NavLink>
