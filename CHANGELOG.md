@@ -17,6 +17,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Pacote `internal/chat` com a lógica de conversa independente de canal.
 
 ### Alterado
+- O código Go foi movido para `backend/` (o module path não mudou) para abrir espaço ao front-end. `Dockerfile`, `docker-compose.yml` e `Makefile` foram ajustados; os comandos `make` continuam os mesmos e a pasta das migrations agora é `backend/migrations/`.
 - A configuração só exige `EVOLUTION_*` e `OWNER_PHONE` quando `CHANNEL=whatsapp`.
 - O webhook do WhatsApp virou um adapter fino sobre `internal/chat`; o comportamento visível é o mesmo, exceto que falhas ao baixar e ao decodificar um documento agora geram uma única mensagem de erro.
 - `ports.Messenger` perdeu `FetchImageBase64` (detalhe da Evolution API) e `SendDocument` passou a receber `[]byte` em vez de base64.
@@ -31,6 +32,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - No Telegram, só o `TELEGRAM_CHAT_ID` configurado, em conversa privada, é atendido, e o token é removido dos erros de rede para não vazar em logs.
 
 ### Migração
-- Bancos já criados precisam aplicar a migration 005 antes de ligar o Open Finance: `docker compose exec -T postgres psql -U finassist -d finassist < migrations/005_add_payment_external_id.sql`.
-- Bancos já criados com o compose antigo não reexecutam o `initdb`: aplique à mão as migrations que faltarem, por exemplo `docker compose exec -T postgres psql -U finassist -d finassist < migrations/002_add_kind_to_purchases.sql` (e as seguintes).
+- Bancos já criados precisam aplicar a migration 005 antes de ligar o Open Finance: `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/005_add_payment_external_id.sql`.
+- Bancos já criados com o compose antigo não reexecutam o `initdb`: aplique à mão as migrations que faltarem, por exemplo `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/002_add_kind_to_purchases.sql` (e as seguintes).
 - Quem já usa WhatsApp deve adicionar `COMPOSE_PROFILES=whatsapp` ao `.env`. Sem isso, `docker compose up` não sobe a Evolution API.
