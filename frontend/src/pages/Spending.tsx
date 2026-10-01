@@ -34,7 +34,7 @@ function Section({ month, by, title }: { month: string; by: BreakdownBy; title: 
       <h2 className="chart-title" id={`h-${by}`}>
         {title}
       </h2>
-      <QueryState query={query}>{(items) => <RankedBars items={items} stale={query.isPlaceholderData} />}</QueryState>
+      <QueryState query={query}>{(items) => <RankedBars items={items} stale={query.isPlaceholderData} categories={by === 'category'} />}</QueryState>
     </section>
   )
 }
