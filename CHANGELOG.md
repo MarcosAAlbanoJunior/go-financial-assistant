@@ -5,6 +5,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- Tela **Projeção e simulador**: parte da renda, das contas fixas e dos gastos variáveis médios (premissas editáveis) e das parcelas já conhecidas (inclusive as do cartão, inferidas do "n/m" da descrição) e mostra, mês a mês em 6, 12 ou 24 meses, para onde vai o dinheiro e o saldo projetado. Dá para **simular financiamentos** (parcela pronta, ou valor, entrada, juros e prazo pela tabela Price): pior mês, sobra média, meses no vermelho, peso na renda e total pago, com vários cenários ao mesmo tempo. Os cenários ficam salvos só no navegador.
+- API: `GET /api/projection?months=6|12|24`.
 - Tela **Orçamento**: as despesas do mês divididas em **fixas, parceladas e variáveis** (barra dividida, quanto da receita já está comprometido, evolução mensal em colunas empilhadas e cards das contas com ícone, valor, dia e situação paga/pendente). A conta fixa é detectada pela repetição (mesma descrição, até 2 vezes por mês, valor parecido; com só 2 meses de histórico o valor precisa ser quase idêntico) e pode ser corrigida à mão, com volta ao automático.
 - API: `GET /api/budget?month=` e `PUT /api/expense-rules` (única escrita da API além do login; exige JSON e mesma origem). Migration `009_create_expense_rules.sql`.
 - **Transações agrupadas**: a tela ganhou as visões **Por categoria** (padrão), **Por dia** e **Lista**, com cards coloridos e ícones por categoria (`lucide-react`), totais no topo (despesas, receitas, investimentos e lançamentos) e detalhe sob demanda ao abrir um card. A cor e o ícone de cada categoria são os mesmos em todas as telas (inclusive Gastos).

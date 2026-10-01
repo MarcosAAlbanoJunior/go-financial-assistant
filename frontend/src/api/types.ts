@@ -89,6 +89,11 @@ export interface Transaction {
   source: 'MANUAL' | 'OPEN_FINANCE'
 }
 
+export interface Projection {
+  assumptions: { income: number; fixed: number; variable: number; basedOn: number }
+  months: { month: string; fixed: number; installment: number; variable: number }[]
+}
+
 export type ExpenseClass = 'FIXED' | 'INSTALLMENT' | 'VARIABLE'
 
 export interface BudgetMonth {

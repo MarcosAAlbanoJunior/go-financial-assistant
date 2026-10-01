@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Budget, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Budget, Projection, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -101,4 +101,11 @@ export const setExpenseRule = (key: string, cls: 'FIXED' | 'VARIABLE' | 'AUTO') 
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, class: cls }),
+  })
+
+export const useProjection = (months: number) =>
+  useQuery({
+    queryKey: ['projection', months],
+    queryFn: () => request<Projection>(`/api/projection?months=${months}`),
+    placeholderData: keepPreviousData,
   })

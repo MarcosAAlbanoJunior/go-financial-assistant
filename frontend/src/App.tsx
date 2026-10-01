@@ -6,6 +6,7 @@ import Budget from './pages/Budget'
 import Compare from './pages/Compare'
 import Investments from './pages/Investments'
 import Overview from './pages/Overview'
+import Projection from './pages/Projection'
 import Spending from './pages/Spending'
 import Transactions from './pages/Transactions'
 
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/comparacoes" element={<Compare />} />
         <Route path="/transacoes" element={<Transactions />} />
         <Route path="/contas" element={<Accounts />} />
+        <Route path="/projecao" element={<Projection />} />
         <Route path="/orcamento" element={<Budget />} />
         <Route path="/gastos" element={<Spending />} />
       </Route>

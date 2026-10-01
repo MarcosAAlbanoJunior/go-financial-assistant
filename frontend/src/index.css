@@ -13,6 +13,7 @@
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
+  --series-4: #eda100;
   --good: #006300;
   --bad: #b02a2a;
   --accent: #2a78d6;
@@ -45,6 +46,7 @@
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
+    --series-4: #c98500;
     --good: #0ca30c;
     --bad: #ec6b6b;
     --accent: #3987e5;
@@ -75,6 +77,7 @@
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
+  --series-4: #c98500;
   --good: #0ca30c;
   --bad: #ec6b6b;
   --accent: #3987e5;
@@ -110,7 +113,8 @@ button, input { font: inherit; color: inherit; }
 .topbar .container { display: flex; align-items: center; gap: 16px; min-height: 56px; }
 .brand { font-weight: 600; }
 .nav { display: flex; gap: 4px; flex: 1; }
-.nav a { padding: 6px 10px; border-radius: 6px; color: var(--text-secondary); text-decoration: none; }
+.nav { overflow-x: auto; }
+.nav a { white-space: nowrap; padding: 6px 9px; border-radius: 6px; color: var(--text-secondary); text-decoration: none; }
 .nav a[aria-current='page'] { color: var(--text-primary); background: var(--page); font-weight: 600; }
 .topbar-actions { display: flex; gap: 8px; }
 
@@ -301,3 +305,16 @@ table.tx td { vertical-align: top; }
 .status-paid { color: var(--good); }
 .status-pending { color: var(--text-secondary); }
 .btn-small { padding: 3px 10px; font-size: 0.8125rem; margin-left: auto; }
+
+/* Simulador */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 12px 0; }
+.form-grid label, .scenario-form label { display: grid; gap: 4px; font-size: 0.875rem; color: var(--text-secondary); }
+.form-grid input, .scenario-form input[type='text'] { padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); min-width: 0; }
+.scenario-form { margin-bottom: 12px; }
+.scenario-form .view-toggle { margin: 10px 0 4px; }
+.scenario-preview { margin: 4px 0 12px; font-size: 0.9375rem; color: var(--text-secondary); }
+.scenario-preview strong { color: var(--text-primary); }
+.form-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.link { all: unset; cursor: pointer; font-size: 0.75rem; color: var(--accent); text-decoration: underline; }
+.link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.bill-head .btn-small { margin-left: 12px; display: inline-flex; align-items: center; gap: 4px; }
