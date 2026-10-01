@@ -2,9 +2,9 @@ import { useSearchParams } from 'react-router'
 import { useBreakdown, useTimeseries } from '../api/client'
 import { CompareBars } from '../components/CompareBars'
 import { MonthFilter } from '../components/MonthFilter'
-import { MonthlyChart } from '../components/MonthlyChart'
+import { TrendChart } from '../components/TrendChart'
 import { QueryState } from '../components/QueryState'
-import { toMonthRows } from '../lib/chart'
+import { INCOME_EXPENSE, toMonthRows } from '../lib/chart'
 import { mergeBreakdowns } from '../lib/compare'
 import { formatMonthTitle } from '../lib/format'
 import { shiftMonth } from '../lib/months'
@@ -69,7 +69,7 @@ export default function Compare() {
       </div>
       <QueryState query={series}>
         {(totals) => (
-          <MonthlyChart title={`Evolução em ${months} meses`} variant="lines" rows={toMonthRows(totals)} stale={series.isPlaceholderData} />
+          <TrendChart series={INCOME_EXPENSE} title={`Evolução em ${months} meses`} variant="lines" rows={toMonthRows(totals)} stale={series.isPlaceholderData} />
         )}
       </QueryState>
     </>
