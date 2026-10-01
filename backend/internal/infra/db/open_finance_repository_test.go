@@ -217,6 +217,13 @@ func TestRefreshExternal_PromotesOtherExpenseCategory(t *testing.T) {
 
 	other, set := save("of-cat-other", domain.CategoryOther), save("of-cat-food", domain.CategoryFood)
 
+	// Receitas e transferências importadas sem categoria também são promovidas.
+	income := save("of-cat-income", domain.CategoryOther)
+	pg.Pool.Exec(ctx, `UPDATE purchases SET kind = 'INCOME' WHERE id = $1`, income.ID)
+	if !refresh("of-cat-income", domain.CategorySalary) || categoryOf(income) != "SALARY" {
+		t.Errorf("receita OTHER deveria virar SALARY: %s", categoryOf(income))
+	}
+
 	if !refresh("of-cat-other", domain.CategoryTransport) || categoryOf(other) != "TRANSPORT" {
 		t.Errorf("OTHER deveria ser promovida: %s", categoryOf(other))
 	}

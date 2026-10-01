@@ -5,6 +5,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- **Transações agrupadas**: a tela ganhou as visões **Por categoria** (padrão), **Por dia** e **Lista**, com cards coloridos e ícones por categoria (`lucide-react`), totais no topo (despesas, receitas, investimentos e lançamentos) e detalhe sob demanda ao abrir um card. A cor e o ícone de cada categoria são os mesmos em todas as telas (inclusive Gastos).
+- API: `GET /api/transactions/groups?by=category|day` (somas no SQL sob os mesmos filtros da lista) e filtro `day=AAAA-MM-DD` em `/api/transactions`.
 - **Histórico estimado do patrimônio**: a sincronização lê as movimentações de cada posição (`GET /investments/{id}/transactions`) e a curva "Saldo ao longo do tempo" reconstrói os meses anteriores à primeira sincronização (saldo do primeiro registro menos o que foi aplicado depois do mês, sem contar rendimentos). Esses meses aparecem em cinza como **Estimado**, com um aviso na tela; da primeira sincronização em diante o saldo é o exato informado pelo banco. A API de histórico ganhou o campo `estimated`.
 - Migration `008_create_investment_movements.sql`.
 - **Saldo real dos investimentos** via `GET /investments` do Pluggy: cada sincronização grava as posições (tipo, subtipo, nome do produto, saldo líquido e valor bruto) e o saldo do dia, formando o histórico do patrimônio. Posições que somem do Pluggy (resgatadas) ficam inativas com saldo zero. Falha ou ausência de investimentos não conta como erro da sincronização.
@@ -31,6 +33,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Pacote `internal/chat` com a lógica de conversa independente de canal.
 
 ### Alterado
+- Transferências (aplicação e resgate de investimento) passam a ter a categoria **Investimento** e receitas cuja descrição indica salário passam a ter **Salário/Renda**, em vez de tudo cair em "Outros". Lançamentos já importados em "Outros" são promovidos na próxima sincronização.
 - Open Finance: a aplicação e o resgate automáticos do Itaú ("APLIC AUT MAIS") deixaram de virar Transferência, pois só varrem o saldo da conta e inflavam o fluxo de investimentos. Rendimentos pagos por eles e aportes manuais (como Cofrinhos) continuam entrando.
 - Open Finance: despesas que o Pluggy deixa em "Outros" agora são classificadas por palavras da descrição (ex.: iFood, posto de combustível, farmácia, assinaturas digitais; regras em `backend/internal/infra/pluggy/mapper.go`). A categoria do Pluggy, quando útil, sempre vale mais. A cada sincronização, despesas já importadas que estavam em "Outros" são promovidas pelas regras.
 - `ports.PurchaseRepository.LinkExternalAccount` virou `RefreshExternal`, que também promove a categoria.

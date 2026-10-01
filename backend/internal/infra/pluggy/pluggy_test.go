@@ -382,3 +382,18 @@ func TestMovementSign(t *testing.T) {
 		}
 	}
 }
+
+func TestToExternal_SalaryAndInvestmentCategories(t *testing.T) {
+	salary, ok := toExternal("BANK", described("CREDIT", "Transfer - PIX", "Salário EMPRESA EXEMPLO LTDA", 5000))
+	if !ok || salary.Kind != domain.KindIncome || salary.Category != domain.CategorySalary {
+		t.Errorf("salário pela descrição: %+v", salary)
+	}
+	other, _ := toExternal("BANK", described("CREDIT", "Transfer - PIX", "Pix recebido FULANO", 50))
+	if other.Category != domain.CategoryOther {
+		t.Errorf("outra renda continua OTHER: %s", other.Category)
+	}
+	inv, _ := toExternal("BANK", described("DEBIT", "Investment", "Saída APLICACAO COFRINHOS", -100))
+	if inv.Kind != domain.KindTransfer || inv.Category != domain.CategoryInvestment {
+		t.Errorf("aplicação é INVESTMENT: %+v", inv)
+	}
+}
