@@ -40,4 +40,10 @@ type PurchaseRepository interface {
 	FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error)
 	FindTransferNetByMonth(ctx context.Context, month time.Time) (applied float64, redeemed float64, err error)
 	ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error)
+
+	// Open Finance
+	ExistsExternalID(ctx context.Context, externalID string) (bool, error)
+	// ReconcileExternal liga a transação a um lançamento manual equivalente ainda não conciliado.
+	ReconcileExternal(ctx context.Context, tx ExternalTransaction) (bool, error)
+	SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error
 }

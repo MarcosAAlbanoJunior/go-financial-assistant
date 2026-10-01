@@ -19,6 +19,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/evolution"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/gemini"
 	httpserver "github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/http"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/pluggy"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/telegram"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
@@ -61,6 +62,16 @@ func main() {
 		slog.Error("erro ao gerar despesas recorrentes no startup", "error", err)
 	}
 
+	// syncer fica nil (interface vazia) sem Open Finance; o chat avisa que não está configurado.
+	var syncer chat.Syncer
+	if cfg.OpenFinanceEnabled() {
+		sync := usecase.NewSyncOpenFinance(purchaseRepo, pluggy.NewClient(cfg.PluggyClientID, cfg.PluggyClientSecret),
+			cfg.PluggyItemIDs, cfg.OpenFinanceLookbackDays, logger)
+		syncer = sync
+		go runOpenFinanceSync(ctx, sync, cfg.OpenFinanceSyncInterval)
+		slog.Info("Open Finance ativo", "items", len(cfg.PluggyItemIDs), "interval", cfg.OpenFinanceSyncInterval.String())
+	}
+
 	server := httpserver.NewServer(cfg.Port, logger)
 
 	var (
@@ -79,6 +90,7 @@ func main() {
 
 		messenger, owner = tg, strconv.FormatInt(cfg.TelegramChatID, 10)
 		handler := chat.NewHandler(analyzeExpense, exportCSV, tg, owner, logger)
+		handler.SetSyncer(syncer)
 		go telegram.NewBot(tg, cfg.TelegramChatID, handler, logger).Run(ctx)
 	default:
 		evolutionClient := evolution.NewClient(cfg.EvolutionAPIURL, cfg.EvolutionInstance, cfg.EvolutionAPIKey)
@@ -90,7 +102,7 @@ func main() {
 			AllowedNumbers:  cfg.AllowedNumbers,
 			EvolutionAPIURL: cfg.EvolutionAPIURL,
 			AdminSecret:     cfg.AdminSecret,
-		}, evolutionClient, analyzeExpense, exportCSV)
+		}, evolutionClient, analyzeExpense, exportCSV, syncer)
 	}
 
 	monthlyReport := usecase.NewMonthlyReport(exportCSV, messenger, owner, logger)
@@ -157,6 +169,27 @@ func connectWhatsApp(ctx context.Context, evolutionClient *evolution.Client, cfg
 				HalfBlocks: true,
 			})
 			fmt.Println("Escaneie o QR code acima com o WhatsApp para conectar.")
+		}
+	}
+}
+
+// runOpenFinanceSync sincroniza na subida e depois a cada interval, até o contexto acabar.
+func runOpenFinanceSync(ctx context.Context, sync *usecase.SyncOpenFinance, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		result, err := sync.Sync(ctx)
+		if err != nil {
+			slog.Error("erro ao sincronizar Open Finance", "error", err)
+		}
+		slog.Info("sincronização do Open Finance concluída",
+			"inserted", result.Inserted, "reconciled", result.Reconciled, "existing", result.Existing)
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }

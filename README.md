@@ -144,6 +144,44 @@ COMPOSE_PROFILES=whatsapp
 
 Sem isso, `docker compose up` não sobe a Evolution API e o app ficará aguardando por ela. Além disso, as portas do Postgres e do Redis passaram a escutar apenas em `127.0.0.1`.
 
+### 5. Open Finance (opcional)
+
+Em vez de registrar tudo à mão, você pode conectar seus bancos pelo **Open Finance** usando o [Meu Pluggy](https://meu.pluggy.ai) (gratuito para uso pessoal, até 5 conexões do mesmo titular). O assistente passa a importar sozinho suas transações; o registro manual **continua funcionando** e é o caminho para dinheiro vivo ou para quem prefere não conectar o banco.
+
+1. Crie sua conta em [meu.pluggy.ai](https://meu.pluggy.ai) e conecte seus bancos (você autoriza o compartilhamento no app do próprio banco).
+2. Crie uma conta no [Dashboard do Pluggy](https://dashboard.pluggy.ai) e uma aplicação de desenvolvimento. Ela fornece o **Client ID** e o **Client Secret**.
+3. No Dashboard, habilite o conector **MeuPluggy** e, na aplicação **Demo**, vincule o seu Meu Pluggy via OAuth. Faça isso **uma vez por banco** (não por conta).
+4. Ainda na Demo, no menu de três pontos de cada conexão, copie o **itemId**.
+5. Preencha o `.env` e reinicie:
+
+```env
+PLUGGY_CLIENT_ID=seu-client-id
+PLUGGY_CLIENT_SECRET=seu-client-secret
+PLUGGY_ITEM_IDS=itemid-do-banco-1,itemid-do-banco-2
+```
+
+| Variável | Descrição |
+| --- | --- |
+| `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET` | Credenciais da aplicação no Dashboard. O app gera e renova a `apiKey` sozinho (ela expira em 2 horas) |
+| `PLUGGY_ITEM_IDS` | `itemId` de cada banco conectado, separados por vírgula. Precisam ser UUIDs |
+| `SYNC_INTERVAL_HOURS` | Intervalo entre sincronizações (padrão `6`) |
+| `SYNC_LOOKBACK_DAYS` | Quantos dias para trás buscar a cada sincronização (padrão `60`, máx. `365`) |
+
+Se algum `PLUGGY_*` estiver preenchido, os três são obrigatórios. Sem nenhum, o Open Finance fica desligado.
+
+**Como funciona**
+- Sincroniza ao subir e a cada `SYNC_INTERVAL_HOURS`. Para forçar agora, envie `/sync` (Telegram) ou `sincronizar` (qualquer canal).
+- É **idempotente**: cada transação tem o ID de origem gravado, então sincronizar de novo não duplica nada.
+- **Conciliação com o manual:** se você registrou "gastei 45 no almoço" e depois o Pix chega pelo banco, o assistente liga os dois em vez de contar duas vezes (mesmo tipo e valor, data com até 3 dias de diferença; recorrentes casam no mesmo mês).
+- **Sem dupla contagem no cartão:** pagamento de fatura e transferência entre contas do mesmo titular são ignorados, porque as compras do cartão já entram uma a uma. Aplicações e resgates de investimento viram **Transferência**.
+- Compras parceladas no cartão chegam parcela a parcela, com a descrição `(2/3)`.
+
+**Limitações**
+- O Meu Pluggy atualiza os dados cerca de **uma vez por dia** e não permite forçar atualização; `/sync` só busca o que o Pluggy já tem.
+- Estornos no cartão não são subtraídos das despesas.
+- Transações alteradas ou removidas depois no banco não são atualizadas aqui.
+- A classificação usa as categorias do Pluggy (mapeamento em `internal/infra/pluggy/mapper.go`); o que não for reconhecido vira "Outros".
+
 ## Uso
 
 Com o container rodando, envie mensagens para **si mesmo** no WhatsApp ou para o seu bot no Telegram. Os exemplos abaixo valem para os dois canais.
@@ -286,6 +324,7 @@ internal/
         evolution/                        cliente da Evolution API (WhatsApp)
         gemini/                           cliente do Google Gemini
         http/                             servidor HTTP e adapter do webhook do WhatsApp
+        pluggy/                           cliente do Open Finance (Meu Pluggy)
         telegram/                         cliente da Bot API e bot (long polling)
 migrations/                               scripts SQL de criação do banco
 ```
