@@ -172,3 +172,20 @@ table.data th { color: var(--text-secondary); font-weight: 600; }
 .meter-ok { background: var(--accent); }
 .meter-warning { background: var(--warning); }
 .meter-critical { background: var(--critical); }
+
+/* Transações */
+.field select, .field input[type='search'] {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); min-width: 0;
+}
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; color: var(--text-secondary); }
+.table-scroll { overflow-x: auto; }
+table.tx td.left, table.tx th.left { text-align: left; }
+table.tx th:nth-child(2), table.tx th:nth-child(3), table.tx th:nth-child(4), table.tx th:nth-child(5) { text-align: left; }
+table.tx td { vertical-align: top; }
+.badge { margin-left: 6px; padding: 1px 6px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.6875rem; color: var(--text-muted); }
+.amount { white-space: nowrap; }
+.amount-in { color: var(--good); }
+.amount-out { color: var(--text-primary); }
+.amount-caption { display: block; font-size: 0.6875rem; color: var(--text-muted); }
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; font-size: 0.875rem; color: var(--text-secondary); flex-wrap: wrap; }
+.pager-pos { margin: 0 8px; }
