@@ -1,10 +1,10 @@
 # Go Financial Assistant
 
-Assistente financeiro pessoal via WhatsApp. Envie mensagens de texto, fotos de recibos ou extratos bancários em PDF para registrar despesas, entradas e transferências automaticamente. O assistente utiliza IA (Google Gemini) para interpretar as transações e armazená-las em um banco de dados PostgreSQL.
+Assistente financeiro pessoal via **WhatsApp ou Telegram** (você escolhe o canal). Envie mensagens de texto, fotos de recibos ou extratos bancários em PDF para registrar despesas, entradas e transferências automaticamente. O assistente utiliza IA (Google Gemini) para interpretar as transações e armazená-las em um banco de dados PostgreSQL.
 
 ## Como funciona
 
-Você envia uma mensagem para **si mesmo** no WhatsApp — texto descrevendo um gasto, uma foto de recibo ou o PDF do extrato bancário — e o assistente registra as transações automaticamente.
+No WhatsApp você envia a mensagem para **si mesmo**; no Telegram você conversa com o **seu próprio bot**. Texto descrevendo um gasto, uma foto de recibo ou o PDF do extrato bancário — e o assistente registra as transações automaticamente.
 
 **Exemplos de mensagens:**
 - `"gastei 45 reais no almoço no pix"`
@@ -31,16 +31,17 @@ Transferências são excluídas dos totais de despesas e entradas — evitando q
 
 - **Go** — aplicação principal
 - **Google Gemini** — análise e interpretação das mensagens
-- **Evolution API** — integração com WhatsApp
+- **Evolution API** — integração com WhatsApp (somente no canal WhatsApp)
+- **Telegram Bot API** — integração com Telegram (somente no canal Telegram)
 - **PostgreSQL** — armazenamento das despesas
-- **Redis** — cache da Evolution API
+- **Redis** — cache da Evolution API (somente no canal WhatsApp)
 - **Docker / Docker Compose** — infraestrutura
 
 ## Pré-requisitos
 
 - [Docker](https://www.docker.com/) com Docker Compose
 - Chave de API do [Google Gemini](https://aistudio.google.com/app/apikey)
-- Conta no WhatsApp
+- Conta no WhatsApp **ou** no Telegram
 
 ## Configuração
 
@@ -51,41 +52,68 @@ git clone https://github.com/MarcosAAlbanoJunior/go-financial-assistant.git
 cd go-financial-assistant
 ```
 
-### 2. Configure as variáveis de ambiente
+### 2. Escolha o canal e configure as variáveis de ambiente
 
-Copie o arquivo de exemplo e preencha com suas informações:
+Copie o arquivo de exemplo:
 
 ```bash
 cp .env.example .env
 ```
 
-Edite o `.env`:
+A variável `CHANNEL` define por onde você conversa com o assistente. **Só um canal fica ativo por vez** e o padrão é `whatsapp`, então instalações existentes continuam funcionando.
 
-```env
-PORT=3000
-DATABASE_URL=postgres://finassist:finassist@localhost:5432/finassist?sslmode=disable
-GEMINI_API_KEY=sua-chave-do-gemini
+| `CHANNEL` | Containers que sobem | `COMPOSE_PROFILES` |
+| --- | --- | --- |
+| `whatsapp` (padrão) | postgres, redis, evolution, app | `whatsapp` |
+| `telegram` | postgres, app | _(vazio)_ |
 
-EVOLUTION_API_KEY=uma-chave-qualquer-para-proteger-a-api
-EVOLUTION_API_URL=http://localhost:8082
-EVOLUTION_INSTANCE=Financial Assistant
-OWNER_PHONE=5511999999999
-
-# Opcional — adicione aqui se o Evolution API usar um numero diferente do seu número (bug conhecido)
-ALLOWED_NUMBERS=
-
-# Senha para o endpoint /admin/qrcode (obrigatório para usar o endpoint em produção)
-ADMIN_SECRET=sua-senha-segura
-```
+Variáveis comuns aos dois canais:
 
 | Variável | Descrição |
 | --- | --- |
 | `GEMINI_API_KEY` | Chave da API do Google Gemini — obtenha em [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| `CHANNEL` | `whatsapp` (padrão) ou `telegram` |
+| `COMPOSE_PROFILES` | `whatsapp` para subir Evolution API + Redis; vazio para Telegram |
+| `ADMIN_SECRET` | Senha para o endpoint `/admin/qrcode` (somente WhatsApp) — defina um valor forte em produção |
+
+#### Canal WhatsApp (`CHANNEL=whatsapp`)
+
+```env
+CHANNEL=whatsapp
+COMPOSE_PROFILES=whatsapp
+EVOLUTION_API_KEY=uma-chave-qualquer-para-proteger-a-api
+EVOLUTION_INSTANCE=Financial Assistant
+OWNER_PHONE=5511999999999
+# Opcional — use se o Evolution API entregar seu número em outro formato (bug conhecido)
+ALLOWED_NUMBERS=
+```
+
+| Variável | Descrição |
+| --- | --- |
 | `EVOLUTION_API_KEY` | Chave para proteger a sua instância da Evolution API — pode ser qualquer valor |
 | `EVOLUTION_INSTANCE` | Nome da instância no Evolution API |
 | `OWNER_PHONE` | Seu número de WhatsApp com código do país e DDD, sem `+` ou espaços (ex: `5511999999999`) |
 | `ALLOWED_NUMBERS` | Opcional — número alternativo caso o Evolution API entregue seu número em formato diferente |
-| `ADMIN_SECRET` | Senha para acessar o endpoint `/admin/qrcode` — defina um valor forte em produção |
+
+#### Canal Telegram (`CHANNEL=telegram`)
+
+1. No Telegram, converse com o [@BotFather](https://t.me/BotFather), envie `/newbot` e siga as instruções. Ele devolve o **token** do bot.
+2. Converse com o [@userinfobot](https://t.me/userinfobot) para descobrir o **seu ID numérico**.
+3. Preencha o `.env`:
+
+```env
+CHANNEL=telegram
+COMPOSE_PROFILES=
+TELEGRAM_BOT_TOKEN=123456:token-do-botfather
+TELEGRAM_CHAT_ID=987654321
+```
+
+| Variável | Descrição |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Token do bot criado no @BotFather. Trate como senha: quem tem o token controla o bot |
+| `TELEGRAM_CHAT_ID` | Seu ID numérico no Telegram. **Só esse usuário é atendido**, em conversa privada; mensagens de qualquer outra pessoa ou grupo são ignoradas |
+
+O bot usa _long polling_: não precisa de URL pública, domínio ou HTTPS, e não expõe nenhuma porta além do `/health`.
 
 ### 3. Suba o projeto
 
@@ -93,11 +121,10 @@ ADMIN_SECRET=sua-senha-segura
 docker compose up -d --build && docker compose logs -f app
 ```
 
-Na primeira execução, o assistente irá criar a instância no Evolution API automaticamente e exibir um **QR code no terminal**.
+- **WhatsApp:** na primeira execução, o assistente cria a instância no Evolution API e exibe um **QR code nos logs do app**.
+- **Telegram:** o log mostra `canal Telegram ativo` com o `@username` do bot. Abra a conversa com ele e envie `/start` ou sua primeira mensagem.
 
-Basicamente o QR code vem dos logs do app em Go
-
-### 4. Conecte o WhatsApp
+### 4. Conecte o WhatsApp (somente canal WhatsApp)
 
 Escaneie o QR code exibido no terminal com o seu WhatsApp:
 
@@ -107,9 +134,19 @@ Após escanear, o assistente estará pronto para uso.
 
 > Em execuções futuras, se o WhatsApp já estiver conectado, o QR code não será exibido.
 
+### Atualizando uma instalação existente
+
+Os containers Evolution API e Redis agora só sobem com o perfil `whatsapp`. Se você já usava o WhatsApp, adicione ao seu `.env`:
+
+```env
+COMPOSE_PROFILES=whatsapp
+```
+
+Sem isso, `docker compose up` não sobe a Evolution API e o app ficará aguardando por ela. Além disso, as portas do Postgres e do Redis passaram a escutar apenas em `127.0.0.1`.
+
 ## Uso
 
-Com o container rodando e o WhatsApp conectado, envie mensagens para **si mesmo** no WhatsApp.
+Com o container rodando, envie mensagens para **si mesmo** no WhatsApp ou para o seu bot no Telegram. Os exemplos abaixo valem para os dois canais.
 
 ### Registrar gasto simples
 ```
@@ -168,7 +205,7 @@ Envie o PDF do extrato do seu banco diretamente no WhatsApp. O assistente proces
 
 ### Exportar planilha CSV
 
-Peça ao assistente para exportar os gastos de um mês e ele enviará um arquivo `.csv` diretamente no WhatsApp — pronto para abrir no Excel ou Google Sheets:
+Peça ao assistente para exportar os gastos de um mês e ele enviará um arquivo `.csv` diretamente na conversa — pronto para abrir no Excel ou Google Sheets:
 
 ```
 exportar meus gastos de março
@@ -191,11 +228,11 @@ exportar
 No primeiro dia de cada mês, o assistente envia automaticamente a planilha CSV com todos os gastos do mês anterior — sem você precisar pedir.
 
 ### Enviar recibo ou nota fiscal
-Tire uma foto ou encaminhe a imagem do recibo diretamente no WhatsApp.
+Tire uma foto ou encaminhe a imagem do recibo diretamente na conversa. No Telegram, imagens enviadas "como arquivo" também são tratadas como recibo.
 
 ## Segurança e gerenciamento remoto
 
-### Gerar QR Code para conectar o WhatsApp
+### Gerar QR Code para conectar o WhatsApp (somente canal WhatsApp)
 
 Abra no navegador substituindo pelo IP da sua VPS ou `localhost` se estiver rodando localmente:
 
@@ -205,10 +242,16 @@ http://<IP-DA-VPS-OU-LOCALHOST>:3000/admin/qrcode?token=sua-senha
 
 Se o WhatsApp já estiver conectado, exibe uma mensagem de confirmação. Se não, exibe o QR code para escanear — a página atualiza automaticamente a cada 30 segundos.
 
-**Proteções implementadas:**
+**Proteções implementadas (WhatsApp):**
 - Requer `ADMIN_SECRET` configurado (retorna `503` se vazio)
 - Rate limit de 10 requisições por minuto por IP
 - `/webhook` aceita conexões apenas do container Evolution API (verificação por IP via DNS interno do Docker)
+
+**Proteções implementadas (Telegram):**
+- Apenas o `TELEGRAM_CHAT_ID` configurado, em conversa privada, é atendido; o restante é descartado antes de qualquer processamento
+- O token nunca é registrado em logs: erros de rede do cliente são sanitizados
+- Sem webhook: o bot busca as mensagens (long polling), então nenhuma rota pública é necessária
+- Downloads de anexos limitados a 20 MB (limite da própria Bot API)
 
 ## Comandos úteis
 
@@ -235,13 +278,15 @@ docker compose exec postgres psql -U finassist -d finassist
 cmd/                                        entrypoint da aplicação
 internal/
     config/                               carregamento de variáveis de ambiente
+    chat/                                 lógica de conversa independente de canal
     domain/                               entidades e regras de negócio
     usecase/                              casos de uso (análise, recorrentes, consulta, exportação)
     infra/
         db/                               repositório PostgreSQL
         evolution/                        cliente da Evolution API (WhatsApp)
         gemini/                           cliente do Google Gemini
-        http/                             servidor HTTP e webhook handler
+        http/                             servidor HTTP e adapter do webhook do WhatsApp
+        telegram/                         cliente da Bot API e bot (long polling)
 migrations/                               scripts SQL de criação do banco
 ```
 

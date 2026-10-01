@@ -10,7 +10,7 @@ import (
 )
 
 type mockMessengerUC struct {
-	sendDocumentFn func(ctx context.Context, to, filename, base64Data, caption string) (string, error)
+	sendDocumentFn func(ctx context.Context, to, filename string, data []byte, caption string) (string, error)
 	sendTextFn     func(ctx context.Context, to, text string) (string, error)
 }
 
@@ -21,14 +21,10 @@ func (m *mockMessengerUC) SendText(ctx context.Context, to, text string) (string
 	return "", nil
 }
 
-func (m *mockMessengerUC) SendDocument(ctx context.Context, to, filename, base64Data, caption string) (string, error) {
+func (m *mockMessengerUC) SendDocument(ctx context.Context, to, filename string, data []byte, caption string) (string, error) {
 	if m.sendDocumentFn != nil {
-		return m.sendDocumentFn(ctx, to, filename, base64Data, caption)
+		return m.sendDocumentFn(ctx, to, filename, data, caption)
 	}
-	return "", nil
-}
-
-func (m *mockMessengerUC) FetchImageBase64(ctx context.Context, remoteJid string, fromMe bool, messageID string) (string, error) {
 	return "", nil
 }
 
@@ -50,7 +46,7 @@ func silentReportLogger() *slog.Logger {
 func TestMonthlyReport_SendsDocument(t *testing.T) {
 	documentSent := false
 	messenger := &mockMessengerUC{
-		sendDocumentFn: func(_ context.Context, _, _, _, _ string) (string, error) {
+		sendDocumentFn: func(_ context.Context, _, _ string, _ []byte, _ string) (string, error) {
 			documentSent = true
 			return "msg-id", nil
 		},
@@ -73,7 +69,7 @@ func TestMonthlyReport_SendsDocument(t *testing.T) {
 func TestMonthlyReport_EmptyMonth_DoesNotSend(t *testing.T) {
 	documentSent := false
 	messenger := &mockMessengerUC{
-		sendDocumentFn: func(_ context.Context, _, _, _, _ string) (string, error) {
+		sendDocumentFn: func(_ context.Context, _, _ string, _ []byte, _ string) (string, error) {
 			documentSent = true
 			return "", nil
 		},
@@ -108,7 +104,7 @@ func TestMonthlyReport_ExporterError_ReturnsError(t *testing.T) {
 
 func TestMonthlyReport_MessengerError_ReturnsError(t *testing.T) {
 	messenger := &mockMessengerUC{
-		sendDocumentFn: func(_ context.Context, _, _, _, _ string) (string, error) {
+		sendDocumentFn: func(_ context.Context, _, _ string, _ []byte, _ string) (string, error) {
 			return "", errors.New("whatsapp error")
 		},
 	}
@@ -127,7 +123,7 @@ func TestMonthlyReport_MessengerError_ReturnsError(t *testing.T) {
 func TestMonthlyReport_UsesCorrectPhone(t *testing.T) {
 	phoneSent := ""
 	messenger := &mockMessengerUC{
-		sendDocumentFn: func(_ context.Context, to, _, _, _ string) (string, error) {
+		sendDocumentFn: func(_ context.Context, to, _ string, _ []byte, _ string) (string, error) {
 			phoneSent = to
 			return "", nil
 		},

@@ -9,12 +9,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
-type ServerConfig struct {
-	Port            int
+// WhatsAppConfig reúne o que as rotas do canal WhatsApp (Evolution API) precisam.
+type WhatsAppConfig struct {
 	OwnerPhone      string
 	AllowedNumbers  map[string]struct{}
 	EvolutionAPIURL string
@@ -22,44 +21,43 @@ type ServerConfig struct {
 }
 
 type Server struct {
-	http    *http.Server
-	handler *webhookHandler
+	http     *http.Server
+	mux      *http.ServeMux
+	logger   *slog.Logger
+	cleanups []func(context.Context)
 }
 
-func NewServer(
-	cfg ServerConfig,
-	analyzeExpense usecase.ExpenseAnalyzer,
-	csvExporter usecase.CSVExporter,
-	messenger ports.Messenger,
-	qrProvider QRProvider,
-	logger *slog.Logger,
-) *Server {
-	logger.Info("iniciando servidor HTTP", "port", cfg.Port)
-
-	handler := newWebhookHandler(cfg, analyzeExpense, csvExporter, messenger, logger)
-	qrHandler := &qrcodeHandler{secret: cfg.AdminSecret, qrProvider: qrProvider}
-	qrLimiter := newIPRateLimiter(10, time.Minute)
-
-	evolutionHost := extractHost(cfg.EvolutionAPIURL)
+// NewServer expõe apenas /health; as rotas de cada canal são adicionadas por Mount*.
+func NewServer(port int, logger *slog.Logger) *Server {
+	logger.Info("iniciando servidor HTTP", "port", port)
 
 	mux := http.NewServeMux()
-	mux.Handle("/webhook", webhookSourceMiddleware(evolutionHost, logger, http.HandlerFunc(handler.Handle)))
-	mux.Handle("/admin/qrcode", adminRateLimitMiddleware(qrLimiter, http.HandlerFunc(qrHandler.Handle)))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
 	return &Server{
-		http: &http.Server{
-			Addr:    fmt.Sprintf(":%d", cfg.Port),
-			Handler: mux,
-		},
-		handler: handler,
+		http:   &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux},
+		mux:    mux,
+		logger: logger,
 	}
 }
 
+// MountWhatsApp registra o webhook da Evolution API e o endpoint de QR code.
+func (s *Server) MountWhatsApp(cfg WhatsAppConfig, client EvolutionClient, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter) {
+	handler := newWebhookHandler(cfg, client, analyzeExpense, csvExporter, s.logger)
+	qrHandler := &qrcodeHandler{secret: cfg.AdminSecret, qrProvider: client}
+	qrLimiter := newIPRateLimiter(10, time.Minute)
+
+	s.mux.Handle("/webhook", webhookSourceMiddleware(extractHost(cfg.EvolutionAPIURL), s.logger, http.HandlerFunc(handler.Handle)))
+	s.mux.Handle("/admin/qrcode", adminRateLimitMiddleware(qrLimiter, http.HandlerFunc(qrHandler.Handle)))
+	s.cleanups = append(s.cleanups, handler.startCleanup)
+}
+
 func (s *Server) Start(ctx context.Context) error {
-	go s.handler.startCleanup(ctx)
+	for _, cleanup := range s.cleanups {
+		go cleanup(ctx)
+	}
 
 	errCh := make(chan error, 1)
 
