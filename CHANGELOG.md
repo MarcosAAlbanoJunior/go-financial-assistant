@@ -5,6 +5,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- **API de leitura do dashboard** sob `/api` (resumo do mês, série temporal, gastos por categoria, forma de pagamento e conta/cartão, investimentos, transações com filtros e paginação, contas), com agregação feita no SQL.
+- Autenticação do dashboard: `POST /api/login` com a senha de `DASHBOARD_PASSWORD` (mínimo de 12 caracteres) emite um cookie de sessão assinado (`HttpOnly`, `SameSite=Strict`, `Secure` atrás de HTTPS). Sem a variável, a API não é montada.
 - Contas e cartões do Open Finance agora são persistidos (tabela `accounts`: tipo, nome, 4 últimos dígitos, saldo, limite e limite disponível), e cada pagamento sincronizado aponta para a conta de origem (`payments.account_id`). Base para "gasto por conta/cartão" e "saldo real" no dashboard.
 - Migration `006_create_accounts.sql`.
 - Integração com **Open Finance via Meu Pluggy** (opcional): importa contas e cartões automaticamente, ao subir e a cada `SYNC_INTERVAL_HOURS`, usando `GET /v2/transactions` (o endpoint v1 é descontinuado em 2026-12-31).
@@ -19,6 +21,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Pacote `internal/chat` com a lógica de conversa independente de canal.
 
 ### Alterado
+- A porta `3000` do app no `docker-compose.yml` passou a escutar apenas em `127.0.0.1`. O webhook da Evolution API usa a rede interna do compose e não é afetado.
+- O rate limit por IP passou a considerar `X-Real-IP` quando a requisição vem de um proxy da rede privada.
 - `ports.OpenFinanceProvider.FetchTransactions` virou `FetchItem` e devolve também as contas; `ExistsExternalID` virou `LinkExternalAccount`, que além de checar vincula a conta a transações sincronizadas antes da migration 006.
 - O código Go foi movido para `backend/` (o module path não mudou) para abrir espaço ao front-end. `Dockerfile`, `docker-compose.yml` e `Makefile` foram ajustados; os comandos `make` continuam os mesmos e a pasta das migrations agora é `backend/migrations/`.
 - A configuração só exige `EVOLUTION_*` e `OWNER_PHONE` quando `CHANNEL=whatsapp`.
@@ -30,6 +34,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Bancos novos não recebiam as migrations 002 a 004 (o compose montava só a 001), o que causava `column "kind" of relation "purchases" does not exist` ao registrar a primeira despesa. Agora toda a pasta `migrations/` é montada no `initdb`.
 
 ### Segurança
+- API do dashboard: senha comparada em tempo constante, sessão assinada com HMAC e chave aleatória por boot, login limitado a 5 tentativas por minuto por IP, login/logout exigem JSON e mesma origem (CSRF), parâmetros validados por lista fechada (nunca interpolados no SQL, e `%`/`_` da busca são escapados), respostas com `Cache-Control: no-store` e erros internos genéricos (o detalhe vai só para o log). A API nunca expõe `external_id` nem o texto bruto original.
 - Contas: o app lê do Pluggy apenas nome, tipo, saldo, limites e os 4 últimos dígitos do número; CPF, nome do titular e número completo são descartados na leitura e nunca chegam ao banco nem aos logs.
 - Open Finance: erros do cliente Pluggy nunca incluem credenciais nem URL, o cursor de paginação só é aceito se apontar para o próprio Pluggy (a requisição leva a `apiKey`) e `PLUGGY_ITEM_IDS` é validado como UUID.
 - As portas do Postgres e do Redis no `docker-compose.yml` passaram a escutar apenas em `127.0.0.1`.

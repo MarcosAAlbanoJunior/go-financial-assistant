@@ -17,6 +17,8 @@ const (
 	ChannelTelegram = "telegram"
 )
 
+const minDashboardPasswordLen = 12
+
 type Config struct {
 	Port int
 
@@ -35,6 +37,9 @@ type Config struct {
 	AllowedNumbers map[string]struct{}
 
 	AdminSecret string
+
+	// DashboardPassword libera a API do dashboard (/api). Vazia, a API não é montada.
+	DashboardPassword string
 
 	TelegramBotToken string
 	TelegramChatID   int64
@@ -78,6 +83,10 @@ func Load() (*Config, error) {
 	cfg.Channel = strings.ToLower(strings.TrimSpace(getEnv("CHANNEL", ChannelWhatsApp)))
 	cfg.AllowedNumbers = parseAllowedNumbers(getEnv("ALLOWED_NUMBERS", ""))
 	cfg.AdminSecret = getEnv("ADMIN_SECRET", "")
+	cfg.DashboardPassword = getEnv("DASHBOARD_PASSWORD", "")
+	if cfg.DashboardPassword != "" && len(cfg.DashboardPassword) < minDashboardPasswordLen {
+		errs = append(errs, fmt.Errorf("DASHBOARD_PASSWORD muito curta: use ao menos %d caracteres", minDashboardPasswordLen))
+	}
 
 	switch cfg.Channel {
 	case ChannelWhatsApp:

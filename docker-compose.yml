@@ -84,7 +84,7 @@ services:
       dockerfile: Dockerfile
     container_name: finassist-app
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       PORT: 3000
       DATABASE_URL: postgres://finassist:finassist@postgres:5432/finassist?sslmode=disable
@@ -96,6 +96,7 @@ services:
       ALLOWED_NUMBERS: ${ALLOWED_NUMBERS:-}
       OWNER_PHONE: ${OWNER_PHONE:-}
       ADMIN_SECRET: ${ADMIN_SECRET:-}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
