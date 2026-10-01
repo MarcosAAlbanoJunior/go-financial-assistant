@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -152,6 +153,15 @@ func fakePluggy(t *testing.T, auths *atomic.Int32) *Client {
 		}
 		io.WriteString(w, `{"totalPages":2,"results":[{"id":"inv1","type":"FIXED_INCOME","subtype":"CDB","name":"  CDB   BANCO  ","balance":1000.25,"amount":1100,"owner":"Fulano","number":"123456","code":"X","issuerCNPJ":"00000000000191"}]}`)
 	}))
+	mux.HandleFunc("/investments/inv1/transactions", guard(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"totalPages":1,"results":[
+			{"id":"m1","type":"BUY","movementType":"CREDIT","amount":1000,"date":"2026-07-10T00:00:00.000Z"},
+			{"id":"m2","type":"SELL","movementType":"DEBIT","amount":200.5,"date":"2026-08-15T12:00:00.000Z"},
+			{"id":"m3","type":"OTHER","amount":5,"date":"2026-08-16T00:00:00.000Z"}]}`)
+	}))
+	mux.HandleFunc("/investments/inv2/transactions", guard(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
 	mux.HandleFunc("/v2/transactions", guard(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		if q.Get("accountId") != "acc1" || q.Get("dateFrom") != "2026-08-01" {
@@ -258,11 +268,21 @@ func TestFetchInvestments_PaginatesAndDropsPersonalData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Movimentações com sinal; tipo desconhecido é descartado. Falha numa posição não derruba as outras.
+	m := got[0].Movements
+	if len(m) != 2 || m[0].Amount != 1000 || m[1].Amount != -200.5 || m[1].Day.Format("2006-01-02") != "2026-08-15" || got[0].MovementsFailed {
+		t.Errorf("movimentações inesperadas: %+v", got[0])
+	}
+	if !got[1].MovementsFailed || len(got[1].Movements) != 0 || got[1].Balance != 10.5 {
+		t.Errorf("falha nas movimentações não pode perder a posição: %+v", got[1])
+	}
+
 	want := []ports.ExternalInvestment{
 		{ID: "inv1", ItemID: "item", Type: "FIXED_INCOME", Subtype: "CDB", Name: "CDB BANCO", Balance: 1000.25, Amount: 1100},
 		{ID: "inv2", ItemID: "item", Type: "MUTUAL_FUND", Subtype: "MULTIMARKET_FUND", Name: "Fundo X", Balance: 10.5, Amount: 12},
 	}
-	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+	got[0].Movements, got[0].MovementsFailed, got[1].Movements, got[1].MovementsFailed = nil, false, nil, false
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("posições inesperadas: %+v", got)
 	}
 
@@ -334,5 +354,31 @@ func TestToExternal_CategoryFromDescription(t *testing.T) {
 	// Renda nunca é reclassificada por descrição.
 	if got, _ := toExternal("BANK", described("CREDIT", "", "Pix recebido IFOOD", 10)); got.Category != domain.CategoryOther {
 		t.Errorf("renda deveria continuar OTHER: %s", got.Category)
+	}
+}
+
+func TestMovementSign(t *testing.T) {
+	cases := []struct {
+		m    movement
+		want float64
+		ok   bool
+	}{
+		{movement{ID: "a", Type: "BUY", MovementType: "CREDIT", Amount: 10, Date: "2026-01-02T00:00:00Z"}, 10, true},
+		{movement{ID: "a", Type: "SELL", MovementType: "DEBIT", Amount: 10, Date: "2026-01-02T00:00:00Z"}, -10, true},
+		{movement{ID: "a", Type: "TAX", MovementType: "DEBIT", Amount: 3, Date: "2026-01-02T00:00:00Z"}, -3, true},
+		{movement{ID: "a", Type: "BUY", Amount: 10, Date: "2026-01-02T00:00:00Z"}, 10, true},   // sem movementType
+		{movement{ID: "a", Type: "SELL", Amount: 10, Date: "2026-01-02T00:00:00Z"}, -10, true}, // idem
+		{movement{ID: "a", Type: "TRANSFER", Amount: 10, Date: "2026-01-02T00:00:00Z"}, 0, false},
+		{movement{ID: "a", Type: "BUY", MovementType: "CREDIT", Amount: -10, Date: "2026-01-02T00:00:00Z"}, 10, true}, // amount sem sinal
+		{movement{ID: "", Type: "BUY", MovementType: "CREDIT", Amount: 10, Date: "2026-01-02T00:00:00Z"}, 0, false},
+		{movement{ID: "a", Type: "BUY", MovementType: "CREDIT", Amount: 0, Date: "2026-01-02T00:00:00Z"}, 0, false},
+		{movement{ID: "a", Type: "BUY", MovementType: "CREDIT", Amount: 10, Date: "ontem"}, 0, false},
+		{movement{ID: "a", Type: "BUY", MovementType: "CREDIT", Amount: 10, TradeDate: "2026-03-04T00:00:00Z"}, 10, true}, // cai na data de negociação
+	}
+	for i, tc := range cases {
+		got, ok := tc.m.toExternal()
+		if ok != tc.ok || (ok && got.Amount != tc.want) {
+			t.Errorf("caso %d: got %+v ok=%v, esperado %v ok=%v", i, got, ok, tc.want, tc.ok)
+		}
 	}
 }

@@ -59,4 +59,15 @@ type ExternalInvestment struct {
 	Name    string
 	Balance float64 // saldo líquido atual
 	Amount  float64 // valor bruto
+
+	Movements       []ExternalMovement
+	MovementsFailed bool // a leitura das movimentações falhou (a posição em si foi lida)
+}
+
+// ExternalMovement é uma movimentação da posição. Amount tem sinal: positivo entra na
+// posição (aplicação), negativo sai (resgate, taxa).
+type ExternalMovement struct {
+	ID     string
+	Day    time.Time
+	Amount float64
 }

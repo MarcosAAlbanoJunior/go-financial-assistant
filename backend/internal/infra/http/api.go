@@ -251,12 +251,13 @@ func (a *api) portfolioHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type item struct {
-		Month   string   `json:"month"`
-		Balance *float64 `json:"balance"`
+		Month     string   `json:"month"`
+		Balance   *float64 `json:"balance"`
+		Estimated bool     `json:"estimated"`
 	}
 	out := make([]item, len(months))
 	for i, m := range months {
-		out[i] = item{formatMonth(m.Month), m.Balance}
+		out[i] = item{formatMonth(m.Month), m.Balance, m.Estimated}
 	}
 	writeJSON(w, http.StatusOK, out)
 }
