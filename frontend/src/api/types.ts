@@ -90,7 +90,14 @@ export interface Transaction {
 }
 
 export interface Projection {
-  assumptions: { income: number; fixed: number; variable: number; basedOn: number }
+  assumptions: {
+    income: number
+    /** Fontes de renda recorrentes e quanto cada uma rende em um mês comum. */
+    incomeSources: { label: string; monthly: number }[]
+    fixed: number
+    variable: number
+    basedOn: number
+  }
   months: { month: string; fixed: number; installment: number; variable: number }[]
 }
 

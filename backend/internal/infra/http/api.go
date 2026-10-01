@@ -266,25 +266,17 @@ func (a *api) projection(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		var rules map[string]ports.ExpenseClass
 		if rules, err = a.reader.ExpenseRules(r.Context()); err == nil {
-			var totals []ports.MonthTotals
-			if totals, err = a.reader.MonthlyTotals(r.Context(), start.AddDate(0, -budgetMonths, 0), start.AddDate(0, -1, 0)); err == nil {
+			var incomes []ports.IncomePayment
+			if incomes, err = a.reader.IncomePayments(r.Context(), start.AddDate(0, -budgetMonths, 0), start.AddDate(0, -1, 0)); err == nil {
 				var known map[time.Time]float64
 				if known, err = a.reader.KnownInstallments(r.Context(), start, start.AddDate(0, months-1, 0)); err == nil {
-					a.writeProjection(w, usecase.BuildProjection(rows, rules, incomeByMonth(totals), known, start, months))
+					a.writeProjection(w, usecase.BuildProjection(rows, rules, incomes, known, start, months))
 					return
 				}
 			}
 		}
 	}
 	a.fail(w, "projeção", err)
-}
-
-func incomeByMonth(totals []ports.MonthTotals) map[time.Time]float64 {
-	out := make(map[time.Time]float64, len(totals))
-	for _, t := range totals {
-		out[t.Month.UTC()] = t.Income
-	}
-	return out
 }
 
 func (a *api) writeProjection(w http.ResponseWriter, p usecase.Projection) {
@@ -298,8 +290,16 @@ func (a *api) writeProjection(w http.ResponseWriter, p usecase.Projection) {
 	for i, m := range p.Months {
 		months[i] = month{formatMonth(m.Month), m.Fixed, m.Installment, m.Variable}
 	}
+	type source struct {
+		Label   string  `json:"label"`
+		Monthly float64 `json:"monthly"`
+	}
+	sources := make([]source, len(p.Assumptions.IncomeSources))
+	for i, s := range p.Assumptions.IncomeSources {
+		sources[i] = source{s.Label, s.Monthly}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"assumptions": map[string]any{"income": p.Assumptions.Income, "fixed": p.Assumptions.Fixed, "variable": p.Assumptions.Variable, "basedOn": p.Assumptions.BasedOn},
+		"assumptions": map[string]any{"income": p.Assumptions.Income, "incomeSources": sources, "fixed": p.Assumptions.Fixed, "variable": p.Assumptions.Variable, "basedOn": p.Assumptions.BasedOn},
 		"months":      months,
 	})
 }

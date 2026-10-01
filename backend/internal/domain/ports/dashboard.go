@@ -154,6 +154,14 @@ type ExpenseKeyMonth struct {
 	Recurring   bool // cadastrada como recorrente
 }
 
+// IncomePayment é um recebimento (uma entrada de renda), com a descrição normalizada em Key.
+type IncomePayment struct {
+	Key    string
+	Label  string // descrição de exemplo, como veio do banco
+	Month  time.Time
+	Amount float64
+}
+
 // ExpenseClass é a classificação de uma despesa para o orçamento.
 type ExpenseClass string
 
@@ -169,6 +177,8 @@ type BudgetReader interface {
 	ExpenseKeyMonths(ctx context.Context, from, to time.Time) ([]ExpenseKeyMonth, error)
 	// ExpenseRules devolve as correções manuais (chave -> FIXED ou VARIABLE).
 	ExpenseRules(ctx context.Context) (map[string]ExpenseClass, error)
+	// IncomePayments devolve cada entrada de renda de from a to (primeiros dias dos meses).
+	IncomePayments(ctx context.Context, from, to time.Time) ([]IncomePayment, error)
 	// KnownInstallments soma, por mês (de from a to), as parcelas já cadastradas de compras parceladas.
 	KnownInstallments(ctx context.Context, from, to time.Time) (map[time.Time]float64, error)
 	// SetExpenseRule grava a correção manual; class vazio apaga e volta à detecção automática.
