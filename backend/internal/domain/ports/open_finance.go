@@ -12,6 +12,7 @@ import (
 // fatura, transferência entre contas próprias), então tudo aqui vira lançamento.
 type ExternalTransaction struct {
 	ID            string
+	AccountID     string // ID da conta na origem (ExternalAccount.ID)
 	Date          time.Time
 	Description   string
 	RawInput      string
@@ -23,7 +24,25 @@ type ExternalTransaction struct {
 	Pending       bool // compra ainda na fatura aberta do cartão
 }
 
+// ExternalAccount é uma conta ou cartão do Open Finance. Só guarda o necessário:
+// nunca CPF, nome do titular nem o número completo.
+type ExternalAccount struct {
+	ID                   string
+	ItemID               string
+	Type                 string // "BANK" ou "CREDIT"
+	Name                 string
+	Last4                string
+	Balance              float64
+	CreditLimit          *float64 // só cartões
+	AvailableCreditLimit *float64 // só cartões
+}
+
+type ItemData struct {
+	Accounts     []ExternalAccount
+	Transactions []ExternalTransaction
+}
+
 type OpenFinanceProvider interface {
-	// FetchTransactions retorna as transações de todas as contas e cartões do item desde "from".
-	FetchTransactions(ctx context.Context, itemID string, from time.Time) ([]ExternalTransaction, error)
+	// FetchItem retorna as contas e as transações de todas as contas e cartões do item desde "from".
+	FetchItem(ctx context.Context, itemID string, from time.Time) (ItemData, error)
 }

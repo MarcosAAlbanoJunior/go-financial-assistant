@@ -19,9 +19,43 @@ const (
 
 var ErrNoAccounts = errors.New("item sem contas: confira o itemId e se a conexão está autorizada no Meu Pluggy")
 
+// account lê só o que o app guarda; taxNumber, owner e o número completo são ignorados de propósito.
 type account struct {
-	ID   string `json:"id"`
-	Type string `json:"type"` // BANK ou CREDIT
+	ID         string  `json:"id"`
+	Type       string  `json:"type"` // BANK ou CREDIT
+	Name       string  `json:"name"`
+	Number     string  `json:"number"` // BANK: "0001/12345-0"; CREDIT: "xxxx8670"
+	Balance    float64 `json:"balance"`
+	CreditData *struct {
+		CreditLimit          *float64 `json:"creditLimit"`
+		AvailableCreditLimit *float64 `json:"availableCreditLimit"`
+	} `json:"creditData"`
+}
+
+func (a account) toExternal(itemID string) ports.ExternalAccount {
+	ext := ports.ExternalAccount{
+		ID: a.ID, ItemID: itemID, Type: a.Type, Balance: a.Balance,
+		Name:  strings.Join(strings.Fields(a.Name), " "),
+		Last4: last4(a.Number),
+	}
+	if a.CreditData != nil {
+		ext.CreditLimit, ext.AvailableCreditLimit = a.CreditData.CreditLimit, a.CreditData.AvailableCreditLimit
+	}
+	return ext
+}
+
+// last4 devolve os 4 últimos dígitos do número da conta ou do cartão.
+func last4(number string) string {
+	var digits []rune
+	for _, r := range number {
+		if r >= '0' && r <= '9' {
+			digits = append(digits, r)
+		}
+	}
+	if len(digits) > 4 {
+		digits = digits[len(digits)-4:]
+	}
+	return string(digits)
 }
 
 type transaction struct {
@@ -42,29 +76,31 @@ type transaction struct {
 	} `json:"creditCardMetadata"`
 }
 
-// FetchTransactions implementa ports.OpenFinanceProvider.
-func (c *Client) FetchTransactions(ctx context.Context, itemID string, from time.Time) ([]ports.ExternalTransaction, error) {
+// FetchItem implementa ports.OpenFinanceProvider.
+func (c *Client) FetchItem(ctx context.Context, itemID string, from time.Time) (ports.ItemData, error) {
 	accounts, err := c.accounts(ctx, itemID)
 	if err != nil {
-		return nil, err
+		return ports.ItemData{}, err
 	}
 	if len(accounts) == 0 {
-		return nil, ErrNoAccounts
+		return ports.ItemData{}, ErrNoAccounts
 	}
 
-	var result []ports.ExternalTransaction
+	var data ports.ItemData
 	for _, acc := range accounts {
+		data.Accounts = append(data.Accounts, acc.toExternal(itemID))
 		txs, err := c.transactions(ctx, acc.ID, from)
 		if err != nil {
-			return nil, err
+			return ports.ItemData{}, err
 		}
 		for _, t := range txs {
 			if ext, ok := toExternal(acc.Type, t); ok {
-				result = append(result, ext)
+				ext.AccountID = acc.ID
+				data.Transactions = append(data.Transactions, ext)
 			}
 		}
 	}
-	return result, nil
+	return data, nil
 }
 
 func (c *Client) accounts(ctx context.Context, itemID string) ([]account, error) {

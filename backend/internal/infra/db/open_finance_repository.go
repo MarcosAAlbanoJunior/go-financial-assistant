@@ -6,15 +6,35 @@ import (
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/google/uuid"
 )
 
-func (r *PostgresPurchaseRepository) ExistsExternalID(ctx context.Context, externalID string) (bool, error) {
-	var exists bool
-	err := r.db.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM payments WHERE external_id = $1)`, externalID).Scan(&exists)
+func (r *PostgresPurchaseRepository) UpsertAccount(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
+	query := `
+		INSERT INTO accounts (external_id, item_id, type, name, last4, balance, credit_limit, available_credit_limit, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+		ON CONFLICT (external_id) DO UPDATE SET
+			item_id = EXCLUDED.item_id, type = EXCLUDED.type, name = EXCLUDED.name, last4 = EXCLUDED.last4,
+			balance = EXCLUDED.balance, credit_limit = EXCLUDED.credit_limit,
+			available_credit_limit = EXCLUDED.available_credit_limit, updated_at = NOW()
+		RETURNING id
+	`
+	var id uuid.UUID
+	if err := r.db.Pool.QueryRow(ctx, query,
+		a.ID, a.ItemID, a.Type, a.Name, a.Last4, a.Balance, a.CreditLimit, a.AvailableCreditLimit,
+	).Scan(&id); err != nil {
+		return uuid.Nil, fmt.Errorf("erro ao salvar conta: %w", err)
+	}
+	return id, nil
+}
+
+func (r *PostgresPurchaseRepository) LinkExternalAccount(ctx context.Context, externalID string, accountID uuid.UUID) (bool, error) {
+	tag, err := r.db.Pool.Exec(ctx,
+		`UPDATE payments SET account_id = COALESCE(account_id, $2) WHERE external_id = $1`, externalID, accountID)
 	if err != nil {
 		return false, fmt.Errorf("erro ao verificar transação externa: %w", err)
 	}
-	return exists, nil
+	return tag.RowsAffected() > 0, nil
 }
 
 func (r *PostgresPurchaseRepository) SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error {
@@ -30,12 +50,12 @@ func (r *PostgresPurchaseRepository) SaveExternal(ctx context.Context, purchase 
 
 	query := `
 		INSERT INTO payments
-			(id, purchase_id, amount, status, due_date, paid_at, external_id, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			(id, purchase_id, amount, status, due_date, paid_at, external_id, account_id, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	if _, err := tx.Exec(ctx, query,
 		payment.ID, payment.PurchaseID, payment.Amount, payment.Status,
-		payment.DueDate, payment.PaidAt, payment.ExternalID, payment.CreatedAt,
+		payment.DueDate, payment.PaidAt, payment.ExternalID, payment.AccountID, payment.CreatedAt,
 	); err != nil {
 		return fmt.Errorf("erro ao salvar pagamento externo: %w", err)
 	}
@@ -49,9 +69,9 @@ func (r *PostgresPurchaseRepository) SaveExternal(ctx context.Context, purchase 
 //   - RECURRING: mesmo mês (a recorrência é gerada em dia fixo, o banco pode atrasar).
 //
 // Parcelados ficam de fora: a data de cada parcela no cartão não é previsível.
-func (r *PostgresPurchaseRepository) ReconcileExternal(ctx context.Context, tx ports.ExternalTransaction) (bool, error) {
+func (r *PostgresPurchaseRepository) ReconcileExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
 	query := `
-		UPDATE payments SET external_id = $1, status = 'PAID', paid_at = COALESCE(paid_at, $5::timestamptz)
+		UPDATE payments SET external_id = $1, account_id = $6, status = 'PAID', paid_at = COALESCE(paid_at, $5::timestamptz)
 		WHERE id = (
 			SELECT pay.id
 			FROM payments pay
@@ -71,7 +91,7 @@ func (r *PostgresPurchaseRepository) ReconcileExternal(ctx context.Context, tx p
 			FOR UPDATE SKIP LOCKED
 		)
 	`
-	tag, err := r.db.Pool.Exec(ctx, query, tx.ID, tx.Kind, tx.Amount, tx.Date, tx.Date)
+	tag, err := r.db.Pool.Exec(ctx, query, tx.ID, tx.Kind, tx.Amount, tx.Date, tx.Date, accountID)
 	if err != nil {
 		return false, fmt.Errorf("erro ao conciliar transação externa: %w", err)
 	}

@@ -42,8 +42,12 @@ type PurchaseRepository interface {
 	ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error)
 
 	// Open Finance
-	ExistsExternalID(ctx context.Context, externalID string) (bool, error)
+	// UpsertAccount cria ou atualiza a conta e devolve seu ID interno.
+	UpsertAccount(ctx context.Context, account ExternalAccount) (uuid.UUID, error)
+	// LinkExternalAccount informa se a transação já foi sincronizada e, se ainda não tinha
+	// conta de origem (sincronizada antes da tabela de contas), vincula-a.
+	LinkExternalAccount(ctx context.Context, externalID string, accountID uuid.UUID) (bool, error)
 	// ReconcileExternal liga a transação a um lançamento manual equivalente ainda não conciliado.
-	ReconcileExternal(ctx context.Context, tx ExternalTransaction) (bool, error)
+	ReconcileExternal(ctx context.Context, tx ExternalTransaction, accountID uuid.UUID) (bool, error)
 	SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error
 }
