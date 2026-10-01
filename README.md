@@ -313,20 +313,22 @@ docker compose exec postgres psql -U finassist -d finassist
 ## Estrutura do projeto
 
 ```
-cmd/                                        entrypoint da aplicação
-internal/
-    config/                               carregamento de variáveis de ambiente
-    chat/                                 lógica de conversa independente de canal
-    domain/                               entidades e regras de negócio
-    usecase/                              casos de uso (análise, recorrentes, consulta, exportação)
-    infra/
-        db/                               repositório PostgreSQL
-        evolution/                        cliente da Evolution API (WhatsApp)
-        gemini/                           cliente do Google Gemini
-        http/                             servidor HTTP e adapter do webhook do WhatsApp
-        pluggy/                           cliente do Open Finance (Meu Pluggy)
-        telegram/                         cliente da Bot API e bot (long polling)
-migrations/                               scripts SQL de criação do banco
+backend/                                    aplicação em Go
+    cmd/                                    entrypoint da aplicação
+    internal/
+        config/                             carregamento de variáveis de ambiente
+        chat/                               lógica de conversa independente de canal
+        domain/                             entidades e regras de negócio
+        usecase/                            casos de uso (análise, recorrentes, consulta, exportação)
+        infra/
+            db/                             repositório PostgreSQL
+            evolution/                      cliente da Evolution API (WhatsApp)
+            gemini/                         cliente do Google Gemini
+            http/                           servidor HTTP e adapter do webhook do WhatsApp
+            pluggy/                         cliente do Open Finance (Meu Pluggy)
+            telegram/                       cliente da Bot API e bot (long polling)
+    migrations/                             scripts SQL de criação do banco
+docker-compose.yml, Makefile, .env.example  na raiz
 ```
 
 ## Licença
