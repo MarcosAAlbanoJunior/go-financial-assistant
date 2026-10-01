@@ -76,7 +76,7 @@ func TestLoad_DefaultEvolutionAPIURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("esperava sucesso, got: %v", err)
 	}
-	if cfg.EvolutionAPIURL != "http://evolution:8080" {
+	if cfg.EvolutionAPIURL != "http://evolution:8082" {
 		t.Errorf("EvolutionAPIURL default incorreta: %s", cfg.EvolutionAPIURL)
 	}
 }
