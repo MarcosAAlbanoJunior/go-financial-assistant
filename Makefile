@@ -2,20 +2,20 @@
 
 run:
 	docker compose up postgres redis -d
-	go run ./cmd/main.go
+	cd backend && set -a && . ../.env && set +a && go run ./cmd/main.go
 
 build:
-	go build -o finassist ./cmd/main.go
+	cd backend && go build -o finassist ./cmd/main.go
 
 test:
-	go test ./... -v
+	cd backend && go test ./... -v
 
 test-coverage:
-	go test ./... -coverprofile=coverage.out
-	go tool cover -html=coverage.out
+	cd backend && go test ./... -coverprofile=coverage.out
+	cd backend && go tool cover -html=coverage.out
 
 lint:
-	golangci-lint run ./...
+	cd backend && golangci-lint run ./...
 
 compose-up:
 	docker compose up -d --build
@@ -39,8 +39,8 @@ logs-evolution:
 db-shell:
 	docker compose exec postgres psql -U finassist -d finassist
 deps:
-	go mod tidy
-	go mod download
+	cd backend && go mod tidy
+	cd backend && go mod download
 
 help:
 	@echo ""
