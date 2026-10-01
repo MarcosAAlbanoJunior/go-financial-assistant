@@ -21,6 +21,25 @@ var (
 	// Aplicação (saída) e resgate (entrada) de investimentos viram TRANSFER.
 	investmentCategories = []string{"investment", "fixed income", "variable income", "mutual fund"}
 
+	// Aplicação e resgate automáticos do Itaú ("APLIC AUT MAIS") só varrem o saldo da conta
+	// para um CDB e de volta: não são aportes seus e inflariam o fluxo de investimentos.
+	// Os rendimentos pagos por essa aplicação são renda e continuam entrando.
+	autoSweepDescriptions = []string{"aplic aut mais"}
+
+	// Quando o Pluggy não classifica a despesa (OTHER), a descrição decide. Vale a primeira regra
+	// que bater; nomes de pessoas e o que não for óbvio ficam em OTHER de propósito.
+	descriptionRules = []struct {
+		keywords []string
+		category domain.Category
+	}{
+		{[]string{"ifood", "99 food", "rappi", "uber eats"}, domain.CategoryFood},
+		{[]string{"supermercado", "atacadao", "assai"}, domain.CategoryMarket},
+		{[]string{"auto posto", " posto ", "combustivel", "uber", "99 pop", "sem parar"}, domain.CategoryTransport},
+		{[]string{"rd saude", "drogaria", "drogasil", "farmacia", "pague menos", "santa casa", "clinica", "clínica", "hospital"}, domain.CategoryHealth},
+		{[]string{"kalunga", "magalupay", "magazine luiza", "mercadolivre", "mercado livre"}, domain.CategoryShopping},
+		{[]string{"anthropic", "hostinger", "ionos", "spotify", "netflix", "apple.com"}, domain.CategoryEntertainment},
+	}
+
 	expenseCategories = []struct {
 		keywords []string
 		category domain.Category
@@ -84,6 +103,9 @@ func toExternal(accountType string, t transaction) (ports.ExternalTransaction, b
 
 	switch {
 	case containsAny(category, investmentCategories):
+		if containsAny(strings.ToLower(description), autoSweepDescriptions) {
+			return ports.ExternalTransaction{}, false
+		}
 		ext.Kind, ext.Category = domain.KindTransfer, domain.CategoryInvestment
 		ext.Direction = domain.TransferDirectionOut
 		if inflow {
@@ -102,8 +124,22 @@ func toExternal(accountType string, t transaction) (ports.ExternalTransaction, b
 				break
 			}
 		}
+		if ext.Category == domain.CategoryOther {
+			ext.Category = categoryFromDescription(description + " " + t.DescriptionRaw)
+		}
 	}
 	return ext, true
+}
+
+// categoryFromDescription aplica descriptionRules; sem correspondência devolve OTHER.
+func categoryFromDescription(text string) domain.Category {
+	text = " " + strings.ToLower(text) + " "
+	for _, rule := range descriptionRules {
+		if containsAny(text, rule.keywords) {
+			return rule.category
+		}
+	}
+	return domain.CategoryOther
 }
 
 func paymentMethod(isCard bool, t transaction) domain.PaymentMethod {
