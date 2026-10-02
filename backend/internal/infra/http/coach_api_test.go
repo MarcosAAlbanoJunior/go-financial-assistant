@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 type fakeCoach struct {
@@ -134,7 +133,7 @@ func TestAPI_CoachAnalyze(t *testing.T) {
 	}
 	for _, want := range []string{
 		`"summary":"As contas fixas pesam."`, `"suggestionId":"s1"`, `"comment":"Vale rever esta conta."`, `"question":"Você ainda usa?"`,
-		`"kind":"`, `"annual":`, `"name":"Reserva"`, `"questions":["Mudou algo na rotina?"]`, `"callsLeft":9`,
+		`"kind":"`, `"annual":`, `"name":"Reserva"`, `"questions":["Mudou algo na rotina?"]`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("falta %s em %s", want, body)
@@ -200,30 +199,16 @@ func TestAPI_CoachAnalyze_AIFailures(t *testing.T) {
 	}
 }
 
-func TestCoachService_LimitsAndConcurrency(t *testing.T) {
-	now := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+func TestCoachService_OneAtATime(t *testing.T) {
 	c := newCoachService(&fakeCoach{}, true)
-
-	if ok, _ := c.begin(now); !ok {
+	if !c.begin() {
 		t.Fatal("primeira análise deveria passar")
 	}
-	if ok, reason := c.begin(now); ok || !strings.Contains(reason, "andamento") {
-		t.Errorf("duas ao mesmo tempo: %v %q", ok, reason)
+	if c.begin() {
+		t.Error("duas ao mesmo tempo")
 	}
 	c.end()
-	for i := 1; i < coachDailyLimit; i++ {
-		if ok, _ := c.begin(now); !ok {
-			t.Fatalf("análise %d deveria passar", i+1)
-		}
-		c.end()
-	}
-	if ok, reason := c.begin(now); ok || !strings.Contains(reason, "limite") || c.callsLeft(now) != 0 {
-		t.Errorf("teto diário: %v %q %d", ok, reason, c.callsLeft(now))
-	}
-	if ok, _ := c.begin(now.AddDate(0, 0, 1)); !ok {
-		t.Error("o teto zera no dia seguinte")
-	}
-	if usecase.MaxCoachBytes <= 0 {
-		t.Fatal("limite de tamanho precisa existir")
+	if !c.begin() {
+		t.Error("depois de terminar, outra pode começar")
 	}
 }
