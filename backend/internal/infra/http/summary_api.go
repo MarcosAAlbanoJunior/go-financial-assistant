@@ -3,8 +3,9 @@ package httpserver
 import (
 	"net/http"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/insights"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 type totalsJSON struct {
@@ -35,7 +36,7 @@ func (a *api) summary(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, "resumo", err)
 		return
 	}
-	bank := usecase.BankBalance(accounts)
+	bank := insights.BankBalance(accounts)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"month": formatMonth(month), "current": toTotalsJSON(totals[1]), "previous": toTotalsJSON(totals[0]), "bankBalance": bank,
 	})

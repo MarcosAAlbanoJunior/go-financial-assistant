@@ -1,4 +1,4 @@
-package usecase
+package insights
 
 import (
 	"context"
