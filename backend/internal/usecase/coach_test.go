@@ -46,7 +46,7 @@ func sampleReview() Review {
 
 func TestBuildCoachContext(t *testing.T) {
 	goals := []GoalProgress{{Goal: ports.Goal{Kind: ports.GoalSave, Name: "Viagem"}, Current: 100, Target: 1000}}
-	c := BuildCoachContext(sampleReview(), "2026-09", ports.MonthTotals{Income: 5000, Expense: 3000}, goals, nil)
+	c := BuildCoachContext(sampleReview(), "2026-09", ports.MonthTotals{Income: 5000, Expense: 3000}, goals, nil, nil)
 
 	if len(c.Suggestions) != 3 || c.Suggestions[0].ID != "s1" || c.Suggestions[2].ID != "s3" {
 		t.Fatalf("dispensadas ficam de fora e os IDs seguem a ordem: %+v", c.Suggestions)
@@ -81,7 +81,7 @@ func TestBuildCoachContext_LimitsSizeAndCount(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		goals = append(goals, GoalProgress{Goal: ports.Goal{Kind: ports.GoalCut, Name: strings.Repeat("m", 60)}})
 	}
-	c := BuildCoachContext(rev, "2026-09", ports.MonthTotals{}, goals, nil)
+	c := BuildCoachContext(rev, "2026-09", ports.MonthTotals{}, goals, nil, nil)
 	raw, _ := json.Marshal(c)
 	if len(c.Suggestions) != MaxCoachSuggestions || len(raw) > MaxCoachBytes {
 		t.Errorf("%d sugestões, %d bytes (limite %d)", len(c.Suggestions), len(raw), MaxCoachBytes)

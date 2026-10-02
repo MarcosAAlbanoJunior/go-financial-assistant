@@ -39,8 +39,24 @@ type CoachContext struct {
 	Categories  []CoachCategory   `json:"categorias"`
 	Suggestions []CoachSuggestion `json:"sugestoes"`
 	Goals       []CoachGoal       `json:"metas"`
+	// Decisions são os "cancelei" da pessoa, com a situação conferida pelo app (a cobrança sumiu ou voltou).
+	Decisions []CoachDecision `json:"decisoes"`
 	// Memory são as análises passadas e as respostas da pessoa: a IA lembra o que já foi dito.
 	Memory []CoachMemory `json:"memoria"`
+}
+
+// CoachDecision é uma decisão "cancelei" já conferida: os números vêm do app.
+type CoachDecision struct {
+	Name    string  `json:"nome"`
+	Kind    string  `json:"tipo"`
+	Since   string  `json:"desde"`
+	Monthly float64 `json:"economia_mensal"`
+	Status  string  `json:"situacao"`
+	Months  int     `json:"meses_confirmados"`
+}
+
+var coachStatusNames = map[string]string{
+	SavingPending: "aguardando o primeiro mês fechado", SavingConfirmed: "cobrança sumiu, economia confirmada", SavingReturned: "a cobrança voltou",
 }
 
 type CoachCategory struct {
@@ -127,9 +143,9 @@ func CoachCandidates(rev Review) []Candidate {
 
 // BuildCoachContext monta o que vai para a IA a partir dos resultados dos detectores e das metas (os IDs "m1",
 // "m2"... seguem a ordem de goals). past são as análises guardadas, da mais nova para a mais antiga.
-func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals []GoalProgress, past []ports.CoachAnalysis) CoachContext {
+func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals []GoalProgress, past []ports.CoachAnalysis, decisions []DecisionResult) CoachContext {
 	c := CoachContext{Month: month, Income: totals.Income, Expense: totals.Expense,
-		Months: []string{}, Categories: []CoachCategory{}, Suggestions: []CoachSuggestion{}, Goals: []CoachGoal{}, Memory: BuildCoachMemory(past)}
+		Months: []string{}, Categories: []CoachCategory{}, Suggestions: []CoachSuggestion{}, Goals: []CoachGoal{}, Decisions: []CoachDecision{}, Memory: BuildCoachMemory(past)}
 	for _, m := range rev.Months {
 		c.Months = append(c.Months, m.Format("2006-01"))
 	}
@@ -151,6 +167,10 @@ func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals
 			s.SavingYear = &year
 		}
 		c.Suggestions = append(c.Suggestions, s)
+	}
+	for _, d := range decisions {
+		c.Decisions = append(c.Decisions, CoachDecision{Name: CoachLabel(d.Decision.Label), Kind: coachKindNames[d.Decision.Kind], Since: d.Decision.Month.Format("2006-01"),
+			Monthly: d.Decision.Monthly, Status: coachStatusNames[d.Status], Months: d.MonthsConfirmed})
 	}
 	for i, g := range goals {
 		c.Goals = append(c.Goals, CoachGoal{ID: "m" + strconv.Itoa(i+1), Kind: coachGoalNames[g.Goal.Kind], Name: g.Goal.Name, Current: g.Current, Target: g.Target, Achieved: g.Done})

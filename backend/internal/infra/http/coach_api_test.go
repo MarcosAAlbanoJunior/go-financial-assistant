@@ -34,7 +34,8 @@ func coachReader() *fakeReader {
 			{Key: "pix enviado fulano de tal", Label: "Pix enviado Fulano de Tal", Category: "OTHER", PaymentMethod: "PIX", Date: d(2), Amount: 300},
 			{Key: "pix enviado fulano de tal", Label: "Pix enviado Fulano de Tal", Category: "OTHER", PaymentMethod: "PIX", Date: d(3), Amount: 300},
 		},
-		goals: []ports.Goal{{Kind: ports.GoalReserve, Name: "Reserva", ReserveMonths: 6, CreatedAt: time.Now()}},
+		goals:     []ports.Goal{{Kind: ports.GoalReserve, Name: "Reserva", ReserveMonths: 6, CreatedAt: time.Now()}},
+		decisions: []ports.Decision{{Kind: "FIXED", Key: "spotify", Label: "Spotify Premium 123456", Category: "ENTERTAINMENT", Month: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), Monthly: 20}},
 	}
 }
 
@@ -90,7 +91,7 @@ func TestAPI_CoachPreview(t *testing.T) {
 			}
 			ctx := string(p.Context)
 			// O contexto mostrado é o enviado: sem o nome da pessoa do Pix, com os números calculados pelo código.
-			for _, want := range []string{`"mes":"2026-11"`, "transferência para pessoa", `"id":"s1"`, `"id":"m1"`, `"economia_possivel"`} {
+			for _, want := range []string{`"mes":"2026-11"`, "transferência para pessoa", `"id":"s1"`, `"id":"m1"`, `"economia_possivel"`, `"decisoes":[{"nome":"Spotify Premium"`, `"situacao":"cobrança sumiu, economia confirmada"`} {
 				if !strings.Contains(ctx, want) {
 					t.Errorf("falta %s em %s", want, ctx)
 				}

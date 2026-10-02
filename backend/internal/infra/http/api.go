@@ -82,6 +82,8 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	s.mux.Handle("DELETE /api/coach/analyses/{id}", protected(a.deleteCoachAnalysis))
 	// A análise custa dinheiro e sai da máquina: limite apertado por IP (contra clique repetido ou loop).
 	s.mux.Handle("POST /api/coach/analyze", newIPRateLimiter(3, time.Minute).middleware(protected(a.coachAnalyze)))
+	s.mux.Handle("GET /api/savings", protected(a.savings))
+	s.mux.Handle("PUT /api/savings/decisions", protected(a.setDecision))
 	s.mux.Handle("GET /api/review", protected(a.review))
 	s.mux.Handle("PUT /api/review-dismissals", protected(a.setDismissal))
 	s.mux.Handle("GET /api/portfolio", protected(a.portfolio))
