@@ -9,8 +9,15 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
-// averageMonths é quantos meses (com dados) entram nas médias de renda, fixas e variáveis.
+// averageMonths é quantos meses (com dados) entram nas médias de fixas e variáveis e na detecção de fontes recorrentes.
 const averageMonths = 3
+
+// incomeMedianMonths é quantos meses (com dados) entram na mediana da renda total: mais meses que as médias
+// de despesa, porque a renda costuma ser irregular e a mediana precisa de amostra para ignorar o mês atípico.
+const incomeMedianMonths = 6
+
+// otherIncomeLabel nomeia a parte da renda que não vem de uma fonte recorrente identificável.
+const otherIncomeLabel = "Outras entradas (mediana mensal dos últimos meses)"
 
 // Assumptions são as premissas da projeção: o que se espera de um mês comum daqui para a frente.
 type Assumptions struct {
@@ -59,7 +66,9 @@ func parseInstallment(label string) (current, total int, ok bool) {
 // BuildProjection projeta `months` meses a partir de start (primeiro dia do mês, em geral o mês atual).
 //
 //   - Fixas e variáveis valem a média dos últimos meses completos com dados (anteriores a start);
-//   - a renda é estimada por fonte (EstimateIncome), para pagamentos fora do padrão não pesarem;
+//   - a renda é a mediana da renda total dos últimos meses (MedianMonthlyIncome), para o mês atípico (13º, adiantamento
+//     de férias) não pesar nem as entradas de origens variadas ficarem de fora; as fontes recorrentes (EstimateIncome)
+//     explicam a maior parte dela;
 //   - parcelas são as já conhecidas: as que faltam das compras parceladas no cartão (inferidas do "n/m" da
 //     descrição, já que o banco só informa a parcela do mês) e as cadastradas, em knownInstallments.
 //
@@ -71,24 +80,24 @@ func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.Expens
 
 	// Médias dos últimos meses que tiveram alguma despesa.
 	var a Assumptions
-	var used []time.Time
-	for i := len(b.Series) - 1; i >= 0 && a.BasedOn < averageMonths; i-- {
+	var used, window []time.Time // used: base das médias de despesa; window: base da mediana da renda
+	for i := len(b.Series) - 1; i >= 0 && len(window) < incomeMedianMonths; i-- {
 		m := b.Series[i]
 		if m.Fixed+m.Installment+m.Variable <= 0 {
 			continue
 		}
-		a.BasedOn++
-		a.Fixed += m.Fixed
-		a.Variable += m.Variable
-		used = append(used, m.Month)
+		window = append(window, m.Month)
+		if a.BasedOn < averageMonths {
+			a.BasedOn++
+			a.Fixed += m.Fixed
+			a.Variable += m.Variable
+			used = append(used, m.Month)
+		}
 	}
 	if a.BasedOn > 0 {
 		n := float64(a.BasedOn)
 		a.Fixed, a.Variable = a.Fixed/n, a.Variable/n
-		a.IncomeSources = EstimateIncome(incomes, used)
-		for _, src := range a.IncomeSources {
-			a.Income += src.Monthly
-		}
+		a.IncomeSources, a.Income = estimateIncomeTotal(incomes, used, window)
 	}
 
 	// Parcelas que faltam: a última aparição de cada conta parcelada diz em que parcela está.
@@ -116,6 +125,38 @@ func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.Expens
 	}
 	sort.Slice(p.Months, func(i, j int) bool { return p.Months[i].Month.Before(p.Months[j].Month) })
 	return p
+}
+
+// estimateIncomeTotal combina as duas leituras da renda: a mediana da renda total dos meses de window e as
+// fontes recorrentes dos meses de used. Vale a maior (a mediana já inclui as fontes; se um mês fraco a puxou
+// para baixo, a soma das fontes recorrentes é o piso). O que as fontes não explicam aparece como "outras entradas".
+func estimateIncomeTotal(payments []ports.IncomePayment, used, window []time.Time) ([]IncomeSource, float64) {
+	sources := EstimateIncome(payments, used)
+	var recurring float64
+	for _, s := range sources {
+		recurring += s.Monthly
+	}
+	typical := MedianMonthlyIncome(payments, window)
+	if typical <= recurring {
+		return sources, recurring
+	}
+	return append(sources, IncomeSource{Label: otherIncomeLabel, Monthly: typical - recurring}), typical
+}
+
+// MedianMonthlyIncome é a mediana da renda total mensal nos meses dados; mês sem entrada conta como zero.
+func MedianMonthlyIncome(payments []ports.IncomePayment, months []time.Time) float64 {
+	if len(months) == 0 {
+		return 0
+	}
+	total := map[time.Time]float64{}
+	for _, p := range payments {
+		total[p.Month] += p.Amount
+	}
+	values := make([]float64, len(months))
+	for i, m := range months {
+		values[i] = total[m]
+	}
+	return median(values)
 }
 
 // EstimateIncome estima a renda de um mês comum olhando cada fonte (mesma descrição) nos meses dados.
