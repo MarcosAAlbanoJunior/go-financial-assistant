@@ -40,6 +40,7 @@ type Handler struct {
 
 	syncer   Syncer   // nil quando o Open Finance não está configurado
 	digester Digester // nil sem o resumo semanal
+	balancer Balancer // nil sem o painel de saldos
 
 	mu      sync.Mutex
 	pending *pendingImportSession
@@ -73,6 +74,11 @@ func (h *Handler) Handle(ctx context.Context, msg Message) (*usecase.ExpenseOutp
 
 	if isSyncCommand(msg.Text) {
 		h.handleSync(ctx)
+		return nil, nil
+	}
+
+	if isBalancesCommand(msg.Text) {
+		h.handleBalances(ctx)
 		return nil, nil
 	}
 

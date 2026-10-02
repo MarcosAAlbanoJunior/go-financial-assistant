@@ -21,6 +21,8 @@ const testPassword = "senha-de-teste-123"
 type fakeReader struct {
 	monthly        []ports.MonthTotals
 	accounts       []ports.Account
+	institutions   []ports.Institution
+	logos          map[uuid.UUID]fakeLogo
 	positions      []ports.Position
 	filter         ports.TransactionFilter
 	by             ports.BreakdownDimension
@@ -187,6 +189,13 @@ func (f *fakeReader) SetCategoryRule(_ context.Context, key, category string) (i
 	return 3, f.err
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
+func (f *fakeReader) Institutions(context.Context) ([]ports.Institution, error) {
+	return f.institutions, f.err
+}
+func (f *fakeReader) InstitutionLogo(_ context.Context, id uuid.UUID) ([]byte, string, bool, error) {
+	l, ok := f.logos[id]
+	return l.data, l.mime, ok, f.err
+}
 
 func newTestAPI(t *testing.T, reader *fakeReader) *Server {
 	t.Helper()
@@ -924,4 +933,9 @@ func TestAPI_SetDecision(t *testing.T) {
 	if code := do(s, "PUT", "/api/savings/decisions", `{"kind":"FIXED","key":"netflix","month":"2026-10","decided":true}`, json).Code; code != 401 {
 		t.Errorf("sem sessão = %d", code)
 	}
+}
+
+type fakeLogo struct {
+	data []byte
+	mime string
 }

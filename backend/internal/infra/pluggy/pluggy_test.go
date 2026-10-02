@@ -241,16 +241,69 @@ func TestAuthFailure_DoesNotLeakSecrets(t *testing.T) {
 }
 
 func TestAccountToExternal_CreditCard(t *testing.T) {
-	limit, available := 5000.0, 3200.0
-	a := account{ID: "c1", Type: "CREDIT", Name: "Cartão Gold", Number: "xxxx8670", Balance: 1800}
-	a.CreditData = &struct {
-		CreditLimit          *float64 `json:"creditLimit"`
-		AvailableCreditLimit *float64 `json:"availableCreditLimit"`
-	}{&limit, &available}
+	var a account
+	err := json.Unmarshal([]byte(`{"id":"c1","type":"CREDIT","name":"Cartão Gold","number":"xxxx8670","balance":1800,
+		"owner":"Fulano","taxNumber":"123",
+		"creditData":{"creditLimit":5000,"availableCreditLimit":3200,"brand":" mastercard ","balanceCloseDate":"2026-10-03T00:00:00.000Z",
+		"balanceDueDate":"2026-10-10","minimumPayment":180.5}}`), &a)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	got := a.toExternal("item")
-	if got.Last4 != "8670" || *got.CreditLimit != 5000 || *got.AvailableCreditLimit != 3200 {
+	if got.Last4 != "8670" || *got.CreditLimit != 5000 || *got.AvailableCreditLimit != 3200 || got.Brand != "MASTERCARD" || *got.MinimumPayment != 180.5 {
 		t.Errorf("cartão inesperado: %+v", got)
+	}
+	if got.CloseDate.Format("2006-01-02") != "2026-10-03" || got.DueDate.Format("2006-01-02") != "2026-10-10" {
+		t.Errorf("datas da fatura: %v %v", got.CloseDate, got.DueDate)
+	}
+}
+
+func TestAccountToExternal_BankDataAndMissingFields(t *testing.T) {
+	var a account
+	json.Unmarshal([]byte(`{"id":"b1","type":"BANK","name":"Conta","number":"0001/1234-5","balance":10,"bankData":{"automaticallyInvestedBalance":900}}`), &a) //nolint:errcheck
+	got := a.toExternal("item")
+	if got.AutoInvested == nil || *got.AutoInvested != 900 || got.CloseDate != nil || got.DueDate != nil || got.Brand != "" {
+		t.Errorf("conta inesperada: %+v", got)
+	}
+
+	var bad account
+	json.Unmarshal([]byte(`{"id":"c","type":"CREDIT","creditData":{"balanceDueDate":"lixo","balanceCloseDate":""}}`), &bad) //nolint:errcheck
+	if got := bad.toExternal("i"); got.DueDate != nil || got.CloseDate != nil {
+		t.Errorf("data inválida deveria virar nil: %+v", got)
+	}
+}
+
+func TestInstitution(t *testing.T) {
+	respond := map[string]string{
+		"ok":     `{"connector":{"name":"  Banco   Itaú ","imageUrl":"https://cdn/logo.svg","primaryColor":"#EC7000"}}`,
+		"badc":   `{"connector":{"name":"Banco","primaryColor":"url(javascript:alert(1))"}}`,
+		"noname": `{"connector":{"imageUrl":"https://x"}}`,
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/auth", func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, `{"apiKey":"k"}`) })
+	mux.HandleFunc("/items/", func(w http.ResponseWriter, r *http.Request) {
+		body, ok := respond[strings.TrimPrefix(r.URL.Path, "/items/")]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		io.WriteString(w, body)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c := NewClient("id", "secret")
+	c.baseURL = srv.URL
+
+	got := c.institution(context.Background(), "ok")
+	if got == nil || got.Name != "Banco Itaú" || got.Color != "ec7000" || got.ImageURL != "https://cdn/logo.svg" {
+		t.Errorf("instituição inesperada: %+v", got)
+	}
+	if got := c.institution(context.Background(), "badc"); got == nil || got.Color != "" {
+		t.Errorf("cor inválida deve ser descartada: %+v", got)
+	}
+	if c.institution(context.Background(), "noname") != nil || c.institution(context.Background(), "missing") != nil {
+		t.Error("sem nome ou com erro, a instituição deveria ser nil")
 	}
 }
 

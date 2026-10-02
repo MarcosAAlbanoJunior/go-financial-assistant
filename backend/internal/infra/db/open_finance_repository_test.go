@@ -240,3 +240,91 @@ func TestRefreshExternal_PromotesOtherExpenseCategory(t *testing.T) {
 		t.Error("transação desconhecida não pode ser reportada como existente")
 	}
 }
+
+func TestInstitutions_UpsertLogoAndAccounts(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	const item = "of-test-inst"
+	t.Cleanup(func() {
+		pg.Pool.Exec(ctx, `DELETE FROM accounts WHERE item_id = $1`, item)
+		pg.Pool.Exec(ctx, `DELETE FROM institutions WHERE item_id = $1`, item)
+	})
+
+	id, needsLogo, err := repo.UpsertInstitution(ctx, item, ports.ExternalInstitution{Name: "Banco Teste", Color: "ec0000"})
+	if err != nil || !needsLogo {
+		t.Fatalf("primeira vez deveria pedir o logo: %v %v", needsLogo, err)
+	}
+	if id2, _, _ := repo.UpsertInstitution(ctx, item, ports.ExternalInstitution{Name: "Banco Teste 2"}); id2 != id {
+		t.Error("a instituição não pode duplicar")
+	}
+
+	// Falha na busca: registra a tentativa e só repete depois de 1 dia.
+	if err := repo.SaveInstitutionLogo(ctx, id, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, needs, _ := repo.UpsertInstitution(ctx, item, ports.ExternalInstitution{Name: "Banco Teste"}); needs {
+		t.Error("logo com busca recente não deveria ser pedido de novo")
+	}
+	if _, _, found, _ := repo.InstitutionLogo(ctx, id); found {
+		t.Error("sem logo não deveria ser encontrado")
+	}
+
+	if err := repo.SaveInstitutionLogo(ctx, id, []byte("<svg/>"), "image/svg+xml"); err != nil {
+		t.Fatal(err)
+	}
+	data, mime, found, err := repo.InstitutionLogo(ctx, id)
+	if err != nil || !found || mime != "image/svg+xml" || string(data) != "<svg/>" {
+		t.Fatalf("logo: %q %q %v %v", data, mime, found, err)
+	}
+	// Uma falha posterior não apaga o logo que já existe.
+	repo.SaveInstitutionLogo(ctx, id, nil, "") //nolint:errcheck
+	if _, _, found, _ := repo.InstitutionLogo(ctx, id); !found {
+		t.Error("tentativa falha não pode apagar o logo")
+	}
+	if err := repo.SaveInstitutionLogo(ctx, id, []byte("x"), "text/html"); err == nil {
+		t.Error("tipo fora da lista deveria ser recusado pelo banco")
+	}
+
+	// Conta com instituição e dados do cartão.
+	due := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	min := 120.0
+	if _, err := repo.UpsertAccount(ctx, ports.ExternalAccount{ID: "of-test-card", ItemID: item, Type: "CREDIT", Name: "Cartão",
+		Brand: "VISA", DueDate: &due, MinimumPayment: &min, InstitutionID: &id}); err != nil {
+		t.Fatal(err)
+	}
+	// Sync sem a instituição (conector falhou) não desvincula a conta.
+	if _, err := repo.UpsertAccount(ctx, ports.ExternalAccount{ID: "of-test-card", ItemID: item, Type: "CREDIT", Name: "Cartão", Brand: "VISA", DueDate: &due}); err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := repo.Accounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range accounts {
+		if a.ItemID == item {
+			if a.InstitutionID == nil || *a.InstitutionID != id || a.Brand != "VISA" || a.DueDate == nil || !a.DueDate.Equal(due) {
+				t.Errorf("conta inesperada: %+v", a)
+			}
+			insts, err := repo.Institutions(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, i := range insts {
+				if i.ID == id && (!i.HasLogo || i.Color != "ec0000") {
+					t.Errorf("instituição inesperada: %+v", i)
+				}
+			}
+			return
+		}
+	}
+	t.Fatal("conta não encontrada")
+}
+
+func TestInstitutions_ColorCheck(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	const item = "of-test-color"
+	t.Cleanup(func() { pg.Pool.Exec(context.Background(), `DELETE FROM institutions WHERE item_id = $1`, item) })
+	if _, _, err := repo.UpsertInstitution(context.Background(), item, ports.ExternalInstitution{Name: "B", Color: "red;x"}); err == nil {
+		t.Error("cor fora do padrão hexadecimal deveria ser recusada pelo banco")
+	}
+}

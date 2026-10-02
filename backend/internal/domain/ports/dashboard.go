@@ -90,13 +90,29 @@ type Transaction struct {
 
 type Account struct {
 	ID                   uuid.UUID
+	ItemID               string     // conexão de origem; nunca sai da API
+	InstitutionID        *uuid.UUID // nil em contas anteriores às instituições, até a próxima sincronização
 	Type                 string
 	Name                 string
 	Last4                string
 	Balance              float64
 	CreditLimit          *float64
 	AvailableCreditLimit *float64
+	Brand                string
+	CloseDate            *time.Time
+	DueDate              *time.Time
+	MinimumPayment       *float64
+	AutoInvested         *float64
 	UpdatedAt            time.Time
+}
+
+// Institution é o banco de uma conexão, sem os bytes do logo.
+type Institution struct {
+	ID      uuid.UUID
+	ItemID  string
+	Name    string
+	Color   string // hexadecimal de 6 dígitos sem "#"; vazio se desconhecida
+	HasLogo bool
 }
 
 // Position é uma posição de investimento ativa, com o saldo da última sincronização.
@@ -137,6 +153,9 @@ type DashboardReader interface {
 	// TransactionGroups agrupa as transações que casam com o filtro (Limit e Offset são ignorados).
 	TransactionGroups(ctx context.Context, f TransactionFilter, by GroupBy) ([]TransactionGroup, error)
 	Accounts(ctx context.Context) ([]Account, error)
+	Institutions(ctx context.Context) ([]Institution, error)
+	// InstitutionLogo devolve o logo em cache; found falso se a instituição ou o logo não existem.
+	InstitutionLogo(ctx context.Context, id uuid.UUID) (data []byte, mime string, found bool, err error)
 	// Positions devolve as posições de investimento ativas, da maior para a menor.
 	Positions(ctx context.Context) ([]Position, error)
 	// PortfolioHistory devolve o saldo total ao fim de cada mês de from a to. Só existe a

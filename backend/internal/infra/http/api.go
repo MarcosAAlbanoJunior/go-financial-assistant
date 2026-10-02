@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
@@ -42,6 +43,7 @@ type api struct {
 	now      func() time.Time
 	coach    *coachService
 	insights *usecase.Insights
+	syncer   chat.Syncer // nil sem Open Finance
 }
 
 // MountAPI registra a API do dashboard. Tudo, exceto o login, exige sessão.
@@ -54,7 +56,7 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	if err != nil {
 		return err
 	}
-	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: usecase.NewInsights(reader)}
+	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: usecase.NewInsights(reader), syncer: s.syncer}
 
 	// Login com limite apertado contra tentativa de força bruta; o restante, mais folgado.
 	loginLimiter := newIPRateLimiter(5, time.Minute)
@@ -94,6 +96,10 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	s.mux.Handle("GET /api/transactions", protected(a.transactions))
 	s.mux.Handle("GET /api/transactions/groups", protected(a.transactionGroups))
 	s.mux.Handle("GET /api/accounts", protected(a.accounts))
+	s.mux.Handle("GET /api/balances", protected(a.balances))
+	s.mux.Handle("GET /api/institutions/{id}/logo", protected(a.institutionLogo))
+	// Cada sincronização consulta o Pluggy: limite apertado por IP, além de uma por vez (409).
+	s.mux.Handle("POST /api/sync", newIPRateLimiter(3, time.Minute).middleware(protected(a.syncNow)))
 	return nil
 }
 
@@ -704,7 +710,7 @@ func (a *api) accounts(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]item, len(accounts))
 	for i, acc := range accounts {
-		out[i] = item(acc)
+		out[i] = item{acc.ID, acc.Type, acc.Name, acc.Last4, acc.Balance, acc.CreditLimit, acc.AvailableCreditLimit, acc.UpdatedAt}
 	}
 	writeJSON(w, http.StatusOK, out)
 }
