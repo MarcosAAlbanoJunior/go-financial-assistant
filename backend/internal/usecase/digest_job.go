@@ -25,18 +25,22 @@ type DigestJob struct {
 	messenger ports.Messenger
 	owner     string
 	logger    *slog.Logger
-	weekday   time.Weekday
-	hour      int
-	loc       *time.Location
+	schedule  DigestSchedule
+	changed   <-chan struct{}
 }
 
-func NewDigestJob(insights *Insights, messenger ports.Messenger, owner string, logger *slog.Logger, weekday time.Weekday, hour int, loc *time.Location) *DigestJob {
-	return &DigestJob{insights: insights, messenger: messenger, owner: owner, logger: logger, weekday: weekday, hour: hour, loc: loc}
+// DigestSchedule devolve a agenda atual; é lida a cada ciclo, então mudar a configuração vale sem reiniciar.
+type DigestSchedule func() (enabled bool, weekday time.Weekday, hour int, loc *time.Location)
+
+// NewDigestJob: changed (opcional) acorda o job quando a configuração muda, para recalcular o próximo envio.
+func NewDigestJob(insights *Insights, messenger ports.Messenger, owner string, logger *slog.Logger, schedule DigestSchedule, changed <-chan struct{}) *DigestJob {
+	return &DigestJob{insights: insights, messenger: messenger, owner: owner, logger: logger, schedule: schedule, changed: changed}
 }
 
 // Send monta e envia o resumo de hoje.
 func (j *DigestJob) Send(ctx context.Context) error {
-	text, err := j.insights.WeeklyDigest(ctx, time.Now().In(j.loc))
+	_, _, _, loc := j.schedule()
+	text, err := j.insights.WeeklyDigest(ctx, time.Now().In(loc))
 	if err != nil {
 		return err
 	}
@@ -47,12 +51,26 @@ func (j *DigestJob) Send(ctx context.Context) error {
 // Run espera cada hora marcada e envia, até o contexto acabar. Erros vão ao log sem o conteúdo do resumo.
 func (j *DigestJob) Run(ctx context.Context) {
 	for {
-		next := NextDigestTime(time.Now(), j.weekday, j.hour, j.loc)
+		enabled, weekday, hour, loc := j.schedule()
+		if !enabled {
+			select {
+			case <-ctx.Done():
+				return
+			case <-j.changed:
+			}
+			continue
+		}
+		next := NextDigestTime(time.Now(), weekday, hour, loc)
 		j.logger.Info("próximo resumo semanal", "at", next.Format(time.RFC3339))
+		timer := time.NewTimer(time.Until(next))
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return
-		case <-time.After(time.Until(next)):
+		case <-j.changed:
+			timer.Stop()
+			continue // agenda mudou: recalcula
+		case <-timer.C:
 		}
 		if err := j.Send(ctx); err != nil {
 			j.logger.Error("erro ao enviar o resumo semanal", "error", err)

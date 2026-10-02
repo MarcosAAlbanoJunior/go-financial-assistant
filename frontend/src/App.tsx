@@ -11,6 +11,7 @@ import Overview from './pages/Overview'
 import Panel from './pages/Panel'
 import Projection from './pages/Projection'
 import Review from './pages/Review'
+import Settings from './pages/Settings'
 import Spending from './pages/Spending'
 import Transactions from './pages/Transactions'
 
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/metas" element={<Goals />} />
         <Route path="/coach" element={<Coach />} />
         <Route path="/gastos" element={<Spending />} />
+        <Route path="/configuracoes" element={<Settings />} />
         <Route path="/classificar" element={<Categorize />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

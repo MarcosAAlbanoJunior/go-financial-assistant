@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Balances, SyncResult, Budget, Categorize, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Balances, SettingsData, SaveSettingsResult, SyncResult, Budget, Categorize, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -199,3 +199,23 @@ export const suggestCategories = (hash: string) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hash }),
   })
+
+export const useSettings = () => useQuery({ queryKey: ['settings'], queryFn: () => request<SettingsData>('/api/settings') })
+
+/** Salva só o que mudou. Ao mudar OWN_NAMES, a resposta traz as transferências antigas que parecem ser suas. */
+export const saveSettings = (values: Record<string, string>) =>
+  request<SaveSettingsResult>('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  })
+
+/** Apaga o valor salvo aqui: volta a valer o ambiente (ou o padrão). */
+export const resetSetting = (key: string) => request(`/api/settings/${encodeURIComponent(key)}`, { method: 'DELETE' })
+
+export const applyOwnTransfers = () => postJSON<{ cancelled: number }>('/api/settings/own-transfers/apply')
+
+export const testConnection = (target: 'pluggy' | 'gemini' | 'telegram') =>
+  postJSON<{ ok: boolean; message: string }>(`/api/settings/test/${target}`)
+
+export const restartApp = () => postJSON('/api/restart')
