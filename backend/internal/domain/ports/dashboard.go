@@ -125,6 +125,7 @@ type DashboardReader interface {
 	BudgetReader
 	ReviewReader
 	GoalStore
+	CategoryStore
 	CoachStore
 
 	// MonthlyTotals devolve uma linha por mês de from a to (inclusive), com zeros nos meses vazios.
@@ -265,4 +266,28 @@ type GoalStore interface {
 	CreateGoal(ctx context.Context, g Goal) error
 	// DeleteGoal apaga a meta; false se ela não existe.
 	DeleteGoal(ctx context.Context, id uuid.UUID) (bool, error)
+}
+
+// UncategorizedGroup soma as despesas em "Outros" de uma mesma conta (descrição normalizada em Key).
+type UncategorizedGroup struct {
+	Key   string
+	Label string // descrição de exemplo, como veio do banco
+	Count int
+	Total float64
+	Last  time.Time
+}
+
+// CategoryRule é a categoria escolhida para uma conta; OTHER significa "manter em Outros".
+type CategoryRule struct {
+	Key      string
+	Category string
+}
+
+// CategoryStore classifica as despesas que ficaram em "Outros".
+type CategoryStore interface {
+	// UncategorizedExpenses lista as contas com despesa em Outros que ainda não têm regra, da maior para a menor.
+	UncategorizedExpenses(ctx context.Context, limit int) ([]UncategorizedGroup, error)
+	// SetCategoryRule grava a regra e reclassifica as despesas da conta que estavam em Outros (ou na categoria
+	// da regra anterior). Devolve quantos lançamentos mudaram. A regra também vale para as próximas sincronizações.
+	SetCategoryRule(ctx context.Context, key, category string) (int64, error)
 }

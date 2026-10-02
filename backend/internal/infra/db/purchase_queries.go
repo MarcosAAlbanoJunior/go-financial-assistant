@@ -190,4 +190,3 @@ func (r *PostgresPurchaseRepository) FindPaymentDetailsByMonth(ctx context.Conte
 	}
 	return result, nil
 }
-
