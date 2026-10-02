@@ -5,6 +5,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
@@ -42,25 +44,25 @@ func BankBalance(accounts []domain.Account) *float64 {
 }
 
 // Projection projeta `months` meses a partir de start (primeiro dia do mês atual).
-func (i *Insights) Projection(ctx context.Context, start time.Time, months int) (Projection, error) {
+func (i *Insights) Projection(ctx context.Context, start time.Time, months int) (planning.Projection, error) {
 	from, to := start.AddDate(0, -BudgetMonths, 0), start.AddDate(0, -1, 0)
 	rows, err := i.reader.ExpenseKeyMonths(ctx, from, to)
 	if err != nil {
-		return Projection{}, err
+		return planning.Projection{}, err
 	}
 	rules, err := i.reader.ExpenseRules(ctx)
 	if err != nil {
-		return Projection{}, err
+		return planning.Projection{}, err
 	}
 	incomes, err := i.reader.IncomePayments(ctx, from, to)
 	if err != nil {
-		return Projection{}, err
+		return planning.Projection{}, err
 	}
 	known, err := i.reader.KnownInstallments(ctx, start, start.AddDate(0, months-1, 0))
 	if err != nil {
-		return Projection{}, err
+		return planning.Projection{}, err
 	}
-	return BuildProjection(rows, rules, incomes, known, start, months), nil
+	return planning.BuildProjection(rows, rules, incomes, known, start, months), nil
 }
 
 // Review roda os detectores da revisão sobre o mês to (primeiro dia).
@@ -89,7 +91,7 @@ func (i *Insights) Review(ctx context.Context, to time.Time) (Review, error) {
 }
 
 // Goals calcula o andamento de todas as metas hoje e o patrimônio (contas correntes + investimentos).
-func (i *Insights) Goals(ctx context.Context, today time.Time) ([]GoalProgress, float64, error) {
+func (i *Insights) Goals(ctx context.Context, today time.Time) ([]planning.GoalProgress, float64, error) {
 	now := MonthStart(today)
 	goals, err := i.reader.Goals(ctx)
 	if err != nil {
@@ -121,9 +123,9 @@ func (i *Insights) Goals(ctx context.Context, today time.Time) ([]GoalProgress, 
 	for _, p := range positions {
 		wealth += p.Balance
 	}
-	out := make([]GoalProgress, len(goals))
+	out := make([]planning.GoalProgress, len(goals))
 	for n, g := range goals {
-		out[n] = BuildGoalProgress(g, wealth, proj, cats, today.UTC())
+		out[n] = planning.BuildGoalProgress(g, wealth, proj, cats, today.UTC())
 	}
 	return out, wealth, nil
 }

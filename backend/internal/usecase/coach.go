@@ -8,6 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
@@ -143,7 +145,7 @@ func CoachCandidates(rev Review) []Candidate {
 
 // BuildCoachContext monta o que vai para a IA a partir dos resultados dos detectores e das metas (os IDs "m1",
 // "m2"... seguem a ordem de goals). past são as análises guardadas, da mais nova para a mais antiga.
-func BuildCoachContext(rev Review, month string, totals domain.MonthTotals, goals []GoalProgress, past []domain.CoachAnalysis, decisions []DecisionResult) CoachContext {
+func BuildCoachContext(rev Review, month string, totals domain.MonthTotals, goals []planning.GoalProgress, past []domain.CoachAnalysis, decisions []DecisionResult) CoachContext {
 	c := CoachContext{Month: month, Income: totals.Income, Expense: totals.Expense,
 		Months: []string{}, Categories: []CoachCategory{}, Suggestions: []CoachSuggestion{}, Goals: []CoachGoal{}, Decisions: []CoachDecision{}, Memory: BuildCoachMemory(past)}
 	for _, m := range rev.Months {
