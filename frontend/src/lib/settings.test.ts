@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { SettingField, SettingGroup } from '../api/types'
-import { changedValues, currentValue, fieldStatus } from './settings'
+import { auditText, changedValues, currentValue, fieldStatus, needsPassword } from './settings'
 
 const f = (key: string, kind: SettingField['kind'], value = '', isSet = value !== ''): SettingField => ({
-  key, label: key, help: '', kind, live: true, value, isSet, source: 'default', pendingRestart: false, default: '',
+  key, label: key, help: '', kind, live: true, value, isSet, source: 'default', pendingRestart: false, default: '', sensitive: kind === 'secret',
 })
 const group: SettingGroup = {
   id: 'g', title: 'G', help: '',
@@ -35,5 +35,16 @@ describe('settings', () => {
     expect(fieldStatus(group.fields[2])).toBe('Configurado')
     expect(fieldStatus(f('X_SECRET', 'secret'))).toBe('Não configurado')
     expect(fieldStatus(group.fields[0])).toBe('')
+  })
+
+  it('só pede a senha quando uma chave sensível mudou', () => {
+    expect(needsPassword(group, ['DIGEST_HOUR', 'OWN_NAMES'])).toBe(false)
+    expect(needsPassword(group, ['DIGEST_HOUR', 'PLUGGY_CLIENT_SECRET'])).toBe(true)
+    expect(needsPassword(group, [])).toBe(false)
+  })
+
+  it('descreve o histórico sem valores', () => {
+    expect(auditText('set', 'Token do bot')).toBe('Token do bot alterado')
+    expect(auditText('reset', 'Token do bot')).toContain('restaurado')
   })
 })

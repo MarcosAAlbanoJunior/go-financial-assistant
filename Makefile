@@ -1,4 +1,4 @@
-.PHONY: run build test lint front-dev front-test front-build compose-up compose-down compose-logs db-shell backup restore
+.PHONY: run build test lint front-dev front-test front-build compose-up compose-down compose-logs db-shell backup restore secret-key
 
 run:
 	docker compose up postgres redis -d
@@ -73,6 +73,12 @@ help:
 	@echo "  make front-test       Testes e lint do front"
 	@echo "  make front-build      Build de produção do front"
 	@echo ""
+# Gera a chave mestra dos segredos em ./secrets/app_secret_key (600, fora do git). Depois, no .env:
+# APP_SECRET_KEY_FILE=/run/secrets/app_secret_key  (e remova APP_SECRET_KEY). Não sobrescreve uma chave existente.
+secret-key:
+	@test ! -e secrets/app_secret_key || (echo "secrets/app_secret_key já existe; não vou sobrescrever (perderia os segredos salvos)" && exit 1)
+	@mkdir -p secrets && umask 077 && openssl rand -base64 32 > secrets/app_secret_key && echo "criado secrets/app_secret_key. Defina no .env: APP_SECRET_KEY_FILE=/run/secrets/app_secret_key"
+
 # Backup na hora, além do diário (arquivo 600 em ./backups, fora do git).
 backup:
 	@umask 077 && docker compose exec -T postgres pg_dump -U finassist -d finassist -Fc --no-owner > backups/finassist-$$(date -u +%Y%m%d-%H%M%S)-manual.dump && ls -l backups | tail -1

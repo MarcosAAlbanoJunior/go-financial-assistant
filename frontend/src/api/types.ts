@@ -420,6 +420,8 @@ export interface SettingField {
   source: 'db' | 'env' | 'default'
   pendingRestart: boolean
   default: string
+  /** Mudar ou restaurar exige confirmar a senha do dashboard. */
+  sensitive: boolean
 }
 
 export interface SettingGroup {
@@ -454,4 +456,13 @@ export interface SaveSettingsResult {
   changed: string[]
   restartPending: boolean
   ownTransfers?: OwnTransfers
+}
+
+export interface SettingsAuditEntry {
+  at: string
+  action: 'set' | 'reset'
+  key: string
+  label: string
+  sensitive: boolean
+  ip: string
 }

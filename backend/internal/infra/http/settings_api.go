@@ -7,6 +7,7 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -33,7 +34,12 @@ type SettingsDeps struct {
 	TelegramPing func(ctx context.Context, token string) (string, error)
 	GeminiPing   func(ctx context.Context, apiKey string) error
 	Restart      func() // pede ao processo que encerre; o Docker (restart: unless-stopped) o sobe de novo
+	Audit        settings.AuditLog
+	// Notify avisa a pessoa no chat (Telegram/WhatsApp) quando algo sensível muda ou a senha é errada. Pode ser nil.
+	Notify func(ctx context.Context, text string)
 }
+
+const failedNoticeEvery = 10 * time.Minute // no máximo um aviso de senha errada por janela, para não virar spam
 
 // SetSettings liga a página de configurações à API (chame antes de MountAPI).
 func (s *Server) SetSettings(d *SettingsDeps) { s.settings = d }
@@ -52,6 +58,7 @@ type fieldJSON struct {
 	Source         string   `json:"source"`
 	PendingRestart bool     `json:"pendingRestart"`
 	Default        string   `json:"default"`
+	Sensitive      bool     `json:"sensitive"`
 }
 
 type groupJSON struct {
@@ -68,7 +75,7 @@ func (a *api) getSettings(w http.ResponseWriter, _ *http.Request) {
 	for _, f := range d.Service.Fields(d.Channel) {
 		byGroup[f.Group] = append(byGroup[f.Group], fieldJSON{
 			Key: f.Key, Label: f.Label, Help: f.Help, Kind: string(f.Kind), Options: f.Options, Min: f.Min, Max: f.Max,
-			Live: f.Live, Value: f.Value, IsSet: f.IsSet, Source: string(f.Source), PendingRestart: f.PendingRestart, Default: f.Default,
+			Live: f.Live, Value: f.Value, IsSet: f.IsSet, Source: string(f.Source), PendingRestart: f.PendingRestart, Default: f.Default, Sensitive: f.Sensitive(),
 		})
 	}
 	groups := []groupJSON{}
@@ -80,6 +87,56 @@ func (a *api) getSettings(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"channel": d.Channel, "encryption": d.Service.EncryptionEnabled(), "restartPending": d.Service.NeedsRestart(d.Channel), "groups": groups,
 	})
+}
+
+// confirmPassword exige a senha do dashboard de novo para mexer no que é sensível (segredos, bancos conectados, quem
+// manda no bot). Uma sessão roubada não basta. Tentativas têm limite próprio e a senha errada avisa a pessoa no chat.
+func (a *api) confirmPassword(w http.ResponseWriter, r *http.Request, password string) bool {
+	ip := clientIP(r)
+	if a.confirmLimiter.blocked(ip) {
+		writeError(w, http.StatusTooManyRequests, "muitas tentativas; espere um minuto")
+		return false
+	}
+	if a.sessions.checkPassword(password) {
+		return true
+	}
+	a.confirmLimiter.record(ip)
+	a.logger.Warn("confirmação de senha recusada nas configurações", "ip", clientIP(r))
+	if n := time.Now().UnixNano(); n-a.lastFailNotice.Load() > int64(failedNoticeEvery) {
+		a.lastFailNotice.Store(n)
+		a.notify(r.Context(), "⚠️ Alguém errou a senha ao tentar alterar uma configuração sensível do dashboard ("+time.Now().Format("02/01 15:04")+"). Se não foi você, troque a senha do dashboard.")
+	}
+	writeError(w, http.StatusForbidden, "senha incorreta")
+	return false
+}
+
+func (a *api) notify(ctx context.Context, text string) {
+	if a.settings.Notify != nil {
+		a.settings.Notify(ctx, text)
+	}
+}
+
+// record guarda no histórico quem mudou o quê (sem o valor) e avisa no chat quando o que mudou é sensível.
+func (a *api) record(r *http.Request, action string, keys []string) {
+	var labels []string
+	for _, k := range keys {
+		def, _ := settings.Lookup(k)
+		if a.settings.Audit != nil {
+			if err := a.settings.Audit.RecordAudit(r.Context(), settings.AuditEntry{Action: action, Key: k, Sensitive: def.Sensitive(), IP: clientIP(r)}); err != nil {
+				a.logger.Error("erro ao registrar alteração", "error", err)
+			}
+		}
+		if def.Sensitive() {
+			labels = append(labels, def.Label)
+		}
+	}
+	if len(labels) > 0 {
+		verb := "alterada"
+		if action == "reset" {
+			verb = "restaurada"
+		}
+		a.notify(r.Context(), "🔐 Configuração sensível "+verb+" pelo dashboard: "+strings.Join(labels, ", ")+" ("+time.Now().Format("02/01 15:04")+"). Se não foi você, troque a senha do dashboard e as chaves.")
+	}
 }
 
 func (a *api) jsonWrite(w http.ResponseWriter, r *http.Request) bool {
@@ -137,7 +194,8 @@ func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Values map[string]string `json:"values"`
+		Values   map[string]string `json:"values"`
+		Password string            `json:"password"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxSettingsBody)).Decode(&body); err != nil || len(body.Values) == 0 {
 		writeError(w, http.StatusBadRequest, "corpo inválido")
@@ -151,6 +209,14 @@ func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	d := a.settings
+	for k := range body.Values {
+		if def, ok := settings.Lookup(k); ok && def.Sensitive() {
+			if !a.confirmPassword(w, r, body.Password) {
+				return
+			}
+			break
+		}
+	}
 	changed, err := d.Service.Set(r.Context(), body.Values)
 	var invalid *settings.ValidationError
 	switch {
@@ -163,6 +229,7 @@ func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	// Nunca registramos os valores: podem ser segredos.
 	a.logger.Info("configurações salvas pelo dashboard", "keys", changed)
+	a.record(r, "set", changed)
 
 	resp := map[string]any{"changed": changed, "restartPending": d.Service.NeedsRestart(d.Channel)}
 	if _, ok := body.Values["OWN_NAMES"]; ok && d.Cleaner != nil {
@@ -177,11 +244,25 @@ func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) resetSetting(w http.ResponseWriter, r *http.Request) {
-	if !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
+	if !a.jsonWrite(w, r) {
+		return
+	}
+	var body struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxSettingsBody)).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
 	key := r.PathValue("key")
+	def, known := settings.Lookup(key)
+	if !known {
+		writeError(w, http.StatusNotFound, "configuração desconhecida")
+		return
+	}
+	if def.Sensitive() && !a.confirmPassword(w, r, body.Password) {
+		return
+	}
 	if err := a.settings.Service.Reset(r.Context(), key); err != nil {
 		if errors.Is(err, settings.ErrUnknownKey) {
 			writeError(w, http.StatusNotFound, "configuração desconhecida")
@@ -190,7 +271,38 @@ func (a *api) resetSetting(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, "restaurar configuração", err)
 		return
 	}
+	a.record(r, "reset", []string{key})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restartPending": a.settings.Service.NeedsRestart(a.settings.Channel)})
+}
+
+type auditJSON struct {
+	At        time.Time `json:"at"`
+	Action    string    `json:"action"`
+	Key       string    `json:"key"`
+	Label     string    `json:"label"`
+	Sensitive bool      `json:"sensitive"`
+	IP        string    `json:"ip"`
+}
+
+// auditLog lista as últimas alterações de configuração (sem valores).
+func (a *api) auditLog(w http.ResponseWriter, r *http.Request) {
+	out := []auditJSON{}
+	if a.settings.Audit != nil {
+		entries, err := a.settings.Audit.RecentAudit(r.Context(), 20)
+		if err != nil {
+			a.fail(w, "histórico de configurações", err)
+			return
+		}
+		for _, e := range entries {
+			def, _ := settings.Lookup(e.Key)
+			label := def.Label
+			if label == "" {
+				label = e.Key
+			}
+			out = append(out, auditJSON{At: e.At, Action: e.Action, Key: e.Key, Label: label, Sensitive: e.Sensitive, IP: e.IP})
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // applyOwnTransfers cancela as transferências entre contas suas já gravadas (calculadas de novo no servidor, não vindas da tela).

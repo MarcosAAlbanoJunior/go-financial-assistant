@@ -100,6 +100,27 @@ func (rl *ipRateLimiter) allow(ip string) bool {
 	return true
 }
 
+// blocked diz se o IP já esgotou o limite, sem contar uma nova tentativa (para limitar só as que falham).
+func (rl *ipRateLimiter) blocked(ip string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	cutoff := time.Now().Add(-rl.window)
+	n := 0
+	for _, t := range rl.visitors[ip] {
+		if t.After(cutoff) {
+			n++
+		}
+	}
+	return n >= rl.max
+}
+
+// record conta uma tentativa (falha) do IP.
+func (rl *ipRateLimiter) record(ip string) {
+	rl.mu.Lock()
+	rl.visitors[ip] = append(rl.visitors[ip], time.Now())
+	rl.mu.Unlock()
+}
+
 func (rl *ipRateLimiter) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	for range ticker.C {
