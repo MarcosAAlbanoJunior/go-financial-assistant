@@ -2,15 +2,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
-import { setDismissal, useReview } from '../api/client'
+import { setDecision, setDismissal, useReview } from '../api/client'
 import type { ReviewCandidate, ReviewKind } from '../api/types'
 import { CategoryChip } from '../components/CategoryChip'
 import { HeatMatrix } from '../components/HeatMatrix'
 import { MonthFilter } from '../components/MonthFilter'
 import { QueryState } from '../components/QueryState'
+import { SavingsPanel } from '../components/SavingsPanel'
 import { categoryVisual } from '../lib/categoryVisual'
 import { formatMonthTitle } from '../lib/format'
 import { candidateDetail, candidateName, countByKind, KIND_META, KIND_ORDER, savingText, transactionsLink, visibleCandidates } from '../lib/review'
+import { canDecide } from '../lib/savings'
 import { useMonth } from '../lib/useMonth'
 
 export default function Review() {
@@ -25,10 +27,22 @@ export default function Review() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['review'] }),
   })
 
+  // "Cancelei" também dispensa a sugestão e passa a contar na economia realizada.
+  const decide = useMutation({
+    mutationFn: (c: ReviewCandidate) => setDecision(c.kind, c.key, month, true),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review'] })
+      queryClient.invalidateQueries({ queryKey: ['savings'] })
+      queryClient.invalidateQueries({ queryKey: ['coach-preview'] })
+    },
+  })
+
   return (
     <>
       <h1 className="page-title">Revisão de {formatMonthTitle(month)}</h1>
       <MonthFilter month={month} now={now} onChange={setMonth} />
+
+      <SavingsPanel />
 
       <QueryState query={review}>
         {(r) => {
@@ -63,7 +77,7 @@ export default function Review() {
                   })}
                 </div>
 
-                {dismiss.isError && (
+                {(dismiss.isError || decide.isError) && (
                   <p className="state error" role="alert">
                     Não foi possível salvar. Tente de novo.
                   </p>
@@ -73,7 +87,7 @@ export default function Review() {
                 ) : (
                   <div className="bill-grid">
                     {list.map((c) => (
-                      <CandidateCard key={c.kind + c.key} c={c} month={month} busy={dismiss.isPending} onDismiss={(dismissed) => dismiss.mutate({ c, dismissed })} />
+                      <CandidateCard key={c.kind + c.key} c={c} month={month} busy={dismiss.isPending || decide.isPending} onDismiss={(dismissed) => dismiss.mutate({ c, dismissed })} onDecide={() => decide.mutate(c)} />
                     ))}
                   </div>
                 )}
@@ -98,7 +112,19 @@ export default function Review() {
   )
 }
 
-function CandidateCard({ c, month, busy, onDismiss }: { c: ReviewCandidate; month: string; busy: boolean; onDismiss: (dismissed: boolean) => void }) {
+function CandidateCard({
+  c,
+  month,
+  busy,
+  onDismiss,
+  onDecide,
+}: {
+  c: ReviewCandidate
+  month: string
+  busy: boolean
+  onDismiss: (dismissed: boolean) => void
+  onDecide: () => void
+}) {
   const { label, Icon } = KIND_META[c.kind]
   return (
     <article className="bill" style={{ '--c': categoryVisual(c.category).color, '--cat': categoryVisual(c.category).color } as CSSProperties}>
@@ -119,6 +145,11 @@ function CandidateCard({ c, month, busy, onDismiss }: { c: ReviewCandidate; mont
         <Link className="link" to={transactionsLink(month, c.category)}>
           Ver transações de {c.categoryLabel}
         </Link>
+        {canDecide(c.kind) && !c.dismissed && (
+          <button type="button" className="btn btn-small" disabled={busy} onClick={onDecide}>
+            Cancelei
+          </button>
+        )}
         <button type="button" className="btn btn-small" disabled={busy} onClick={() => onDismiss(!c.dismissed)}>
           {c.dismissed ? 'Voltar a sugerir' : 'Dispensar'}
         </button>
