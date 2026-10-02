@@ -163,3 +163,10 @@ func (a *api) syncNow(w http.ResponseWriter, r *http.Request) {
 		"partial": err != nil,
 	})
 }
+
+func (a *api) registerBalances(rt routes) {
+	rt.mux.Handle("GET /api/balances", rt.protected(a.balances))
+	rt.mux.Handle("GET /api/institutions/{id}/logo", rt.protected(a.institutionLogo))
+	// Cada sincronização consulta o Pluggy: limite apertado por IP, além de uma por vez (409).
+	rt.mux.Handle("POST /api/sync", newIPRateLimiter(3, time.Minute).middleware(rt.protected(a.syncNow)))
+}
