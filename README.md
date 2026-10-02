@@ -230,12 +230,14 @@ A tela **Coach** pede ao Google Gemini que interprete os resultados da Revisão 
 - **Plano da chave:** pelos [termos da API do Gemini](https://ai.google.dev/gemini-api/terms), nos serviços gratuitos o Google pode usar o conteúdo enviado para melhorar seus produtos e **revisores humanos podem lê-lo** ("não envie informação sensível ou pessoal"); nos serviços pagos isso não acontece. Por isso o Coach só funciona com `GEMINI_PAID_PLAN=true` no `.env`, o que você declara depois de ativar o faturamento do projeto da chave. Sem isso, a tela explica o motivo e nada é enviado.
 - **Só sugere e pergunta:** nada muda sozinho. Os números (economia, valores, progresso das metas) vêm sempre do código; a IA devolve só texto, e o app descarta ids desconhecidos e textos com números ou longos demais.
 - **O que é enviado:** agregados (gasto por categoria e mês), as sugestões da Revisão e as metas. Nomes de estabelecimentos e serviços vão; **Pix, TED e transferências viram "transferência para pessoa"**, e números longos (CPF, conta) e e-mails são removidos. Não vão CPF, nome do titular nem número de conta. Uma limitação: nomes de pessoas que aparecem *dentro* da descrição de uma compra no cartão não têm como ser reconhecidos. A tela mostra o JSON exato antes do envio, e dispensar uma sugestão na Revisão a tira do envio.
-- **Controle:** nunca roda em segundo plano, só ao clicar; uma chamada por clique, contexto limitado (15 sugestões, 8 KB), uma análise por vez. Não há teto diário: o gasto com a sua chave é responsabilidade de quem hospeda. A resposta não é guardada no servidor.
+- **Controle:** nunca roda em segundo plano, só ao clicar; uma chamada por clique, contexto limitado (15 sugestões, 8 KB), uma análise por vez. Não há teto diário: o gasto com a sua chave é responsabilidade de quem hospeda.
+- **Histórico e memória:** cada análise fica salva no seu banco (migration `012`) e reaparece ao voltar ao mês. Você pode **responder as perguntas da IA** em texto curto (até 300 caracteres) e apagar qualquer análise. As 3 últimas análises e as suas respostas entram no contexto da próxima, para a IA lembrar o que já foi dito; isso aparece na prévia antes do envio, e o que vai ao Gemini segue as regras acima.
+- **Segurança dos dados guardados:** as análises e respostas ficam em texto no Postgres, sem criptografia própria, e nomes aparecem sem restrição na tela (é o seu ambiente). O dashboard exige a senha, o Postgres só escuta em `127.0.0.1` e nada é registrado em log. Em VPS: use HTTPS na frente, uma `DASHBOARD_PASSWORD` forte, firewall e disco criptografado, e mantenha o `.env` e os backups do banco fora de repositórios e de serviços de terceiros. Quem invadir a máquina lê o banco, então a proteção é a da própria máquina.
 - **Não é aconselhamento financeiro.**
 
 ## API do dashboard
 
-Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas, dispensar sugestões da revisão e criar ou apagar metas; a análise do Coach é um POST, mas não grava nada), que alimenta o front-end. Sem a variável, a API nem é montada.
+Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas, dispensar sugestões da revisão criar ou apagar metas e o histórico do Coach (análises e respostas)), que alimenta o front-end. Sem a variável, a API nem é montada.
 
 - **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`) devolve um cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
 - **Proteção contra CSRF:** o login e o logout exigem JSON e recusam requisições cujo `Origin` não seja o próprio host, além do `SameSite=Strict`.
@@ -259,6 +261,8 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 | `POST /api/goals`, `DELETE /api/goals/{id}` | cria (juntar valor até uma data, reduzir uma categoria, reserva de N meses; máx. 20) ou apaga uma meta; só JSON na mesma origem |
 | `GET /api/coach/preview?month=` | o que o Coach enviaria ao Gemini (mesmo JSON, com hash), sem enviar nada |
 | `POST /api/coach/analyze` | envia o que a prévia mostrou (o hash precisa bater) e devolve a análise da IA validada; só JSON na mesma origem, 3/min por IP, uma por vez |
+| `GET /api/coach/analyses?month=` | análises guardadas do mês, com as respostas que você deu |
+| `PUT /api/coach/analyses/{id}/answers`, `DELETE /api/coach/analyses/{id}` | grava (ou apaga, se vazia) a resposta a uma pergunta da IA; apaga a análise. Só JSON na mesma origem |
 | `GET /api/portfolio` | posições de investimento (saldo real do Open Finance), total e total por tipo |
 | `GET /api/portfolio/history?from=&to=` | saldo total ao fim de cada mês (existe a partir da primeira sincronização) |
 
