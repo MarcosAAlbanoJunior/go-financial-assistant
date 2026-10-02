@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
-func (r *PostgresPurchaseRepository) MonthlyTotals(ctx context.Context, from, to time.Time) ([]ports.MonthTotals, error) {
+func (r *PostgresPurchaseRepository) MonthlyTotals(ctx context.Context, from, to time.Time) ([]domain.MonthTotals, error) {
 	query := `
 		WITH ` + monthlyCTE + `
 		SELECT s.month::date, COALESCE(m.income, 0), COALESCE(m.expense, 0), COALESCE(m.applied, 0), COALESCE(m.redeemed, 0)
@@ -22,9 +22,9 @@ func (r *PostgresPurchaseRepository) MonthlyTotals(ctx context.Context, from, to
 	}
 	defer rows.Close()
 
-	var result []ports.MonthTotals
+	var result []domain.MonthTotals
 	for rows.Next() {
-		var m ports.MonthTotals
+		var m domain.MonthTotals
 		if err := rows.Scan(&m.Month, &m.Income, &m.Expense, &m.Applied, &m.Redeemed); err != nil {
 			return nil, fmt.Errorf("erro ao escanear totais mensais: %w", err)
 		}
@@ -33,7 +33,7 @@ func (r *PostgresPurchaseRepository) MonthlyTotals(ctx context.Context, from, to
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) InvestmentSeries(ctx context.Context, from, to time.Time) ([]ports.InvestmentMonth, error) {
+func (r *PostgresPurchaseRepository) InvestmentSeries(ctx context.Context, from, to time.Time) ([]domain.InvestmentMonth, error) {
 	// O acumulado é calculado desde o primeiro lançamento de investimento e só depois
 	// recortado na janela pedida.
 	query := `
@@ -54,9 +54,9 @@ func (r *PostgresPurchaseRepository) InvestmentSeries(ctx context.Context, from,
 	}
 	defer rows.Close()
 
-	var result []ports.InvestmentMonth
+	var result []domain.InvestmentMonth
 	for rows.Next() {
-		var m ports.InvestmentMonth
+		var m domain.InvestmentMonth
 		if err := rows.Scan(&m.Month, &m.Applied, &m.Redeemed, &m.Cumulative); err != nil {
 			return nil, fmt.Errorf("erro ao escanear investimentos: %w", err)
 		}
@@ -65,15 +65,15 @@ func (r *PostgresPurchaseRepository) InvestmentSeries(ctx context.Context, from,
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) ExpenseBreakdown(ctx context.Context, month time.Time, by ports.BreakdownDimension) ([]ports.BreakdownItem, error) {
+func (r *PostgresPurchaseRepository) ExpenseBreakdown(ctx context.Context, month time.Time, by domain.BreakdownDimension) ([]domain.BreakdownItem, error) {
 	// key/name vêm de fragmentos fixos: nada do que o cliente envia entra no SQL.
 	var key, name string
 	switch by {
-	case ports.BreakdownByCategory:
+	case domain.BreakdownByCategory:
 		key, name = "p.category", "p.category"
-	case ports.BreakdownByPaymentMethod:
+	case domain.BreakdownByPaymentMethod:
 		key, name = "p.payment_method", "p.payment_method"
-	case ports.BreakdownByAccount:
+	case domain.BreakdownByAccount:
 		key, name = "COALESCE(a.id::text, '')", "COALESCE(NULLIF(a.name || ' ' || a.last4, ''), '')"
 	default:
 		return nil, fmt.Errorf("agrupamento inválido: %q", by)
@@ -96,9 +96,9 @@ func (r *PostgresPurchaseRepository) ExpenseBreakdown(ctx context.Context, month
 	}
 	defer rows.Close()
 
-	var result []ports.BreakdownItem
+	var result []domain.BreakdownItem
 	for rows.Next() {
-		var it ports.BreakdownItem
+		var it domain.BreakdownItem
 		if err := rows.Scan(&it.Key, &it.Name, &it.Total); err != nil {
 			return nil, fmt.Errorf("erro ao escanear despesas agrupadas: %w", err)
 		}

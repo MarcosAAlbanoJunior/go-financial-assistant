@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 // averageMonths é quantos meses (com dados) entram nas médias de fixas e variáveis e na detecção de fontes recorrentes.
@@ -73,7 +73,7 @@ func parseInstallment(label string) (current, total int, ok bool) {
 //     descrição, já que o banco só informa a parcela do mês) e as cadastradas, em knownInstallments.
 //
 // rows são as despesas por conta dos 12 meses completos antes de start; incomes, as entradas de renda no mesmo período.
-func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseClass, incomes []ports.IncomePayment,
+func BuildProjection(rows []domain.ExpenseKeyMonth, rules map[string]domain.ExpenseClass, incomes []domain.IncomePayment,
 	knownInstallments map[time.Time]float64, start time.Time, months int) Projection {
 
 	b := BuildBudget(rows, rules, start.AddDate(0, -12, 0), start.AddDate(0, -1, 0))
@@ -102,9 +102,9 @@ func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.Expens
 
 	// Parcelas que faltam: a última aparição de cada conta parcelada diz em que parcela está.
 	remaining := map[time.Time]float64{}
-	latest := map[string]ports.ExpenseKeyMonth{}
+	latest := map[string]domain.ExpenseKeyMonth{}
 	for _, r := range rows {
-		if b.Classes[r.Key] == ports.ClassInstallment && !r.Month.Before(latest[r.Key].Month) {
+		if b.Classes[r.Key] == domain.ClassInstallment && !r.Month.Before(latest[r.Key].Month) {
 			latest[r.Key] = r
 		}
 	}
@@ -130,7 +130,7 @@ func BuildProjection(rows []ports.ExpenseKeyMonth, rules map[string]ports.Expens
 // estimateIncomeTotal combina as duas leituras da renda: a mediana da renda total dos meses de window e as
 // fontes recorrentes dos meses de used. Vale a maior (a mediana já inclui as fontes; se um mês fraco a puxou
 // para baixo, a soma das fontes recorrentes é o piso). O que as fontes não explicam aparece como "outras entradas".
-func estimateIncomeTotal(payments []ports.IncomePayment, used, window []time.Time) ([]IncomeSource, float64) {
+func estimateIncomeTotal(payments []domain.IncomePayment, used, window []time.Time) ([]IncomeSource, float64) {
 	sources := EstimateIncome(payments, used)
 	var recurring float64
 	for _, s := range sources {
@@ -144,7 +144,7 @@ func estimateIncomeTotal(payments []ports.IncomePayment, used, window []time.Tim
 }
 
 // MedianMonthlyIncome é a mediana da renda total mensal nos meses dados; mês sem entrada conta como zero.
-func MedianMonthlyIncome(payments []ports.IncomePayment, months []time.Time) float64 {
+func MedianMonthlyIncome(payments []domain.IncomePayment, months []time.Time) float64 {
 	if len(months) == 0 {
 		return 0
 	}
@@ -163,7 +163,7 @@ func MedianMonthlyIncome(payments []ports.IncomePayment, months []time.Time) flo
 // Para cada fonte recorrente, vale a mediana dos pagamentos vezes quantas vezes ela costuma cair por mês,
 // então um pagamento fora do padrão (adiantamento de férias, 13º) não pesa. Fonte que aparece em menos
 // meses do que o necessário (3, ou todos quando há menos de 3) é eventual e fica de fora.
-func EstimateIncome(payments []ports.IncomePayment, months []time.Time) []IncomeSource {
+func EstimateIncome(payments []domain.IncomePayment, months []time.Time) []IncomeSource {
 	inWindow := map[time.Time]bool{}
 	for _, m := range months {
 		inWindow[m] = true

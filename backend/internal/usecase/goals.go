@@ -3,7 +3,7 @@ package usecase
 import (
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 // cutBaselineMonths é quantos meses anteriores (com gasto na categoria) formam a média de uma meta de redução.
@@ -24,7 +24,7 @@ type CutMonth struct {
 
 // GoalProgress é o andamento de uma meta, calculado na hora (nada disso é gravado).
 type GoalProgress struct {
-	Goal    ports.Goal
+	Goal    domain.Goal
 	Current float64 // SAVE e RESERVE: patrimônio; CUT: gasto da categoria no mês atual
 	Target  float64 // SAVE: valor; RESERVE: meses x fixas; CUT: teto mensal
 	Done    bool
@@ -48,7 +48,7 @@ type GoalProgress struct {
 
 // CutBaseline é a média mensal da categoria nos até 3 meses anteriores a now (primeiro dia do mês) em que
 // ela teve gasto; false quando não há nenhum.
-func CutBaseline(cats []ports.CategoryMonth, category string, now time.Time) (float64, bool) {
+func CutBaseline(cats []domain.CategoryMonth, category string, now time.Time) (float64, bool) {
 	var total float64
 	var n int
 	for _, c := range cats {
@@ -65,11 +65,11 @@ func CutBaseline(cats []ports.CategoryMonth, category string, now time.Time) (fl
 
 // BuildGoalProgress mede uma meta contra o patrimônio (saldo das contas correntes + investimentos), a
 // projeção e os gastos por categoria. today é o dia de hoje.
-func BuildGoalProgress(g ports.Goal, wealth float64, p Projection, cats []ports.CategoryMonth, today time.Time) GoalProgress {
+func BuildGoalProgress(g domain.Goal, wealth float64, p Projection, cats []domain.CategoryMonth, today time.Time) GoalProgress {
 	now := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, time.UTC)
 	gp := GoalProgress{Goal: g, DayOfMonth: today.Day(), DaysInMonth: now.AddDate(0, 1, -1).Day()}
 	switch g.Kind {
-	case ports.GoalSave:
+	case domain.GoalSave:
 		gp.Current, gp.Target = wealth, g.TargetAmount
 		gp.Done = wealth >= g.TargetAmount
 		gp.MonthsLeft = max(0, (g.TargetDate.Year()-now.Year())*12+int(g.TargetDate.Month()-now.Month()))
@@ -81,13 +81,13 @@ func BuildGoalProgress(g ports.Goal, wealth float64, p Projection, cats []ports.
 				gp.Fits = &fits
 			}
 		}
-	case ports.GoalReserve:
+	case domain.GoalReserve:
 		gp.Current, gp.Target = wealth, float64(g.ReserveMonths)*p.Assumptions.Fixed
 		if p.Assumptions.Fixed > 0 {
 			gp.Coverage = wealth / p.Assumptions.Fixed
 			gp.Done = wealth >= gp.Target
 		}
-	case ports.GoalCut:
+	case domain.GoalCut:
 		gp.Target = g.Baseline * (1 - float64(g.CutPercent)/100)
 		totals := map[time.Time]float64{}
 		for _, c := range cats {

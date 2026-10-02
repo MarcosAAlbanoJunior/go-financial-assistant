@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *PostgresPurchaseRepository) Accounts(ctx context.Context) ([]ports.Account, error) {
+func (r *PostgresPurchaseRepository) Accounts(ctx context.Context) ([]domain.Account, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id, item_id, institution_id, type, name, last4, balance, credit_limit, available_credit_limit,
 			brand, close_date, due_date, minimum_payment, auto_invested_balance, updated_at
@@ -20,8 +20,8 @@ func (r *PostgresPurchaseRepository) Accounts(ctx context.Context) ([]ports.Acco
 	if err != nil {
 		return nil, fmt.Errorf("erro ao listar contas: %w", err)
 	}
-	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (ports.Account, error) {
-		var a ports.Account
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.Account, error) {
+		var a domain.Account
 		err := row.Scan(&a.ID, &a.ItemID, &a.InstitutionID, &a.Type, &a.Name, &a.Last4, &a.Balance, &a.CreditLimit, &a.AvailableCreditLimit,
 			&a.Brand, &a.CloseDate, &a.DueDate, &a.MinimumPayment, &a.AutoInvested, &a.UpdatedAt)
 		return a, err
@@ -32,15 +32,15 @@ func (r *PostgresPurchaseRepository) Accounts(ctx context.Context) ([]ports.Acco
 	return result, nil
 }
 
-func (r *PostgresPurchaseRepository) Institutions(ctx context.Context) ([]ports.Institution, error) {
+func (r *PostgresPurchaseRepository) Institutions(ctx context.Context) ([]domain.Institution, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id, item_id, name, COALESCE(color, ''), logo IS NOT NULL FROM institutions ORDER BY name
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao listar instituições: %w", err)
 	}
-	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (ports.Institution, error) {
-		var i ports.Institution
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.Institution, error) {
+		var i domain.Institution
 		err := row.Scan(&i.ID, &i.ItemID, &i.Name, &i.Color, &i.HasLogo)
 		return i, err
 	})

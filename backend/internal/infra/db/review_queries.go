@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
-func (r *PostgresPurchaseRepository) CategoryMonths(ctx context.Context, from, to time.Time) ([]ports.CategoryMonth, error) {
+func (r *PostgresPurchaseRepository) CategoryMonths(ctx context.Context, from, to time.Time) ([]domain.CategoryMonth, error) {
 	query := `
 		SELECT p.category, ` + paymentMonth + ` AS month, SUM(pay.amount)
 		FROM payments pay
@@ -24,9 +24,9 @@ func (r *PostgresPurchaseRepository) CategoryMonths(ctx context.Context, from, t
 	}
 	defer rows.Close()
 
-	var result []ports.CategoryMonth
+	var result []domain.CategoryMonth
 	for rows.Next() {
-		var c ports.CategoryMonth
+		var c domain.CategoryMonth
 		if err := rows.Scan(&c.Category, &c.Month, &c.Total); err != nil {
 			return nil, fmt.Errorf("erro ao escanear despesa por categoria e mês: %w", err)
 		}
@@ -35,7 +35,7 @@ func (r *PostgresPurchaseRepository) CategoryMonths(ctx context.Context, from, t
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) ExpensePayments(ctx context.Context, from, to time.Time) ([]ports.ExpensePayment, error) {
+func (r *PostgresPurchaseRepository) ExpensePayments(ctx context.Context, from, to time.Time) ([]domain.ExpensePayment, error) {
 	query := `
 		SELECT ` + expenseKey + ` AS key, ` + cleanDescription + `, p.category, p.payment_method, ` + txDate + ` AS day, pay.amount
 		FROM payments pay
@@ -51,9 +51,9 @@ func (r *PostgresPurchaseRepository) ExpensePayments(ctx context.Context, from, 
 	}
 	defer rows.Close()
 
-	var result []ports.ExpensePayment
+	var result []domain.ExpensePayment
 	for rows.Next() {
-		var e ports.ExpensePayment
+		var e domain.ExpensePayment
 		if err := rows.Scan(&e.Key, &e.Label, &e.Category, &e.PaymentMethod, &e.Date, &e.Amount); err != nil {
 			return nil, fmt.Errorf("erro ao escanear despesa: %w", err)
 		}
@@ -62,16 +62,16 @@ func (r *PostgresPurchaseRepository) ExpensePayments(ctx context.Context, from, 
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) Dismissals(ctx context.Context) ([]ports.Dismissal, error) {
+func (r *PostgresPurchaseRepository) Dismissals(ctx context.Context) ([]domain.Dismissal, error) {
 	rows, err := r.db.Pool.Query(ctx, `SELECT kind, key FROM review_dismissals`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao ler sugestões dispensadas: %w", err)
 	}
 	defer rows.Close()
 
-	var result []ports.Dismissal
+	var result []domain.Dismissal
 	for rows.Next() {
-		var d ports.Dismissal
+		var d domain.Dismissal
 		if err := rows.Scan(&d.Kind, &d.Key); err != nil {
 			return nil, fmt.Errorf("erro ao escanear sugestão dispensada: %w", err)
 		}
@@ -80,7 +80,7 @@ func (r *PostgresPurchaseRepository) Dismissals(ctx context.Context) ([]ports.Di
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) SetDismissal(ctx context.Context, d ports.Dismissal, dismissed bool) error {
+func (r *PostgresPurchaseRepository) SetDismissal(ctx context.Context, d domain.Dismissal, dismissed bool) error {
 	var err error
 	if dismissed {
 		_, err = r.db.Pool.Exec(ctx, `INSERT INTO review_dismissals (kind, key) VALUES ($1, $2) ON CONFLICT DO NOTHING`, d.Kind, d.Key)
@@ -93,16 +93,16 @@ func (r *PostgresPurchaseRepository) SetDismissal(ctx context.Context, d ports.D
 	return nil
 }
 
-func (r *PostgresPurchaseRepository) Decisions(ctx context.Context) ([]ports.Decision, error) {
+func (r *PostgresPurchaseRepository) Decisions(ctx context.Context) ([]domain.Decision, error) {
 	rows, err := r.db.Pool.Query(ctx, `SELECT kind, key, label, category, decided_month, monthly FROM review_decisions ORDER BY decided_month, key`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao ler decisões: %w", err)
 	}
 	defer rows.Close()
 
-	var result []ports.Decision
+	var result []domain.Decision
 	for rows.Next() {
-		var d ports.Decision
+		var d domain.Decision
 		if err := rows.Scan(&d.Kind, &d.Key, &d.Label, &d.Category, &d.Month, &d.Monthly); err != nil {
 			return nil, fmt.Errorf("erro ao escanear decisão: %w", err)
 		}
@@ -111,7 +111,7 @@ func (r *PostgresPurchaseRepository) Decisions(ctx context.Context) ([]ports.Dec
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) SetDecision(ctx context.Context, d ports.Decision) error {
+func (r *PostgresPurchaseRepository) SetDecision(ctx context.Context, d domain.Decision) error {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("erro ao gravar decisão: %w", err)

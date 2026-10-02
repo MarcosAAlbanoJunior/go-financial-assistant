@@ -12,119 +12,119 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/google/uuid"
 )
 
 const testPassword = "senha-de-teste-123"
 
 type fakeReader struct {
-	monthly        []ports.MonthTotals
-	accounts       []ports.Account
-	institutions   []ports.Institution
+	monthly        []domain.MonthTotals
+	accounts       []domain.Account
+	institutions   []domain.Institution
 	logos          map[uuid.UUID]fakeLogo
-	positions      []ports.Position
-	filter         ports.TransactionFilter
-	by             ports.BreakdownDimension
-	groupBy        ports.GroupBy
+	positions      []domain.Position
+	filter         domain.TransactionFilter
+	by             domain.BreakdownDimension
+	groupBy        domain.GroupBy
 	from, to       time.Time
-	rules          map[string]ports.ExpenseClass
+	rules          map[string]domain.ExpenseClass
 	ruleKey        string
 	known          map[string]time.Time
-	ruleClass      ports.ExpenseClass
-	catMonths      []ports.CategoryMonth
-	uncategorized  []ports.UncategorizedGroup
-	rules2         []ports.CategoryRule
-	decisions      []ports.Decision
-	analyses       []ports.CoachAnalysis
-	goals          []ports.Goal
-	created        []ports.Goal
+	ruleClass      domain.ExpenseClass
+	catMonths      []domain.CategoryMonth
+	uncategorized  []domain.UncategorizedGroup
+	rules2         []domain.CategoryRule
+	decisions      []domain.Decision
+	analyses       []domain.CoachAnalysis
+	goals          []domain.Goal
+	created        []domain.Goal
 	deleted        uuid.UUID
 	deleteFound    bool
 	catFrom        time.Time
 	payFrom        time.Time
-	payments       []ports.ExpensePayment
-	dismissed      []ports.Dismissal
-	setDismissed   ports.Dismissal
+	payments       []domain.ExpensePayment
+	dismissed      []domain.Dismissal
+	setDismissed   domain.Dismissal
 	setDismissedTo bool
 	err            error
 }
 
-func (f *fakeReader) MonthlyTotals(_ context.Context, from, to time.Time) ([]ports.MonthTotals, error) {
+func (f *fakeReader) MonthlyTotals(_ context.Context, from, to time.Time) ([]domain.MonthTotals, error) {
 	if f.monthly != nil || f.err != nil {
 		return f.monthly, f.err
 	}
-	var out []ports.MonthTotals
+	var out []domain.MonthTotals
 	for m := from; !m.After(to); m = m.AddDate(0, 1, 0) {
-		out = append(out, ports.MonthTotals{Month: m, Income: 100, Expense: 40})
+		out = append(out, domain.MonthTotals{Month: m, Income: 100, Expense: 40})
 	}
 	return out, nil
 }
-func (f *fakeReader) InvestmentSeries(_ context.Context, from, _ time.Time) ([]ports.InvestmentMonth, error) {
-	return []ports.InvestmentMonth{{Month: from, Applied: 10, Redeemed: 2, Cumulative: 8}}, f.err
+func (f *fakeReader) InvestmentSeries(_ context.Context, from, _ time.Time) ([]domain.InvestmentMonth, error) {
+	return []domain.InvestmentMonth{{Month: from, Applied: 10, Redeemed: 2, Cumulative: 8}}, f.err
 }
-func (f *fakeReader) ExpenseBreakdown(_ context.Context, _ time.Time, by ports.BreakdownDimension) ([]ports.BreakdownItem, error) {
+func (f *fakeReader) ExpenseBreakdown(_ context.Context, _ time.Time, by domain.BreakdownDimension) ([]domain.BreakdownItem, error) {
 	f.by = by
-	return []ports.BreakdownItem{{Key: "FOOD", Name: "FOOD", Total: 30}, {Key: "", Total: 5}}, f.err
+	return []domain.BreakdownItem{{Key: "FOOD", Name: "FOOD", Total: 30}, {Key: "", Total: 5}}, f.err
 }
-func (f *fakeReader) Transactions(_ context.Context, flt ports.TransactionFilter) ([]ports.Transaction, int, error) {
+func (f *fakeReader) Transactions(_ context.Context, flt domain.TransactionFilter) ([]domain.Transaction, int, error) {
 	f.filter = flt
-	return []ports.Transaction{{ID: uuid.New(), Date: time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC), Category: "FOOD", PaymentMethod: "PIX", Kind: "EXPENSE", Type: "SINGLE", Status: "PAID", Amount: 12.5, FromOpenFinance: true}}, 1, f.err
+	return []domain.Transaction{{ID: uuid.New(), Date: time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC), Category: "FOOD", PaymentMethod: "PIX", Kind: "EXPENSE", Type: "SINGLE", Status: "PAID", Amount: 12.5, FromOpenFinance: true}}, 1, f.err
 }
-func (f *fakeReader) Positions(context.Context) ([]ports.Position, error) {
+func (f *fakeReader) Positions(context.Context) ([]domain.Position, error) {
 	return f.positions, f.err
 }
-func (f *fakeReader) PortfolioHistory(_ context.Context, from, to time.Time) ([]ports.PortfolioMonth, error) {
+func (f *fakeReader) PortfolioHistory(_ context.Context, from, to time.Time) ([]domain.PortfolioMonth, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	v := 1500.5
 	est := 1400.0
-	return []ports.PortfolioMonth{{Month: from, Balance: &est, Estimated: true}, {Month: to, Balance: &v}}, nil
+	return []domain.PortfolioMonth{{Month: from, Balance: &est, Estimated: true}, {Month: to, Balance: &v}}, nil
 }
-func (f *fakeReader) TransactionGroups(_ context.Context, flt ports.TransactionFilter, by ports.GroupBy) ([]ports.TransactionGroup, error) {
+func (f *fakeReader) TransactionGroups(_ context.Context, flt domain.TransactionFilter, by domain.GroupBy) ([]domain.TransactionGroup, error) {
 	f.filter, f.groupBy = flt, by
-	return []ports.TransactionGroup{{Key: "FOOD", Count: 3, Expense: 90.5}, {Key: "SALARY", Count: 1, Income: 5000}}, f.err
+	return []domain.TransactionGroup{{Key: "FOOD", Count: 3, Expense: 90.5}, {Key: "SALARY", Count: 1, Income: 5000}}, f.err
 }
-func (f *fakeReader) ExpenseKeyMonths(_ context.Context, from, to time.Time) ([]ports.ExpenseKeyMonth, error) {
+func (f *fakeReader) ExpenseKeyMonths(_ context.Context, from, to time.Time) ([]domain.ExpenseKeyMonth, error) {
 	f.from, f.to = from, to
-	return []ports.ExpenseKeyMonth{
+	return []domain.ExpenseKeyMonth{
 		{Key: "netflix", Label: "NETFLIX 12/09", Category: "ENTERTAINMENT", Month: to.AddDate(0, -1, 0), Total: 44.9, Count: 1, Day: 12, AllPaid: true},
 		{Key: "netflix", Label: "NETFLIX 12/10", Category: "ENTERTAINMENT", Month: to.AddDate(0, -2, 0), Total: 44.9, Count: 1, Day: 12, AllPaid: true},
 		{Key: "netflix", Label: "NETFLIX 12/11", Category: "ENTERTAINMENT", Month: to, Total: 44.9, Count: 1, Day: 12, AllPaid: false},
 	}, f.err
 }
-func (f *fakeReader) IncomePayments(_ context.Context, from, to time.Time) ([]ports.IncomePayment, error) {
-	return []ports.IncomePayment{{Key: "salario", Label: "Salário", Month: to, Amount: 5000}}, f.err
+func (f *fakeReader) IncomePayments(_ context.Context, from, to time.Time) ([]domain.IncomePayment, error) {
+	return []domain.IncomePayment{{Key: "salario", Label: "Salário", Month: to, Amount: 5000}}, f.err
 }
 func (f *fakeReader) KnownInstallments(_ context.Context, from, to time.Time) (map[time.Time]float64, error) {
 	f.known = map[string]time.Time{"from": from, "to": to}
 	return map[time.Time]float64{from.AddDate(0, 2, 0): 300}, f.err
 }
-func (f *fakeReader) ExpenseRules(context.Context) (map[string]ports.ExpenseClass, error) {
+func (f *fakeReader) ExpenseRules(context.Context) (map[string]domain.ExpenseClass, error) {
 	return f.rules, f.err
 }
-func (f *fakeReader) SetExpenseRule(_ context.Context, key string, class ports.ExpenseClass) error {
+func (f *fakeReader) SetExpenseRule(_ context.Context, key string, class domain.ExpenseClass) error {
 	f.ruleKey, f.ruleClass = key, class
 	return f.err
 }
-func (f *fakeReader) CategoryMonths(_ context.Context, from, to time.Time) ([]ports.CategoryMonth, error) {
+func (f *fakeReader) CategoryMonths(_ context.Context, from, to time.Time) ([]domain.CategoryMonth, error) {
 	f.catFrom = from
 	return f.catMonths, f.err
 }
-func (f *fakeReader) ExpensePayments(_ context.Context, from, _ time.Time) ([]ports.ExpensePayment, error) {
+func (f *fakeReader) ExpensePayments(_ context.Context, from, _ time.Time) ([]domain.ExpensePayment, error) {
 	f.payFrom = from
 	return f.payments, f.err
 }
-func (f *fakeReader) Dismissals(context.Context) ([]ports.Dismissal, error) {
+func (f *fakeReader) Dismissals(context.Context) ([]domain.Dismissal, error) {
 	return f.dismissed, f.err
 }
-func (f *fakeReader) SetDismissal(_ context.Context, d ports.Dismissal, dismissed bool) error {
+func (f *fakeReader) SetDismissal(_ context.Context, d domain.Dismissal, dismissed bool) error {
 	f.setDismissed, f.setDismissedTo = d, dismissed
 	return f.err
 }
-func (f *fakeReader) Goals(context.Context) ([]ports.Goal, error) { return f.goals, f.err }
-func (f *fakeReader) CreateGoal(_ context.Context, g ports.Goal) error {
+func (f *fakeReader) Goals(context.Context) ([]domain.Goal, error) { return f.goals, f.err }
+func (f *fakeReader) CreateGoal(_ context.Context, g domain.Goal) error {
 	f.created = append(f.created, g)
 	return f.err
 }
@@ -132,12 +132,12 @@ func (f *fakeReader) DeleteGoal(_ context.Context, id uuid.UUID) (bool, error) {
 	f.deleted = id
 	return f.deleteFound, f.err
 }
-func (f *fakeReader) SaveCoachAnalysis(_ context.Context, a ports.CoachAnalysis) error {
-	f.analyses = append([]ports.CoachAnalysis{a}, f.analyses...)
+func (f *fakeReader) SaveCoachAnalysis(_ context.Context, a domain.CoachAnalysis) error {
+	f.analyses = append([]domain.CoachAnalysis{a}, f.analyses...)
 	return f.err
 }
-func (f *fakeReader) CoachAnalyses(_ context.Context, month *time.Time, limit int) ([]ports.CoachAnalysis, error) {
-	var out []ports.CoachAnalysis
+func (f *fakeReader) CoachAnalyses(_ context.Context, month *time.Time, limit int) ([]domain.CoachAnalysis, error) {
+	var out []domain.CoachAnalysis
 	for _, a := range f.analyses {
 		if (month == nil || a.Month.Equal(*month)) && len(out) < limit {
 			out = append(out, a)
@@ -170,26 +170,26 @@ func (f *fakeReader) DeleteCoachAnalysis(_ context.Context, id uuid.UUID) (bool,
 	}
 	return false, f.err
 }
-func (f *fakeReader) Decisions(context.Context) ([]ports.Decision, error) { return f.decisions, f.err }
-func (f *fakeReader) SetDecision(_ context.Context, d ports.Decision) error {
+func (f *fakeReader) Decisions(context.Context) ([]domain.Decision, error) { return f.decisions, f.err }
+func (f *fakeReader) SetDecision(_ context.Context, d domain.Decision) error {
 	f.decisions = append(f.decisions, d)
-	f.dismissed = append(f.dismissed, ports.Dismissal{Kind: d.Kind, Key: d.Key})
+	f.dismissed = append(f.dismissed, domain.Dismissal{Kind: d.Kind, Key: d.Key})
 	return f.err
 }
 func (f *fakeReader) DeleteDecision(_ context.Context, kind, key string) error {
-	f.decisions = slices.DeleteFunc(f.decisions, func(d ports.Decision) bool { return d.Kind == kind && d.Key == key })
-	f.dismissed = slices.DeleteFunc(f.dismissed, func(d ports.Dismissal) bool { return d.Kind == kind && d.Key == key })
+	f.decisions = slices.DeleteFunc(f.decisions, func(d domain.Decision) bool { return d.Kind == kind && d.Key == key })
+	f.dismissed = slices.DeleteFunc(f.dismissed, func(d domain.Dismissal) bool { return d.Kind == kind && d.Key == key })
 	return f.err
 }
-func (f *fakeReader) UncategorizedExpenses(_ context.Context, limit int) ([]ports.UncategorizedGroup, error) {
+func (f *fakeReader) UncategorizedExpenses(_ context.Context, limit int) ([]domain.UncategorizedGroup, error) {
 	return f.uncategorized[:min(limit, len(f.uncategorized))], f.err
 }
 func (f *fakeReader) SetCategoryRule(_ context.Context, key, category string) (int64, error) {
-	f.rules2 = append(f.rules2, ports.CategoryRule{Key: key, Category: category})
+	f.rules2 = append(f.rules2, domain.CategoryRule{Key: key, Category: category})
 	return 3, f.err
 }
-func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
-func (f *fakeReader) Institutions(context.Context) ([]ports.Institution, error) {
+func (f *fakeReader) Accounts(context.Context) ([]domain.Account, error) { return f.accounts, f.err }
+func (f *fakeReader) Institutions(context.Context) ([]domain.Institution, error) {
 	return f.institutions, f.err
 }
 func (f *fakeReader) InstitutionLogo(_ context.Context, id uuid.UUID) ([]byte, string, bool, error) {
@@ -331,7 +331,7 @@ func TestAPI_Logout(t *testing.T) {
 }
 
 func TestAPI_Summary(t *testing.T) {
-	r := &fakeReader{accounts: []ports.Account{{Type: "BANK", Balance: 100}, {Type: "BANK", Balance: 50.5}, {Type: "CREDIT", Balance: 999}}}
+	r := &fakeReader{accounts: []domain.Account{{Type: "BANK", Balance: 100}, {Type: "BANK", Balance: 50.5}, {Type: "CREDIT", Balance: 999}}}
 	s := newTestAPI(t, r)
 	c := login(t, s)
 
@@ -402,7 +402,7 @@ func TestAPI_BreakdownLabels(t *testing.T) {
 		t.Errorf("categoria sem rótulo: %s", body)
 	}
 	body = do(s, "GET", "/api/breakdown?month=2026-09&by=account", "", nil, c).Body.String()
-	if r.by != ports.BreakdownByAccount || !strings.Contains(body, `"label":"Sem conta (manual)"`) {
+	if r.by != domain.BreakdownByAccount || !strings.Contains(body, `"label":"Sem conta (manual)"`) {
 		t.Errorf("gasto sem conta deveria ser rotulado: %s", body)
 	}
 }
@@ -468,7 +468,7 @@ func TestSessions_ExpiredCookieRejected(t *testing.T) {
 }
 
 func TestAPI_Portfolio(t *testing.T) {
-	r := &fakeReader{positions: []ports.Position{
+	r := &fakeReader{positions: []domain.Position{
 		{ID: uuid.New(), Type: "FIXED_INCOME", Subtype: "CDB", Name: "CDB A", Balance: 1000, Amount: 1100},
 		{ID: uuid.New(), Type: "MUTUAL_FUND", Name: "Fundo B", Balance: 300.5},
 		{ID: uuid.New(), Type: "FIXED_INCOME", Subtype: "LCI", Name: "LCI C", Balance: 200},
@@ -516,7 +516,7 @@ func TestAPI_TransactionGroups(t *testing.T) {
 
 	rec := do(s, "GET", "/api/transactions/groups?by=category&month=2026-09&kind=EXPENSE&q=pad", "", nil, c)
 	body := rec.Body.String()
-	if rec.Code != 200 || r.groupBy != ports.GroupByCategory || r.filter.Kind != "EXPENSE" || r.filter.Search != "pad" || r.filter.Month == nil {
+	if rec.Code != 200 || r.groupBy != domain.GroupByCategory || r.filter.Kind != "EXPENSE" || r.filter.Search != "pad" || r.filter.Month == nil {
 		t.Fatalf("%d %s filtro=%+v", rec.Code, body, r.filter)
 	}
 	for _, want := range []string{`"key":"FOOD","label":"Alimentação","count":3,"expense":90.5`, `"label":"Salário/Renda"`, `"income":5000`} {
@@ -526,7 +526,7 @@ func TestAPI_TransactionGroups(t *testing.T) {
 	}
 
 	body = do(s, "GET", "/api/transactions/groups?by=day&month=2026-09", "", nil, c).Body.String()
-	if r.groupBy != ports.GroupByDay || !strings.Contains(body, `"label":"FOOD"`) {
+	if r.groupBy != domain.GroupByDay || !strings.Contains(body, `"label":"FOOD"`) {
 		t.Errorf("por dia mantém a chave como rótulo: %s", body)
 	}
 
@@ -582,7 +582,7 @@ func TestAPI_SetExpenseRule(t *testing.T) {
 	c := login(t, s)
 	json := map[string]string{"Content-Type": "application/json"}
 
-	if rec := do(s, "PUT", "/api/expense-rules", `{"key":"netflix","class":"FIXED"}`, json, c); rec.Code != 200 || r.ruleKey != "netflix" || r.ruleClass != ports.ClassFixed {
+	if rec := do(s, "PUT", "/api/expense-rules", `{"key":"netflix","class":"FIXED"}`, json, c); rec.Code != 200 || r.ruleKey != "netflix" || r.ruleClass != domain.ClassFixed {
 		t.Errorf("FIXED: %d %q %q", rec.Code, r.ruleKey, r.ruleClass)
 	}
 	if rec := do(s, "PUT", "/api/expense-rules", `{"key":"débito mercado","class":"AUTO"}`, json, c); rec.Code != 200 || r.ruleClass != "" {
@@ -614,15 +614,15 @@ func TestAPI_SetExpenseRule(t *testing.T) {
 
 func TestAPI_Review(t *testing.T) {
 	r := &fakeReader{
-		catMonths: []ports.CategoryMonth{
+		catMonths: []domain.CategoryMonth{
 			{Category: "FOOD", Month: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Total: 300},
 			{Category: "FOOD", Month: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), Total: 500},
 		},
-		payments: []ports.ExpensePayment{
+		payments: []domain.ExpensePayment{
 			{Key: "netflix", Label: "NETFLIX", Category: "ENTERTAINMENT", PaymentMethod: "CREDIT_CARD", Date: time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC), Amount: 44.9},
 			{Key: "netflix", Label: "NETFLIX", Category: "ENTERTAINMENT", PaymentMethod: "CREDIT_CARD", Date: time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC), Amount: 44.9},
 		},
-		dismissed: []ports.Dismissal{{Kind: "FIXED", Key: "netflix"}},
+		dismissed: []domain.Dismissal{{Kind: "FIXED", Key: "netflix"}},
 	}
 	s := newTestAPI(t, r)
 	c := login(t, s)
@@ -660,7 +660,7 @@ func TestAPI_SetDismissal(t *testing.T) {
 	c := login(t, s)
 	json := map[string]string{"Content-Type": "application/json"}
 
-	if rec := do(s, "PUT", "/api/review-dismissals", `{"kind":"ANT","key":"padaria","dismissed":true}`, json, c); rec.Code != 200 || r.setDismissed != (ports.Dismissal{Kind: "ANT", Key: "padaria"}) || !r.setDismissedTo {
+	if rec := do(s, "PUT", "/api/review-dismissals", `{"kind":"ANT","key":"padaria","dismissed":true}`, json, c); rec.Code != 200 || r.setDismissed != (domain.Dismissal{Kind: "ANT", Key: "padaria"}) || !r.setDismissedTo {
 		t.Errorf("dispensar: %d %+v %v", rec.Code, r.setDismissed, r.setDismissedTo)
 	}
 	if rec := do(s, "PUT", "/api/review-dismissals", `{"kind":"INCREASE","key":"FOOD","dismissed":false}`, json, c); rec.Code != 200 || r.setDismissedTo {
@@ -733,13 +733,13 @@ func newGoalsAPI(t *testing.T, r *fakeReader) *Server {
 
 func TestAPI_Goals(t *testing.T) {
 	r := &fakeReader{
-		accounts:  []ports.Account{{Type: "BANK", Balance: 1000}, {Type: "CREDIT", Balance: 500}},
-		positions: []ports.Position{{Balance: 2000}},
-		catMonths: []ports.CategoryMonth{{Category: "FOOD", Month: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Total: 550}},
-		goals: []ports.Goal{
-			{ID: uuid.New(), Kind: ports.GoalSave, Name: "Viagem", TargetAmount: 6000, TargetDate: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC), CreatedAt: time.Now()},
-			{ID: uuid.New(), Kind: ports.GoalCut, Name: "Comer menos fora", Category: "FOOD", CutPercent: 20, Baseline: 800, CreatedAt: time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)},
-			{ID: uuid.New(), Kind: ports.GoalReserve, Name: "Reserva", ReserveMonths: 6, CreatedAt: time.Now()},
+		accounts:  []domain.Account{{Type: "BANK", Balance: 1000}, {Type: "CREDIT", Balance: 500}},
+		positions: []domain.Position{{Balance: 2000}},
+		catMonths: []domain.CategoryMonth{{Category: "FOOD", Month: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Total: 550}},
+		goals: []domain.Goal{
+			{ID: uuid.New(), Kind: domain.GoalSave, Name: "Viagem", TargetAmount: 6000, TargetDate: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC), CreatedAt: time.Now()},
+			{ID: uuid.New(), Kind: domain.GoalCut, Name: "Comer menos fora", Category: "FOOD", CutPercent: 20, Baseline: 800, CreatedAt: time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)},
+			{ID: uuid.New(), Kind: domain.GoalReserve, Name: "Reserva", ReserveMonths: 6, CreatedAt: time.Now()},
 		},
 	}
 	s := newGoalsAPI(t, r)
@@ -767,7 +767,7 @@ func TestAPI_Goals(t *testing.T) {
 }
 
 func TestAPI_CreateGoal(t *testing.T) {
-	r := &fakeReader{catMonths: []ports.CategoryMonth{
+	r := &fakeReader{catMonths: []domain.CategoryMonth{
 		{Category: "FOOD", Month: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC), Total: 800},
 		{Category: "FOOD", Month: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), Total: 600},
 	}}
@@ -779,7 +779,7 @@ func TestAPI_CreateGoal(t *testing.T) {
 	if code := post(`{"kind":"SAVE","name":"  Viagem  ","targetAmount":12000.456,"targetDate":"2027-06"}`); code != 201 {
 		t.Fatalf("SAVE: %d", code)
 	}
-	if g := r.created[0]; g.Name != "Viagem" || g.TargetAmount != 12000.46 || g.TargetDate.Format("2006-01-02") != "2027-06-01" || g.Kind != ports.GoalSave {
+	if g := r.created[0]; g.Name != "Viagem" || g.TargetAmount != 12000.46 || g.TargetDate.Format("2006-01-02") != "2027-06-01" || g.Kind != domain.GoalSave {
 		t.Errorf("SAVE gravada: %+v", g)
 	}
 	if code := post(`{"kind":"CUT","name":"Comida","category":"FOOD","cutPercent":10}`); code != 201 || r.created[1].Baseline != 700 || r.created[1].Category != "FOOD" {
@@ -827,7 +827,7 @@ func TestAPI_CreateGoal(t *testing.T) {
 		t.Errorf("só as 3 válidas foram gravadas: %d", len(r.created))
 	}
 
-	r.goals = make([]ports.Goal, maxGoals)
+	r.goals = make([]domain.Goal, maxGoals)
 	if code := post(`{"kind":"RESERVE","name":"a","reserveMonths":6}`); code != 409 {
 		t.Errorf("limite de metas = %d", code)
 	}
@@ -859,7 +859,7 @@ func TestAPI_DeleteGoal(t *testing.T) {
 
 func TestAPI_Savings(t *testing.T) {
 	jul := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
-	r := &fakeReader{decisions: []ports.Decision{
+	r := &fakeReader{decisions: []domain.Decision{
 		{Kind: "FIXED", Key: "netflix", Label: "NETFLIX", Category: "ENTERTAINMENT", Month: jul, Monthly: 44.9}, // o fake ainda cobra: voltou
 		{Kind: "FIXED", Key: "spotify", Label: "SPOTIFY", Category: "ENTERTAINMENT", Month: jul, Monthly: 20},   // sem cobrança: ago e set confirmados
 	}}

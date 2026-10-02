@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
 )
@@ -81,7 +80,7 @@ func (a *api) goals(w http.ResponseWriter, r *http.Request) {
 		if g.Category != "" {
 			o.CategoryLabel = domain.Category(g.Category).Label()
 		}
-		if g.Kind == ports.GoalSave {
+		if g.Kind == domain.GoalSave {
 			d := formatMonth(g.TargetDate)
 			o.TargetDate = &d
 		}
@@ -133,21 +132,21 @@ func (a *api) createGoal(w http.ResponseWriter, r *http.Request) {
 }
 
 // goalFromInput valida o corpo e monta a meta. Erros de validação voltam como apiError (400/422).
-func (a *api) goalFromInput(ctx context.Context, in goalInput) (ports.Goal, error) {
+func (a *api) goalFromInput(ctx context.Context, in goalInput) (domain.Goal, error) {
 	name := strings.TrimSpace(in.Name)
 	if n := utf8.RuneCountInString(name); n < 1 || n > maxGoalNameLen || strings.IndexFunc(name, unicode.IsControl) >= 0 {
-		return ports.Goal{}, badRequest("name deve ter de 1 a 60 caracteres, sem caracteres de controle")
+		return domain.Goal{}, badRequest("name deve ter de 1 a 60 caracteres, sem caracteres de controle")
 	}
-	g := ports.Goal{ID: uuid.New(), Kind: ports.GoalKind(in.Kind), Name: name}
+	g := domain.Goal{ID: uuid.New(), Kind: domain.GoalKind(in.Kind), Name: name}
 	now := a.monthStart()
 
 	var err error
 	switch g.Kind {
-	case ports.GoalSave:
+	case domain.GoalSave:
 		err = fillSaveGoal(&g, in, now)
-	case ports.GoalCut:
+	case domain.GoalCut:
 		err = a.fillCutGoal(ctx, &g, in, now)
-	case ports.GoalReserve:
+	case domain.GoalReserve:
 		err = fillReserveGoal(&g, in)
 	default:
 		err = badRequest("kind deve ser SAVE, CUT ou RESERVE")
@@ -155,7 +154,7 @@ func (a *api) goalFromInput(ctx context.Context, in goalInput) (ports.Goal, erro
 	return g, err
 }
 
-func fillSaveGoal(g *ports.Goal, in goalInput, now time.Time) error {
+func fillSaveGoal(g *domain.Goal, in goalInput, now time.Time) error {
 	date, err := time.Parse("2006-01", in.TargetDate)
 	if err != nil || !date.After(now) || date.After(now.AddDate(maxGoalYears, 0, 0)) {
 		return badRequest("targetDate deve ser um mês futuro (AAAA-MM) em até 10 anos")
@@ -167,7 +166,7 @@ func fillSaveGoal(g *ports.Goal, in goalInput, now time.Time) error {
 	return nil
 }
 
-func (a *api) fillCutGoal(ctx context.Context, g *ports.Goal, in goalInput, now time.Time) error {
+func (a *api) fillCutGoal(ctx context.Context, g *domain.Goal, in goalInput, now time.Time) error {
 	if !slices.Contains(cutCategories, domain.Category(in.Category)) {
 		return badRequest("category inválida")
 	}
@@ -186,7 +185,7 @@ func (a *api) fillCutGoal(ctx context.Context, g *ports.Goal, in goalInput, now 
 	return nil
 }
 
-func fillReserveGoal(g *ports.Goal, in goalInput) error {
+func fillReserveGoal(g *domain.Goal, in goalInput) error {
 	if in.ReserveMonths < 1 || in.ReserveMonths > maxReserveMonths {
 		return badRequest("reserveMonths deve ser de 1 a 36")
 	}

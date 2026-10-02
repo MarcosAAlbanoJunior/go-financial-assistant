@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 var goalNow = month(2026, time.October)
@@ -21,7 +21,7 @@ func goalProjection() Projection {
 }
 
 func TestBuildGoalProgress_Save(t *testing.T) {
-	g := ports.Goal{Kind: ports.GoalSave, TargetAmount: 10000, TargetDate: month(2027, time.January)}
+	g := domain.Goal{Kind: domain.GoalSave, TargetAmount: 10000, TargetDate: month(2027, time.January)}
 
 	gp := BuildGoalProgress(g, 4000, goalProjection(), nil, goalNow)
 	// Faltam 6000 e a data (jan/27) está a 3 meses: 2000 por mês.
@@ -33,7 +33,7 @@ func TestBuildGoalProgress_Save(t *testing.T) {
 		t.Errorf("não cabe na sobra: surplus=%v fits=%v", gp.Surplus, gp.Fits)
 	}
 
-	if gp := BuildGoalProgress(ports.Goal{Kind: ports.GoalSave, TargetAmount: 10000, TargetDate: month(2027, time.January)}, 7000, goalProjection(), nil, goalNow); gp.Fits == nil || !*gp.Fits {
+	if gp := BuildGoalProgress(domain.Goal{Kind: domain.GoalSave, TargetAmount: 10000, TargetDate: month(2027, time.January)}, 7000, goalProjection(), nil, goalNow); gp.Fits == nil || !*gp.Fits {
 		t.Errorf("faltam 3000 em 3 meses (1000/mês) cabe em 1300: %+v", gp.Fits)
 	}
 	if gp := BuildGoalProgress(g, 10000, goalProjection(), nil, goalNow); !gp.Done || gp.PerMonth != 0 || gp.Fits != nil {
@@ -42,19 +42,19 @@ func TestBuildGoalProgress_Save(t *testing.T) {
 }
 
 func TestBuildGoalProgress_SaveEdges(t *testing.T) {
-	late := ports.Goal{Kind: ports.GoalSave, TargetAmount: 1000, TargetDate: month(2026, time.August)}
+	late := domain.Goal{Kind: domain.GoalSave, TargetAmount: 1000, TargetDate: month(2026, time.August)}
 	if gp := BuildGoalProgress(late, 400, goalProjection(), nil, goalNow); gp.MonthsLeft != 0 || gp.PerMonth != 600 {
 		t.Errorf("data vencida: falta tudo de uma vez: %+v", gp)
 	}
 	noHistory := goalProjection()
 	noHistory.Assumptions.BasedOn = 0
-	if gp := BuildGoalProgress(ports.Goal{Kind: ports.GoalSave, TargetAmount: 1000, TargetDate: month(2027, time.January)}, 0, noHistory, nil, goalNow); gp.Surplus != nil || gp.Fits != nil {
+	if gp := BuildGoalProgress(domain.Goal{Kind: domain.GoalSave, TargetAmount: 1000, TargetDate: month(2027, time.January)}, 0, noHistory, nil, goalNow); gp.Surplus != nil || gp.Fits != nil {
 		t.Errorf("sem histórico não há como projetar: %+v", gp)
 	}
 }
 
 func TestBuildGoalProgress_Reserve(t *testing.T) {
-	g := ports.Goal{Kind: ports.GoalReserve, ReserveMonths: 6}
+	g := domain.Goal{Kind: domain.GoalReserve, ReserveMonths: 6}
 	gp := BuildGoalProgress(g, 9000, goalProjection(), nil, goalNow)
 	if gp.Target != 12000 || gp.Coverage != 4.5 || gp.Done {
 		t.Errorf("6 x 2000 = 12000; 9000 cobre 4,5 meses: %+v", gp)
@@ -70,13 +70,13 @@ func TestBuildGoalProgress_Reserve(t *testing.T) {
 }
 
 func TestBuildGoalProgress_Cut(t *testing.T) {
-	cats := []ports.CategoryMonth{
+	cats := []domain.CategoryMonth{
 		{Category: "FOOD", Month: month(2026, time.August), Total: 900},
 		{Category: "FOOD", Month: month(2026, time.September), Total: 700}, // acima do teto de 680
 		{Category: "FOOD", Month: goalNow, Total: 600},
 		{Category: "MARKET", Month: goalNow, Total: 9999},
 	}
-	g := ports.Goal{Kind: ports.GoalCut, Category: "FOOD", CutPercent: 15, Baseline: 800, CreatedAt: time.Date(2026, 9, 20, 10, 0, 0, 0, time.UTC)}
+	g := domain.Goal{Kind: domain.GoalCut, Category: "FOOD", CutPercent: 15, Baseline: 800, CreatedAt: time.Date(2026, 9, 20, 10, 0, 0, 0, time.UTC)}
 	gp := BuildGoalProgress(g, 0, Projection{}, cats, goalNow)
 
 	if math.Abs(gp.Target-680) > 0.01 || gp.Current != 600 {
@@ -88,7 +88,7 @@ func TestBuildGoalProgress_Cut(t *testing.T) {
 }
 
 func TestCutBaseline(t *testing.T) {
-	cats := []ports.CategoryMonth{
+	cats := []domain.CategoryMonth{
 		{Category: "FOOD", Month: month(2026, time.June), Total: 5000}, // fora dos 3 meses
 		{Category: "FOOD", Month: month(2026, time.August), Total: 800},
 		{Category: "FOOD", Month: month(2026, time.September), Total: 600},
@@ -104,8 +104,8 @@ func TestCutBaseline(t *testing.T) {
 }
 
 func TestBuildGoalProgress_CutPace(t *testing.T) {
-	g := ports.Goal{Kind: ports.GoalCut, Category: "FOOD", CutPercent: 20, Baseline: 1000, CreatedAt: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}
-	cats := []ports.CategoryMonth{{Category: "FOOD", Month: goalNow, Total: 300}}
+	g := domain.Goal{Kind: domain.GoalCut, Category: "FOOD", CutPercent: 20, Baseline: 1000, CreatedAt: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}
+	cats := []domain.CategoryMonth{{Category: "FOOD", Month: goalNow, Total: 300}}
 	day := func(d int) time.Time { return time.Date(2026, time.October, d, 12, 0, 0, 0, time.UTC) }
 
 	if gp := BuildGoalProgress(g, 0, Projection{}, cats, day(3)); gp.Projected != nil || gp.DayOfMonth != 3 || gp.DaysInMonth != 31 {

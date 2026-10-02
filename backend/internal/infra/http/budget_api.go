@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -125,10 +124,10 @@ func (a *api) setExpenseRule(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, maxRuleBody, &body) {
 		return
 	}
-	var class ports.ExpenseClass
+	var class domain.ExpenseClass
 	switch body.Class {
 	case "FIXED", "VARIABLE":
-		class = ports.ExpenseClass(body.Class)
+		class = domain.ExpenseClass(body.Class)
 	case "AUTO":
 	default:
 		writeError(w, http.StatusBadRequest, "class deve ser FIXED, VARIABLE ou AUTO")
