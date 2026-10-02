@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Budget, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Budget, Categorize, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -175,4 +175,22 @@ export const setDecision = (kind: ReviewKind, key: string, month: string, decide
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, key, month, decided }),
+  })
+
+export const useCategorize = () => useQuery({ queryKey: ['categorize'], queryFn: () => request<Categorize>('/api/categorize') })
+
+/** Classifica uma conta: reclassifica as despesas dela em Outros e vale nas próximas sincronizações. */
+export const setCategoryRule = (key: string, category: string) =>
+  request<{ changed: number }>('/api/categorize/rules', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, category }),
+  })
+
+/** Pede à IA categorias para as contas da prévia (o hash garante que é o que a pessoa viu). Nada é gravado. */
+export const suggestCategories = (hash: string) =>
+  request<{ suggestions: { key: string; category: string }[] }>('/api/categorize/suggest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hash }),
   })
