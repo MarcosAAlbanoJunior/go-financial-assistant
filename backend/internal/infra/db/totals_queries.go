@@ -8,7 +8,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
-func (r *PostgresPurchaseRepository) MonthlyTotals(ctx context.Context, from, to time.Time) ([]domain.MonthTotals, error) {
+func (r *TotalsRepo) MonthlyTotals(ctx context.Context, from, to time.Time) ([]domain.MonthTotals, error) {
 	query := `
 		WITH ` + monthlyCTE + `
 		SELECT s.month::date, COALESCE(m.income, 0), COALESCE(m.expense, 0), COALESCE(m.applied, 0), COALESCE(m.redeemed, 0)
@@ -33,7 +33,7 @@ func (r *PostgresPurchaseRepository) MonthlyTotals(ctx context.Context, from, to
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) InvestmentSeries(ctx context.Context, from, to time.Time) ([]domain.InvestmentMonth, error) {
+func (r *TotalsRepo) InvestmentSeries(ctx context.Context, from, to time.Time) ([]domain.InvestmentMonth, error) {
 	// O acumulado é calculado desde o primeiro lançamento de investimento e só depois
 	// recortado na janela pedida.
 	query := `
@@ -65,7 +65,7 @@ func (r *PostgresPurchaseRepository) InvestmentSeries(ctx context.Context, from,
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) ExpenseBreakdown(ctx context.Context, month time.Time, by domain.BreakdownDimension) ([]domain.BreakdownItem, error) {
+func (r *TotalsRepo) ExpenseBreakdown(ctx context.Context, month time.Time, by domain.BreakdownDimension) ([]domain.BreakdownItem, error) {
 	// key/name vêm de fragmentos fixos: nada do que o cliente envia entra no SQL.
 	var key, name string
 	switch by {

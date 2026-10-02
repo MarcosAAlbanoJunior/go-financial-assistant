@@ -8,7 +8,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
-func (r *PostgresPurchaseRepository) ExpenseKeyMonths(ctx context.Context, from, to time.Time) ([]domain.ExpenseKeyMonth, error) {
+func (r *BudgetRepo) ExpenseKeyMonths(ctx context.Context, from, to time.Time) ([]domain.ExpenseKeyMonth, error) {
 	query := `
 		SELECT ` + expenseKey + ` AS key,
 		       (ARRAY_AGG(` + cleanDescription + ` ORDER BY pay.created_at DESC))[1] AS label,
@@ -44,7 +44,7 @@ func (r *PostgresPurchaseRepository) ExpenseKeyMonths(ctx context.Context, from,
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) ExpenseRules(ctx context.Context) (map[string]domain.ExpenseClass, error) {
+func (r *BudgetRepo) ExpenseRules(ctx context.Context) (map[string]domain.ExpenseClass, error) {
 	rows, err := r.db.Pool.Query(ctx, `SELECT key, class FROM expense_rules`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao ler regras de despesas: %w", err)
@@ -62,7 +62,7 @@ func (r *PostgresPurchaseRepository) ExpenseRules(ctx context.Context) (map[stri
 	return rules, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) SetExpenseRule(ctx context.Context, key string, class domain.ExpenseClass) error {
+func (r *BudgetRepo) SetExpenseRule(ctx context.Context, key string, class domain.ExpenseClass) error {
 	var err error
 	if class == "" {
 		_, err = r.db.Pool.Exec(ctx, `DELETE FROM expense_rules WHERE key = $1`, key)
@@ -78,7 +78,7 @@ func (r *PostgresPurchaseRepository) SetExpenseRule(ctx context.Context, key str
 	return nil
 }
 
-func (r *PostgresPurchaseRepository) KnownInstallments(ctx context.Context, from, to time.Time) (map[time.Time]float64, error) {
+func (r *BudgetRepo) KnownInstallments(ctx context.Context, from, to time.Time) (map[time.Time]float64, error) {
 	query := `
 		SELECT ` + paymentMonth + ` AS month, SUM(pay.amount)
 		FROM payments pay
@@ -105,7 +105,7 @@ func (r *PostgresPurchaseRepository) KnownInstallments(ctx context.Context, from
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) IncomePayments(ctx context.Context, from, to time.Time) ([]domain.IncomePayment, error) {
+func (r *BudgetRepo) IncomePayments(ctx context.Context, from, to time.Time) ([]domain.IncomePayment, error) {
 	query := `
 		SELECT CASE WHEN p.category = 'SALARY' THEN 'salario' ELSE ` + expenseKey + ` END AS key,
 		       CASE WHEN p.category = 'SALARY' THEN 'Salário' ELSE p.description END, ` + paymentMonth + ` AS month, pay.amount

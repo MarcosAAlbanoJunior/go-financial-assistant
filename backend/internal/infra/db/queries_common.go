@@ -2,8 +2,6 @@ package db
 
 import (
 	"strings"
-
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
 // paymentMonth é o mês a que um pagamento pertence, igual ao usado nas demais consultas.
@@ -44,7 +42,3 @@ const expenseKey = `(CASE WHEN ` + expenseKeyBase + ` ~ '^` + debitPrefix + ` ' 
 
 // cleanDescription tira o prefixo e a data das compras no débito do Itaú, para o nome mostrado ser o do comércio.
 const cleanDescription = `REGEXP_REPLACE(p.description, '^DEBITO VISA ELECTRON BRASIL +[0-9]{2}/[0-9]{2} +', '', 'i')`
-
-func NewDashboardReader(db *DB) ports.DashboardReader {
-	return &PostgresPurchaseRepository{db: db}
-}

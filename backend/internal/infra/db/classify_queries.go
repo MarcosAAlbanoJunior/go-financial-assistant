@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *PostgresPurchaseRepository) UncategorizedExpenses(ctx context.Context, limit int) ([]domain.UncategorizedGroup, error) {
+func (r *ClassifyRepo) UncategorizedExpenses(ctx context.Context, limit int) ([]domain.UncategorizedGroup, error) {
 	query := `
 		WITH g AS (
 			SELECT ` + expenseKey + ` AS key,
@@ -41,7 +41,7 @@ func (r *PostgresPurchaseRepository) UncategorizedExpenses(ctx context.Context, 
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) SetCategoryRule(ctx context.Context, key, category string) (int64, error) {
+func (r *ClassifyRepo) SetCategoryRule(ctx context.Context, key, category string) (int64, error) {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("erro ao gravar regra de categoria: %w", err)

@@ -8,7 +8,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
-func (r *PostgresPurchaseRepository) CategoryMonths(ctx context.Context, from, to time.Time) ([]domain.CategoryMonth, error) {
+func (r *ReviewRepo) CategoryMonths(ctx context.Context, from, to time.Time) ([]domain.CategoryMonth, error) {
 	query := `
 		SELECT p.category, ` + paymentMonth + ` AS month, SUM(pay.amount)
 		FROM payments pay
@@ -35,7 +35,7 @@ func (r *PostgresPurchaseRepository) CategoryMonths(ctx context.Context, from, t
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) ExpensePayments(ctx context.Context, from, to time.Time) ([]domain.ExpensePayment, error) {
+func (r *ReviewRepo) ExpensePayments(ctx context.Context, from, to time.Time) ([]domain.ExpensePayment, error) {
 	query := `
 		SELECT ` + expenseKey + ` AS key, ` + cleanDescription + `, p.category, p.payment_method, ` + txDate + ` AS day, pay.amount
 		FROM payments pay
@@ -62,7 +62,7 @@ func (r *PostgresPurchaseRepository) ExpensePayments(ctx context.Context, from, 
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) Dismissals(ctx context.Context) ([]domain.Dismissal, error) {
+func (r *ReviewRepo) Dismissals(ctx context.Context) ([]domain.Dismissal, error) {
 	rows, err := r.db.Pool.Query(ctx, `SELECT kind, key FROM review_dismissals`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao ler sugestões dispensadas: %w", err)
@@ -80,7 +80,7 @@ func (r *PostgresPurchaseRepository) Dismissals(ctx context.Context) ([]domain.D
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) SetDismissal(ctx context.Context, d domain.Dismissal, dismissed bool) error {
+func (r *ReviewRepo) SetDismissal(ctx context.Context, d domain.Dismissal, dismissed bool) error {
 	var err error
 	if dismissed {
 		_, err = r.db.Pool.Exec(ctx, `INSERT INTO review_dismissals (kind, key) VALUES ($1, $2) ON CONFLICT DO NOTHING`, d.Kind, d.Key)
@@ -93,7 +93,7 @@ func (r *PostgresPurchaseRepository) SetDismissal(ctx context.Context, d domain.
 	return nil
 }
 
-func (r *PostgresPurchaseRepository) Decisions(ctx context.Context) ([]domain.Decision, error) {
+func (r *ReviewRepo) Decisions(ctx context.Context) ([]domain.Decision, error) {
 	rows, err := r.db.Pool.Query(ctx, `SELECT kind, key, label, category, decided_month, monthly FROM review_decisions ORDER BY decided_month, key`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao ler decisões: %w", err)
@@ -111,7 +111,7 @@ func (r *PostgresPurchaseRepository) Decisions(ctx context.Context) ([]domain.De
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) SetDecision(ctx context.Context, d domain.Decision) error {
+func (r *ReviewRepo) SetDecision(ctx context.Context, d domain.Decision) error {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("erro ao gravar decisão: %w", err)
@@ -130,7 +130,7 @@ func (r *PostgresPurchaseRepository) SetDecision(ctx context.Context, d domain.D
 	return tx.Commit(ctx)
 }
 
-func (r *PostgresPurchaseRepository) DeleteDecision(ctx context.Context, kind, key string) error {
+func (r *ReviewRepo) DeleteDecision(ctx context.Context, kind, key string) error {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("erro ao desfazer decisão: %w", err)
