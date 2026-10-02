@@ -31,11 +31,8 @@ func (r *PortfolioRepo) Positions(ctx context.Context) ([]domain.Position, error
 }
 
 func (r *PortfolioRepo) PortfolioHistory(ctx context.Context, from, to time.Time) ([]domain.PortfolioMonth, error) {
-	// A partir do mês da primeira sincronização o saldo é exato: soma do último saldo gravado de
-	// cada posição até o fim do mês (NULL se ainda não havia registro).
-	// Antes disso é estimado, por posição: saldo do primeiro registro menos o que foi aplicado
-	// depois do mês (e antes desse registro), sem contar rendimentos. Posição sem nenhuma
-	// movimentação até o fim do mês ainda não existia e fica de fora; o saldo nunca é negativo.
+	// Do mês da primeira sincronização em diante o saldo é o exato gravado; antes, é estimado pelas movimentações
+	// (sem rendimentos). Detalhes em docs/regras-de-calculo.md (Investimentos).
 	query := `
 		WITH first_snap AS (
 			SELECT investment_id, MIN(day) AS day FROM investment_balances GROUP BY investment_id

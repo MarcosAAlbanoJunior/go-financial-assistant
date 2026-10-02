@@ -69,15 +69,8 @@ func parseInstallment(label string) (current, total int, ok bool) {
 	return current, total, total > 1 && current >= 1 && current <= total
 }
 
-// BuildProjection projeta `months` meses a partir de start (primeiro dia do mês, em geral o mês atual).
-//
-//   - Fixas e variáveis valem a média dos últimos meses completos com dados (anteriores a start);
-//   - a renda é a mediana da renda total dos últimos meses (MedianMonthlyIncome), para o mês atípico (13º, adiantamento
-//     de férias) não pesar nem as entradas de origens variadas ficarem de fora; as fontes recorrentes (EstimateIncome)
-//     explicam a maior parte dela;
-//   - parcelas são as já conhecidas: as que faltam das compras parceladas no cartão (inferidas do "n/m" da
-//     descrição, já que o banco só informa a parcela do mês) e as cadastradas, em knownInstallments.
-//
+// BuildProjection projeta `months` meses a partir de start (primeiro dia do mês, em geral o mês atual): médias de fixas e
+// variáveis, mediana da renda e parcelas já conhecidas. As regras estão em docs/regras-de-calculo.md (Projeção).
 // rows são as despesas por conta dos 12 meses completos antes de start; incomes, as entradas de renda no mesmo período.
 func BuildProjection(rows []domain.ExpenseKeyMonth, rules map[string]domain.ExpenseClass, incomes []domain.IncomePayment,
 	knownInstallments map[time.Time]float64, start time.Time, months int) Projection {

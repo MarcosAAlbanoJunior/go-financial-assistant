@@ -121,12 +121,8 @@ func (r *LedgerRepo) SaveExternal(ctx context.Context, purchase *domain.Purchase
 	return tx.Commit(ctx)
 }
 
-// ReconcileExternal procura um lançamento manual (sem external_id) equivalente à transação
-// do banco e o vincula, em vez de criar um segundo lançamento. Casa por tipo, valor e data:
-//   - SINGLE: data do lançamento até 3 dias de diferença;
-//   - RECURRING: mesmo mês (a recorrência é gerada em dia fixo, o banco pode atrasar).
-//
-// Parcelados ficam de fora: a data de cada parcela no cartão não é previsível.
+// ReconcileExternal vincula a transação do banco a um lançamento manual equivalente (mesmo tipo e valor; avulso até 3 dias
+// de diferença, recorrente no mesmo mês), em vez de criar um segundo lançamento. Parcelados ficam de fora.
 func (r *LedgerRepo) ReconcileExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
 	query := `
 		UPDATE payments SET external_id = $1, account_id = $6, status = 'PAID', paid_at = COALESCE(paid_at, $5::timestamptz)
