@@ -15,7 +15,7 @@ import (
 const (
 	// Limites do que vai para a IA (controle de custo e de exposição).
 	MaxCoachSuggestions = 15
-	MaxCoachBytes       = 8 << 10
+	MaxCoachBytes       = 16 << 10
 	maxCoachLabel       = 40
 
 	// Limites da resposta da IA.
@@ -39,6 +39,8 @@ type CoachContext struct {
 	Categories  []CoachCategory   `json:"categorias"`
 	Suggestions []CoachSuggestion `json:"sugestoes"`
 	Goals       []CoachGoal       `json:"metas"`
+	// Memory são as análises passadas e as respostas da pessoa: a IA lembra o que já foi dito.
+	Memory []CoachMemory `json:"memoria"`
 }
 
 type CoachCategory struct {
@@ -124,10 +126,10 @@ func CoachCandidates(rev Review) []Candidate {
 }
 
 // BuildCoachContext monta o que vai para a IA a partir dos resultados dos detectores e das metas (os IDs "m1",
-// "m2"... seguem a ordem de goals).
-func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals []GoalProgress) CoachContext {
+// "m2"... seguem a ordem de goals). past são as análises guardadas, da mais nova para a mais antiga.
+func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals []GoalProgress, past []ports.CoachAnalysis) CoachContext {
 	c := CoachContext{Month: month, Income: totals.Income, Expense: totals.Expense,
-		Months: []string{}, Categories: []CoachCategory{}, Suggestions: []CoachSuggestion{}, Goals: []CoachGoal{}}
+		Months: []string{}, Categories: []CoachCategory{}, Suggestions: []CoachSuggestion{}, Goals: []CoachGoal{}, Memory: BuildCoachMemory(past)}
 	for _, m := range rev.Months {
 		c.Months = append(c.Months, m.Format("2006-01"))
 	}

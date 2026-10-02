@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/google/uuid"
 )
 
 type fakeCoach struct {
@@ -210,5 +211,96 @@ func TestCoachService_OneAtATime(t *testing.T) {
 	c.end()
 	if !c.begin() {
 		t.Error("depois de terminar, outra pode começar")
+	}
+}
+
+type analysisBody struct {
+	ID      string            `json:"id"`
+	Answers map[string]string `json:"answers"`
+	Advice  struct {
+		Summary string `json:"summary"`
+	} `json:"advice"`
+}
+
+func TestAPI_CoachHistoryAnswersAndMemory(t *testing.T) {
+	coach := &fakeCoach{advice: ports.CoachAdvice{
+		Summary: "As contas fixas pesam.",
+		Actions: []ports.CoachAction{{SuggestionID: "s1", Priority: 1, Comment: "Vale rever.", Question: "Você ainda usa?"}},
+	}}
+	r := coachReader()
+	s := newCoachAPI(t, r, coach, true)
+	c := login(t, s)
+
+	rec := do(s, "POST", "/api/coach/analyze", `{"month":"2026-11","hash":"`+preview(t, s, c).Hash+`"}`, jsonHeader, c)
+	var saved analysisBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &saved); err != nil || rec.Code != 200 || saved.ID == "" || saved.Advice.Summary != "As contas fixas pesam." {
+		t.Fatalf("análise devolvida com id: %d %s", rec.Code, rec.Body)
+	}
+	if len(r.analyses) != 1 || r.analyses[0].ID.String() != saved.ID || r.analyses[0].Month.Format("2006-01") != "2026-11" {
+		t.Fatalf("a análise é gravada: %+v", r.analyses)
+	}
+
+	// Voltar à tela (ou ao mês) traz a análise de volta; outro mês, não.
+	var list []analysisBody
+	_ = json.Unmarshal(do(s, "GET", "/api/coach/analyses?month=2026-11", "", nil, c).Body.Bytes(), &list)
+	if len(list) != 1 || list[0].ID != saved.ID || list[0].Advice.Summary == "" {
+		t.Errorf("lista do mês: %+v", list)
+	}
+	if rec := do(s, "GET", "/api/coach/analyses?month=2026-10", "", nil, c); strings.TrimSpace(rec.Body.String()) != "[]" {
+		t.Errorf("outro mês vem vazio: %s", rec.Body)
+	}
+
+	// A resposta da pessoa fica guardada e a próxima prévia a leva como memória (visível antes do envio).
+	put := func(body string) int {
+		return do(s, "PUT", "/api/coach/analyses/"+saved.ID+"/answers", body, jsonHeader, c).Code
+	}
+	if code := put(`{"key":"a:s1","answer":"  cancelei\n semana passada "}`); code != 200 || r.analyses[0].Answers["a:s1"] != "cancelei semana passada" {
+		t.Errorf("gravar resposta: %d %+v", code, r.analyses[0].Answers)
+	}
+	mem := string(preview(t, s, c).Context)
+	for _, want := range []string{`"memoria":[{"mes":"2026-11"`, `"resposta":"cancelei semana passada"`, `"pergunta":"Você ainda usa?"`, `"resumo":"As contas fixas pesam."`} {
+		if !strings.Contains(mem, want) {
+			t.Errorf("falta %s na memória: %s", want, mem)
+		}
+	}
+	if code := put(`{"key":"a:s1","answer":"   "}`); code != 200 || len(r.analyses[0].Answers) != 0 {
+		t.Errorf("resposta vazia apaga: %d %+v", code, r.analyses[0].Answers)
+	}
+
+	for name, body := range map[string]string{
+		"chave inválida": `{"key":"x:1","answer":"a"}`,
+		"chave com SQL":  `{"key":"a:s1'; drop table coach_analyses;--","answer":"a"}`,
+		"resposta longa": `{"key":"q:0","answer":"` + strings.Repeat("a", 301) + `"}`,
+		"com controle":   `{"key":"q:0","answer":"a\u0000b"}`,
+		"corpo inválido": `nao-json`,
+	} {
+		if code := put(body); code != 400 {
+			t.Errorf("%s: %d, esperava 400", name, code)
+		}
+	}
+	if code := do(s, "PUT", "/api/coach/analyses/"+saved.ID+"/answers", `key=q:0`, map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, c).Code; code != 403 {
+		t.Errorf("form (CSRF) = %d", code)
+	}
+	if code := do(s, "PUT", "/api/coach/analyses/"+saved.ID+"/answers", `{"key":"q:0","answer":"a"}`, map[string]string{"Content-Type": "application/json", "Origin": "https://evil.example"}, c).Code; code != 403 {
+		t.Errorf("origem diferente = %d", code)
+	}
+	if code := do(s, "PUT", "/api/coach/analyses/"+uuid.New().String()+"/answers", `{"key":"q:0","answer":"a"}`, jsonHeader, c).Code; code != 404 {
+		t.Errorf("análise inexistente = %d", code)
+	}
+	if code := do(s, "PUT", "/api/coach/analyses/1;drop/answers", `{"key":"q:0","answer":"a"}`, jsonHeader, c).Code; code != 400 {
+		t.Errorf("id inválido = %d", code)
+	}
+	if code := do(s, "PUT", "/api/coach/analyses/"+saved.ID+"/answers", `{"key":"q:0","answer":"a"}`, jsonHeader).Code; code != 401 {
+		t.Errorf("sem sessão = %d", code)
+	}
+
+	if code := do(s, "DELETE", "/api/coach/analyses/"+saved.ID, "", map[string]string{"Origin": "https://evil.example"}, c).Code; code != 403 {
+		t.Errorf("apagar com origem diferente = %d", code)
+	}
+	if code := do(s, "DELETE", "/api/coach/analyses/"+saved.ID, "", nil, c).Code; code != 200 || len(r.analyses) != 0 {
+		t.Errorf("apagar: %d %+v", code, r.analyses)
+	}
+	if code := do(s, "DELETE", "/api/coach/analyses/"+saved.ID, "", nil, c).Code; code != 404 {
+		t.Errorf("apagar de novo = %d", code)
 	}
 }
