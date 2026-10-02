@@ -1,8 +1,7 @@
 package httpserver
 
 import (
-	"encoding/json"
-	"mime"
+	"context"
 	"net/http"
 	"slices"
 	"strings"
@@ -96,77 +95,27 @@ func (a *api) goals(w http.ResponseWriter, r *http.Request) {
 
 // createGoal cria uma meta. Escrita: exige JSON e mesma origem. Tudo é validado aqui; o cliente só
 // informa os parâmetros, e o servidor calcula a base (média) e a data de criação.
+// goalInput é o corpo de POST /api/goals; cada tipo de meta usa só os seus campos.
+type goalInput struct {
+	Kind          string  `json:"kind"`
+	Name          string  `json:"name"`
+	TargetAmount  float64 `json:"targetAmount"`
+	TargetDate    string  `json:"targetDate"`
+	Category      string  `json:"category"`
+	CutPercent    int     `json:"cutPercent"`
+	ReserveMonths int     `json:"reserveMonths"`
+}
+
 func (a *api) createGoal(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
+	var in goalInput
+	if !decodeJSONStrict(w, r, maxGoalBody, &in) {
 		return
 	}
-	var body struct {
-		Kind          string  `json:"kind"`
-		Name          string  `json:"name"`
-		TargetAmount  float64 `json:"targetAmount"`
-		TargetDate    string  `json:"targetDate"`
-		Category      string  `json:"category"`
-		CutPercent    int     `json:"cutPercent"`
-		ReserveMonths int     `json:"reserveMonths"`
-	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxGoalBody))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "corpo inválido")
+	g, err := a.goalFromInput(r.Context(), in)
+	if err != nil {
+		a.respondErr(w, "meta", err)
 		return
 	}
-	name := strings.TrimSpace(body.Name)
-	if n := utf8.RuneCountInString(name); n < 1 || n > maxGoalNameLen || strings.IndexFunc(name, unicode.IsControl) >= 0 {
-		writeError(w, http.StatusBadRequest, "name deve ter de 1 a 60 caracteres, sem caracteres de controle")
-		return
-	}
-	g := ports.Goal{ID: uuid.New(), Kind: ports.GoalKind(body.Kind), Name: name}
-	now := a.monthStart()
-
-	switch g.Kind {
-	case ports.GoalSave:
-		date, err := time.Parse("2006-01", body.TargetDate)
-		if err != nil || !date.After(now) || date.After(now.AddDate(maxGoalYears, 0, 0)) {
-			writeError(w, http.StatusBadRequest, "targetDate deve ser um mês futuro (AAAA-MM) em até 10 anos")
-			return
-		}
-		if !(body.TargetAmount > 0 && body.TargetAmount <= maxGoalAmount) {
-			writeError(w, http.StatusBadRequest, "targetAmount deve ser maior que zero")
-			return
-		}
-		g.TargetAmount, g.TargetDate = float64(int64(body.TargetAmount*100+0.5))/100, date
-	case ports.GoalCut:
-		if !slices.Contains(cutCategories, domain.Category(body.Category)) {
-			writeError(w, http.StatusBadRequest, "category inválida")
-			return
-		}
-		if body.CutPercent < 1 || body.CutPercent > maxCutPercent {
-			writeError(w, http.StatusBadRequest, "cutPercent deve ser de 1 a 90")
-			return
-		}
-		cats, err := a.reader.CategoryMonths(r.Context(), now.AddDate(0, -3, 0), now.AddDate(0, -1, 0))
-		if err != nil {
-			a.fail(w, "meta", err)
-			return
-		}
-		baseline, ok := usecase.CutBaseline(cats, body.Category, now)
-		if !ok {
-			writeError(w, http.StatusUnprocessableEntity, "a categoria não tem gastos nos meses anteriores para servir de base")
-			return
-		}
-		g.Category, g.CutPercent, g.Baseline = body.Category, body.CutPercent, baseline
-	case ports.GoalReserve:
-		if body.ReserveMonths < 1 || body.ReserveMonths > maxReserveMonths {
-			writeError(w, http.StatusBadRequest, "reserveMonths deve ser de 1 a 36")
-			return
-		}
-		g.ReserveMonths = body.ReserveMonths
-	default:
-		writeError(w, http.StatusBadRequest, "kind deve ser SAVE, CUT ou RESERVE")
-		return
-	}
-
 	existing, err := a.reader.Goals(r.Context())
 	if err != nil {
 		a.fail(w, "meta", err)
@@ -183,11 +132,69 @@ func (a *api) createGoal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]string{"id": g.ID.String()})
 }
 
-func (a *api) deleteGoal(w http.ResponseWriter, r *http.Request) {
-	if !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
+// goalFromInput valida o corpo e monta a meta. Erros de validação voltam como apiError (400/422).
+func (a *api) goalFromInput(ctx context.Context, in goalInput) (ports.Goal, error) {
+	name := strings.TrimSpace(in.Name)
+	if n := utf8.RuneCountInString(name); n < 1 || n > maxGoalNameLen || strings.IndexFunc(name, unicode.IsControl) >= 0 {
+		return ports.Goal{}, badRequest("name deve ter de 1 a 60 caracteres, sem caracteres de controle")
 	}
+	g := ports.Goal{ID: uuid.New(), Kind: ports.GoalKind(in.Kind), Name: name}
+	now := a.monthStart()
+
+	var err error
+	switch g.Kind {
+	case ports.GoalSave:
+		err = fillSaveGoal(&g, in, now)
+	case ports.GoalCut:
+		err = a.fillCutGoal(ctx, &g, in, now)
+	case ports.GoalReserve:
+		err = fillReserveGoal(&g, in)
+	default:
+		err = badRequest("kind deve ser SAVE, CUT ou RESERVE")
+	}
+	return g, err
+}
+
+func fillSaveGoal(g *ports.Goal, in goalInput, now time.Time) error {
+	date, err := time.Parse("2006-01", in.TargetDate)
+	if err != nil || !date.After(now) || date.After(now.AddDate(maxGoalYears, 0, 0)) {
+		return badRequest("targetDate deve ser um mês futuro (AAAA-MM) em até 10 anos")
+	}
+	if !(in.TargetAmount > 0 && in.TargetAmount <= maxGoalAmount) {
+		return badRequest("targetAmount deve ser maior que zero")
+	}
+	g.TargetAmount, g.TargetDate = float64(int64(in.TargetAmount*100+0.5))/100, date
+	return nil
+}
+
+func (a *api) fillCutGoal(ctx context.Context, g *ports.Goal, in goalInput, now time.Time) error {
+	if !slices.Contains(cutCategories, domain.Category(in.Category)) {
+		return badRequest("category inválida")
+	}
+	if in.CutPercent < 1 || in.CutPercent > maxCutPercent {
+		return badRequest("cutPercent deve ser de 1 a 90")
+	}
+	cats, err := a.reader.CategoryMonths(ctx, now.AddDate(0, -3, 0), now.AddDate(0, -1, 0))
+	if err != nil {
+		return err
+	}
+	baseline, ok := usecase.CutBaseline(cats, in.Category, now)
+	if !ok {
+		return &apiError{http.StatusUnprocessableEntity, "a categoria não tem gastos nos meses anteriores para servir de base"}
+	}
+	g.Category, g.CutPercent, g.Baseline = in.Category, in.CutPercent, baseline
+	return nil
+}
+
+func fillReserveGoal(g *ports.Goal, in goalInput) error {
+	if in.ReserveMonths < 1 || in.ReserveMonths > maxReserveMonths {
+		return badRequest("reserveMonths deve ser de 1 a 36")
+	}
+	g.ReserveMonths = in.ReserveMonths
+	return nil
+}
+
+func (a *api) deleteGoal(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "id inválido")
@@ -207,6 +214,6 @@ func (a *api) deleteGoal(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) registerGoals(rt routes) {
 	rt.mux.Handle("GET /api/goals", rt.protected(a.goals))
-	rt.mux.Handle("POST /api/goals", rt.protected(a.createGoal))
-	rt.mux.Handle("DELETE /api/goals/{id}", rt.protected(a.deleteGoal))
+	rt.mux.Handle("POST /api/goals", rt.protected(jsonOnly(a.createGoal)))
+	rt.mux.Handle("DELETE /api/goals/{id}", rt.protected(sameOriginOnly(a.deleteGoal)))
 }
