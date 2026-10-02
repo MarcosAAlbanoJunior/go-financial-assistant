@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	_ "time/tzdata" // fusos horários embutidos: a imagem não precisa de tzdata do sistema
 
 	"github.com/mdp/qrterminal/v3"
 
@@ -72,11 +73,13 @@ func main() {
 		slog.Info("Open Finance ativo", "items", len(cfg.PluggyItemIDs), "interval", cfg.OpenFinanceSyncInterval.String())
 	}
 
+	dashboardReader := db.NewDashboardReader(postgresDB)
+	insights := usecase.NewInsights(dashboardReader)
 	server := httpserver.NewServer(cfg.Port, logger)
 	geminiClient.CoachModel = cfg.CoachModel
 	server.SetCoach(geminiClient, cfg.GeminiPaidPlan)
 	if cfg.DashboardPassword != "" {
-		if err := server.MountAPI(cfg.DashboardPassword, db.NewDashboardReader(postgresDB)); err != nil {
+		if err := server.MountAPI(cfg.DashboardPassword, dashboardReader); err != nil {
 			slog.Error("failed to mount dashboard API", "error", err)
 			os.Exit(1)
 		}
@@ -100,6 +103,7 @@ func main() {
 		messenger, owner = tg, strconv.FormatInt(cfg.TelegramChatID, 10)
 		handler := chat.NewHandler(analyzeExpense, exportCSV, tg, owner, logger)
 		handler.SetSyncer(syncer)
+		handler.SetDigester(insights)
 		go telegram.NewBot(tg, cfg.TelegramChatID, handler, logger).Run(ctx)
 	default:
 		evolutionClient := evolution.NewClient(cfg.EvolutionAPIURL, cfg.EvolutionInstance, cfg.EvolutionAPIKey)
@@ -112,6 +116,10 @@ func main() {
 			EvolutionAPIURL: cfg.EvolutionAPIURL,
 			AdminSecret:     cfg.AdminSecret,
 		}, evolutionClient, analyzeExpense, exportCSV, syncer)
+	}
+
+	if cfg.DigestEnabled {
+		go usecase.NewDigestJob(insights, messenger, owner, logger, cfg.DigestWeekday, cfg.DigestHour, cfg.DigestLocation).Run(ctx)
 	}
 
 	monthlyReport := usecase.NewMonthlyReport(exportCSV, messenger, owner, logger)
