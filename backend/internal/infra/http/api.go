@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -45,6 +46,9 @@ type api struct {
 	insights *usecase.Insights
 	syncer   chat.Syncer   // nil sem Open Finance
 	settings *SettingsDeps // nil sem a página de configurações
+
+	confirmLimiter *ipRateLimiter // tentativas de confirmar a senha nas configurações sensíveis
+	lastFailNotice atomic.Int64
 }
 
 // MountAPI registra a API do dashboard. Tudo, exceto o login, exige sessão.
@@ -102,10 +106,12 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	// Cada sincronização consulta o Pluggy: limite apertado por IP, além de uma por vez (409).
 	if s.settings != nil {
 		a.coach.paidFn = func() bool { return s.settings.Service.Bool("GEMINI_PAID_PLAN") }
+		a.confirmLimiter = newIPRateLimiter(8, time.Minute)
 		writeLimiter := newIPRateLimiter(30, time.Minute)
 		s.mux.Handle("GET /api/settings", protected(a.getSettings))
 		s.mux.Handle("PUT /api/settings", writeLimiter.middleware(protected(a.putSettings)))
-		s.mux.Handle("DELETE /api/settings/{key}", writeLimiter.middleware(protected(a.resetSetting)))
+		s.mux.Handle("POST /api/settings/reset/{key}", writeLimiter.middleware(protected(a.resetSetting)))
+		s.mux.Handle("GET /api/settings/audit", protected(a.auditLog))
 		s.mux.Handle("POST /api/settings/own-transfers/apply", writeLimiter.middleware(protected(a.applyOwnTransfers)))
 		s.mux.Handle("POST /api/settings/test/{target}", newIPRateLimiter(12, time.Minute).middleware(protected(a.testConnection)))
 		s.mux.Handle("POST /api/restart", newIPRateLimiter(3, time.Minute).middleware(protected(a.restart)))
