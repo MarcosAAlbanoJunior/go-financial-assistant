@@ -33,7 +33,11 @@ export default function Goals() {
         {(data) => (
           <>
             <div className="tiles">
-              <StatTile label="Patrimônio hoje" value={formatBRL(data.wealth)} note="Contas correntes + investimentos. É o que mede as metas de juntar e de reserva." />
+              <StatTile
+                label="Patrimônio hoje"
+                value={formatBRL(data.wealth)}
+                note="Contas correntes + investimentos. É o que mede as metas de juntar e de reserva."
+              />
             </div>
 
             {remove.isError && (
@@ -57,7 +61,9 @@ export default function Goals() {
               <div className="section-gap">
                 <GoalForm
                   busy={create.isPending}
-                  serverError={create.error instanceof ApiError ? create.error.message : create.isError ? 'Não foi possível criar a meta.' : null}
+                  serverError={
+                    create.error instanceof ApiError ? create.error.message : create.isError ? 'Não foi possível criar a meta.' : null
+                  }
                   onSubmit={(input) => create.mutate(input)}
                   onCancel={() => {
                     setAdding(false)
@@ -72,9 +78,9 @@ export default function Goals() {
             )}
 
             <p className="tile-note section-gap">
-              O andamento é calculado na hora, nada é gravado. &quot;Cabe no orçamento&quot; compara o que falta guardar por mês com a sobra média da
-              projeção (renda − fixas − variáveis − parcelas), que é uma estimativa. A meta de reduzir usa a média dos meses anteriores à criação como
-              base fixa.
+              O andamento é calculado na hora, nada é gravado. &quot;Cabe no orçamento&quot; compara o que falta guardar por mês com a sobra
+              média da projeção (renda − fixas − variáveis − parcelas), que é uma estimativa. A meta de reduzir usa a média dos meses
+              anteriores à criação como base fixa.
             </p>
           </>
         )}
@@ -121,9 +127,16 @@ function GoalCard({ g, busy, onDelete }: { g: Goal; busy: boolean; onDelete: () 
       </p>
       {g.kind === 'CUT' && g.history.length > 0 && (
         <ul className="goal-history" aria-label="Gasto por mês desde a criação da meta">
-          {g.history.map((h) => (
+          {g.history.map((h, i) => (
             <li key={h.month}>
-              {formatMonthShort(h.month)}: {formatBRL(h.total)} {h.hit ? <Check size={12} aria-label="dentro do teto" /> : <CircleAlert size={12} aria-label="acima do teto" />}
+              {formatMonthShort(h.month)}: {formatBRL(h.total)}{' '}
+              {i === g.history.length - 1 ? (
+                '(em andamento)'
+              ) : h.hit ? (
+                <Check size={12} aria-label="dentro do teto" />
+              ) : (
+                <CircleAlert size={12} aria-label="acima do teto" />
+              )}
             </li>
           ))}
         </ul>

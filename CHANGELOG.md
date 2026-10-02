@@ -49,6 +49,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Pacote `internal/chat` com a lógica de conversa independente de canal.
 
 ### Alterado
+- **Metas de redução** agora mostram o **ritmo do mês**: a partir do dia 7, quanto o mês fecha se o gasto continuar no mesmo passo, com aviso quando isso passa do teto (antes, nos primeiros dias a meta parecia "dentro do teto" só porque o mês mal tinha começado). O mês aberto não conta mais como "dentro do teto"; só os meses fechados.
 - **Projeção**: a renda mensal agora é estimada **por fonte**, e não pela média de tudo que entrou. Cada fonte recorrente (mesma descrição, em 3 meses, ou em todos quando há menos) vale a mediana dos seus pagamentos vezes quantas vezes costuma cair por mês, então um pagamento fora do padrão (adiantamento de férias, 13º) deixa de inflar a renda, e fontes de um mês só ficam de fora. A tela lista as fontes usadas. Os valores que você editar nas premissas passam a ficar salvos no navegador, com botão para voltar aos calculados.
 - API: `GET /api/projection` devolve `assumptions.incomeSources`.
 - O menu do dashboard virou uma **barra lateral com seções** (Visão geral; Dia a dia: Transações, Gastos, Orçamento, Contas e cartões; Planejamento: Projeção, Comparações; Patrimônio: Investimentos), com ícones, tema e sair no rodapé. Em telas estreitas vira uma gaveta aberta por um botão (fecha com Esc, ao tocar fora ou ao navegar).
