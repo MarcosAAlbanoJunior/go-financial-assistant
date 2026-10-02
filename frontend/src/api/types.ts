@@ -239,6 +239,8 @@ export interface CoachContext {
   categorias: { nome: string; gasto_por_mes: number[] }[]
   sugestoes: { id: string; tipo: string; nome: string; categoria: string; valor_no_mes: number; economia_possivel: number }[]
   metas: { id: string; tipo: string; nome: string; atual: number; alvo: number; atingida: boolean }[]
+  /** Análises passadas e as respostas da pessoa, que a IA recebe para lembrar o que já foi dito. */
+  memoria: { mes: string; resumo: string; respostas: { sobre?: string; pergunta: string; resposta: string }[] }[]
 }
 
 export interface CoachPreview {
@@ -270,9 +272,18 @@ export interface CoachAction {
   } | null
 }
 
-export interface CoachResult {
+export interface CoachRecord {
   summary: string
   actions: CoachAction[]
   goals: { goalId: string; name: string; comment: string }[]
   questions: string[]
+}
+
+/** Uma análise guardada. As chaves de `answers` são "a:s3" (sobre a sugestão s3) ou "q:0" (pergunta geral 0). */
+export interface CoachAnalysis {
+  id: string
+  month: string
+  createdAt: string
+  advice: CoachRecord
+  answers: Record<string, string>
 }

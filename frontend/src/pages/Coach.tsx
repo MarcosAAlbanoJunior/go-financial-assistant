@@ -1,21 +1,19 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Bot, CircleHelp, ShieldAlert } from 'lucide-react'
-import { useState, type CSSProperties } from 'react'
-import { Link } from 'react-router'
-import { ApiError, analyzeCoach, useCoachPreview } from '../api/client'
-import type { CoachAction, CoachPreview, CoachResult } from '../api/types'
-import { CategoryChip } from '../components/CategoryChip'
+import { Bot, ShieldAlert } from 'lucide-react'
+import { useState } from 'react'
+import { ApiError, analyzeCoach, useCoachAnalyses, useCoachPreview } from '../api/client'
+import type { CoachPreview } from '../api/types'
+import { CoachAnalysisCard } from '../components/CoachAnalysisCard'
 import { MonthFilter } from '../components/MonthFilter'
 import { QueryState } from '../components/QueryState'
-import { byPriority, describeContext, priorityLabel, sentNames } from '../lib/coach'
-import { formatBRL, formatMonthTitle } from '../lib/format'
-import { cleanLabel } from '../lib/budget'
-import { KIND_META, savingLine, transactionsLink } from '../lib/review'
+import { describeContext, sentNames } from '../lib/coach'
+import { formatMonthTitle } from '../lib/format'
 import { useMonth } from '../lib/useMonth'
 
 export default function Coach() {
   const { month, setMonth, now } = useMonth()
   const preview = useCoachPreview(month)
+  const analyses = useCoachAnalyses(month)
   const queryClient = useQueryClient()
   // O consentimento vale para os dados exatos que a pessoa viu (o hash); mudou o mês ou os dados, vale de novo conferir.
   const [agreedHash, setAgreedHash] = useState<string | null>(null)
@@ -23,7 +21,10 @@ export default function Coach() {
   const analyze = useMutation({
     mutationFn: ({ hash }: { hash: string }) => analyzeCoach(month, hash),
     // Depois de cada tentativa relê a prévia: se os dados mudaram (409), a pessoa confere o novo envio antes de tentar de novo.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['coach-preview'] }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['coach-preview'] })
+      queryClient.invalidateQueries({ queryKey: ['coach-analyses'] })
+    },
   })
   return (
     <>
@@ -67,8 +68,24 @@ export default function Coach() {
                 </p>
               )}
 
-              {analyze.data && analyze.variables?.hash === p.hash && (
-                <Result month={month} actions={byPriority(analyze.data.actions)} data={analyze.data} />
+              {analyses.data && analyses.data.length > 0 && (
+                <section className="section-gap" aria-labelledby="history-title">
+                  <h2 className="chart-title" id="history-title">
+                    Análises guardadas ({analyses.data.length})
+                  </h2>
+                  {analyses.data.map((an, i) =>
+                    i === 0 ? (
+                      <CoachAnalysisCard key={an.id} analysis={an} month={month} />
+                    ) : (
+                      <details key={an.id} className="coach-older">
+                        <summary>
+                          Análise anterior de {new Date(an.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </summary>
+                        <CoachAnalysisCard analysis={an} month={month} />
+                      </details>
+                    ),
+                  )}
+                </section>
               )}
 
               <p className="tile-note section-gap">
@@ -112,81 +129,6 @@ function SendPreview({ p }: { p: CoachPreview }) {
         <summary>Ver o JSON exato ({p.bytes} bytes)</summary>
         <pre>{JSON.stringify(p.context, null, 2)}</pre>
       </details>
-    </section>
-  )
-}
-
-function Result({ month, actions, data }: { month: string; actions: CoachAction[]; data: CoachResult }) {
-  return (
-    <section className="section-gap" aria-labelledby="result-title">
-      <h2 className="bill-head" id="result-title">
-        <Bot size={18} aria-hidden="true" /> Análise da IA
-      </h2>
-      {data.summary && <p className="card coach-summary">{data.summary}</p>}
-
-      <div className="bill-grid section-gap">
-        {actions.map((a) => (
-          <article key={a.suggestionId} className="bill" style={{ '--c': 'var(--accent)' } as CSSProperties}>
-            {a.suggestion ? (
-              <>
-                <div className="bill-top">
-                  <CategoryChip category={a.suggestion.category} size={20} />
-                  <span className="bill-name">
-                    <strong>{cleanLabel(a.suggestion.label)}</strong>
-                    <span className="bill-meta">
-                      {KIND_META[a.suggestion.kind].label} · {formatBRL(a.suggestion.amount)} no mês
-                    </span>
-                  </span>
-                </div>
-                <p className="saving">
-                  <span className="saving-label">Economia possível (calculada pelo app)</span>{' '}
-                  <strong>{savingLine(a.suggestion.monthly, a.suggestion.annual)}</strong>
-                </p>
-              </>
-            ) : null}
-            <p className="goal-status">{priorityLabel(a.priority)}</p>
-            {a.comment && <p>{a.comment}</p>}
-            {a.question && (
-              <p className="coach-question">
-                <CircleHelp size={14} aria-hidden="true" /> {a.question}
-              </p>
-            )}
-            {a.suggestion && (
-              <div className="bill-foot">
-                <Link className="link" to={transactionsLink(month, a.suggestion.category)}>
-                  Ver transações de {a.suggestion.categoryLabel}
-                </Link>
-                <Link className="link" to={`/revisao?mes=${month}`}>
-                  Dispensar na Revisão
-                </Link>
-              </div>
-            )}
-          </article>
-        ))}
-      </div>
-
-      {data.goals.length > 0 && (
-        <>
-          <h3 className="coach-sub">Sobre as suas metas</h3>
-          <ul className="coach-names">
-            {data.goals.map((g) => (
-              <li key={g.goalId}>
-                <strong>{g.name}:</strong> {g.comment}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {data.questions.length > 0 && (
-        <>
-          <h3 className="coach-sub">Perguntas para pensar</h3>
-          <ul className="coach-names">
-            {data.questions.map((q) => (
-              <li key={q}>{q}</li>
-            ))}
-          </ul>
-        </>
-      )}
     </section>
   )
 }
