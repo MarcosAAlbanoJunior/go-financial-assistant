@@ -28,6 +28,10 @@
   --cat-investment: #1baf7a;
   --cat-salary: #eda100;
   --cat-other: #898781;
+  --cat-housing: #8c5e3c;
+  --cat-bills: #1597a5;
+  --cat-education: #6b8e23;
+  --cat-people: #b0459b;
   --meter-track: #cde2fb;
   --warning: #fab219;
   --critical: #d03b3b;
@@ -60,7 +64,11 @@
     --cat-shopping: #d55181;
     --cat-investment: #199e70;
     --cat-salary: #c98500;
-    --cat-other: #898781;
+      --cat-other: #898781;
+    --cat-housing: #b9885c;
+    --cat-bills: #3bb3c2;
+    --cat-education: #9ab85a;
+    --cat-people: #cc6bb8;
     --meter-track: #0d366b;
   }
 }
@@ -91,7 +99,11 @@
   --cat-shopping: #d55181;
   --cat-investment: #199e70;
   --cat-salary: #c98500;
-  --cat-other: #898781;
+    --cat-other: #898781;
+    --cat-housing: #b9885c;
+    --cat-bills: #3bb3c2;
+    --cat-education: #9ab85a;
+    --cat-people: #cc6bb8;
   --meter-track: #0d366b;
 }
 
