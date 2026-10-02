@@ -15,10 +15,10 @@ const goalProjectionMonths = 24
 // Insights reúne as leituras que alimentam a revisão, as metas, a economia realizada, o Coach e o resumo
 // semanal: busca os dados no banco e roda os cálculos. Tanto a API quanto o agendador de resumos usam.
 type Insights struct {
-	reader ports.DashboardReader
+	reader ports.InsightsReader
 }
 
-func NewInsights(reader ports.DashboardReader) *Insights { return &Insights{reader: reader} }
+func NewInsights(reader ports.InsightsReader) *Insights { return &Insights{reader: reader} }
 
 // MonthStart é o primeiro dia do mês de t, em UTC.
 func MonthStart(t time.Time) time.Time {
@@ -27,7 +27,7 @@ func MonthStart(t time.Time) time.Time {
 }
 
 // BankBalance soma o saldo das contas correntes; nil quando não há conta sincronizada ("em conta" é desconhecido, não zero).
-func BankBalance(accounts []ports.Account) *float64 {
+func BankBalance(accounts []domain.Account) *float64 {
 	var bank *float64
 	for _, acc := range accounts {
 		if acc.Type == domain.AccountBank {
@@ -107,8 +107,8 @@ func (i *Insights) Goals(ctx context.Context, today time.Time) ([]GoalProgress, 
 	if err != nil {
 		return nil, 0, err
 	}
-	var cats []ports.CategoryMonth
-	if slices.ContainsFunc(goals, func(g ports.Goal) bool { return g.Kind == ports.GoalCut }) {
+	var cats []domain.CategoryMonth
+	if slices.ContainsFunc(goals, func(g domain.Goal) bool { return g.Kind == domain.GoalCut }) {
 		if cats, err = i.reader.CategoryMonths(ctx, now.AddDate(0, -11, 0), now); err != nil {
 			return nil, 0, err
 		}
@@ -134,7 +134,7 @@ func (i *Insights) Savings(ctx context.Context, now time.Time) ([]DecisionResult
 	if err != nil || len(decisions) == 0 {
 		return nil, err
 	}
-	from := slices.MinFunc(decisions, func(x, y ports.Decision) int { return x.Month.Compare(y.Month) }).Month
+	from := slices.MinFunc(decisions, func(x, y domain.Decision) int { return x.Month.Compare(y.Month) }).Month
 	rows, err := i.reader.ExpenseKeyMonths(ctx, from, now)
 	if err != nil {
 		return nil, err

@@ -130,7 +130,7 @@ type CoachMemoryAnswer struct {
 
 // BuildCoachMemory resume as análises guardadas (da mais nova para a mais antiga, até MaxCoachMemory).
 // Os nomes das sugestões passam pela mesma limpeza do contexto.
-func BuildCoachMemory(analyses []ports.CoachAnalysis) []CoachMemory {
+func BuildCoachMemory(analyses []domain.CoachAnalysis) []CoachMemory {
 	out := []CoachMemory{}
 	for _, a := range analyses {
 		var rec CoachRecord

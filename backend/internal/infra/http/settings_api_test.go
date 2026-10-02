@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/pluggy"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/settings"
 	"github.com/google/uuid"
@@ -43,11 +43,11 @@ func (m *memAudit) RecentAudit(_ context.Context, limit int) ([]settings.AuditEn
 }
 
 type fakeCleaner struct {
-	cands     []ports.TransferCandidate
+	cands     []domain.TransferCandidate
 	cancelled []uuid.UUID
 }
 
-func (f *fakeCleaner) OwnTransferCandidates(context.Context) ([]ports.TransferCandidate, error) {
+func (f *fakeCleaner) OwnTransferCandidates(context.Context) ([]domain.TransferCandidate, error) {
 	return f.cands, nil
 }
 func (f *fakeCleaner) CancelPayments(_ context.Context, ids []uuid.UUID) (int64, error) {
@@ -229,7 +229,7 @@ func TestSettingsAPI_OwnNamesFindsOldTransfers(t *testing.T) {
 	e, s := newSettingsAPI(t, goodKey)
 	c := login(t, s)
 	mine, other := uuid.New(), uuid.New()
-	e.cleaner.cands = []ports.TransferCandidate{
+	e.cleaner.cands = []domain.TransferCandidate{
 		{PaymentID: mine, Description: "Pix enviado MARIA DA SILVA", Kind: "EXPENSE", Amount: 500},
 		{PaymentID: uuid.New(), Description: "Pix recebido Maria da Silva", Kind: "INCOME", Amount: 80},
 		{PaymentID: other, Description: "Pix enviado JOAO PEREIRA", Kind: "EXPENSE", Amount: 10},
@@ -269,7 +269,7 @@ func TestSettingsAPI_OwnNamesFindsOldTransfers(t *testing.T) {
 func TestSettingsAPI_NoOwnNamesCancelsNothing(t *testing.T) {
 	e, s := newSettingsAPI(t, goodKey)
 	c := login(t, s)
-	e.cleaner.cands = []ports.TransferCandidate{{PaymentID: uuid.New(), Description: "Pix enviado QUALQUER", Kind: "EXPENSE", Amount: 1}}
+	e.cleaner.cands = []domain.TransferCandidate{{PaymentID: uuid.New(), Description: "Pix enviado QUALQUER", Kind: "EXPENSE", Amount: 1}}
 	rec := do(s, "POST", "/api/settings/own-transfers/apply", "{}", jsonHdr, c)
 	if rec.Code != 200 || len(e.cleaner.cancelled) != 0 {
 		t.Errorf("sem nomes configurados nada casa: %d %v", rec.Code, e.cleaner.cancelled)

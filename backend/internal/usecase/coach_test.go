@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
@@ -45,8 +46,8 @@ func sampleReview() Review {
 }
 
 func TestBuildCoachContext(t *testing.T) {
-	goals := []GoalProgress{{Goal: ports.Goal{Kind: ports.GoalSave, Name: "Viagem"}, Current: 100, Target: 1000}}
-	c := BuildCoachContext(sampleReview(), "2026-09", ports.MonthTotals{Income: 5000, Expense: 3000}, goals, nil, nil)
+	goals := []GoalProgress{{Goal: domain.Goal{Kind: domain.GoalSave, Name: "Viagem"}, Current: 100, Target: 1000}}
+	c := BuildCoachContext(sampleReview(), "2026-09", domain.MonthTotals{Income: 5000, Expense: 3000}, goals, nil, nil)
 
 	if len(c.Suggestions) != 3 || c.Suggestions[0].ID != "s1" || c.Suggestions[2].ID != "s3" {
 		t.Fatalf("dispensadas ficam de fora e os IDs seguem a ordem: %+v", c.Suggestions)
@@ -79,9 +80,9 @@ func TestBuildCoachContext_LimitsSizeAndCount(t *testing.T) {
 	}
 	var goals []GoalProgress
 	for i := 0; i < 20; i++ {
-		goals = append(goals, GoalProgress{Goal: ports.Goal{Kind: ports.GoalCut, Name: strings.Repeat("m", 60)}})
+		goals = append(goals, GoalProgress{Goal: domain.Goal{Kind: domain.GoalCut, Name: strings.Repeat("m", 60)}})
 	}
-	c := BuildCoachContext(rev, "2026-09", ports.MonthTotals{}, goals, nil, nil)
+	c := BuildCoachContext(rev, "2026-09", domain.MonthTotals{}, goals, nil, nil)
 	raw, _ := json.Marshal(c)
 	if len(c.Suggestions) != MaxCoachSuggestions || len(raw) > MaxCoachBytes {
 		t.Errorf("%d sugestões, %d bytes (limite %d)", len(c.Suggestions), len(raw), MaxCoachBytes)
@@ -158,7 +159,7 @@ func TestNewCoachRecordAndQuestionKeys(t *testing.T) {
 		{Kind: ReviewFixed, Key: "streaming", Label: "STREAMING", Category: "ENTERTAINMENT", Saving: 40, Recurring: true, Amount: 40},
 		{Kind: ReviewDuplicate, Key: "oficina", Label: "Oficina", Category: "OTHER", Saving: 100, Amount: 100},
 	}
-	goals := []GoalProgress{{Goal: ports.Goal{Name: "Reserva"}}}
+	goals := []GoalProgress{{Goal: domain.Goal{Name: "Reserva"}}}
 	adv := ports.CoachAdvice{
 		Summary:   "Resumo.",
 		Actions:   []ports.CoachAction{{SuggestionID: "s1", Priority: 1, Comment: "Rever.", Question: "Ainda usa?"}, {SuggestionID: "s2", Priority: 2, Comment: "Conferir."}},
@@ -189,10 +190,10 @@ func TestBuildCoachMemory(t *testing.T) {
 		Questions: []string{"Mudou algo?"},
 	}
 	raw, _ := json.Marshal(rec)
-	mk := func(m time.Month, answers map[string]string) ports.CoachAnalysis {
-		return ports.CoachAnalysis{Month: month(2026, m), Advice: raw, Answers: answers}
+	mk := func(m time.Month, answers map[string]string) domain.CoachAnalysis {
+		return domain.CoachAnalysis{Month: month(2026, m), Advice: raw, Answers: answers}
 	}
-	past := []ports.CoachAnalysis{
+	past := []domain.CoachAnalysis{
 		mk(time.September, map[string]string{"a:s1": "cancelei", "a:s2": "uso sim", "q:0": "mudei de emprego", "a:s9": "sem pergunta"}),
 		{Month: month(2026, time.August), Advice: []byte("não é json")},
 		mk(time.July, nil),

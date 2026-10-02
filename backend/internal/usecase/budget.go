@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 const (
@@ -25,7 +25,7 @@ type BudgetItem struct {
 	Key      string
 	Label    string
 	Category string
-	Class    ports.ExpenseClass
+	Class    domain.ExpenseClass
 	Manual   bool // a classe veio de uma correção manual, não da detecção
 	Total    float64
 	Count    int
@@ -44,21 +44,21 @@ type BudgetMonth struct {
 
 type Budget struct {
 	Series  []BudgetMonth
-	Items   []BudgetItem                  // contas do último mês da janela, da maior para a menor
-	Classes map[string]ports.ExpenseClass // classe de toda conta da janela, pela chave
+	Items   []BudgetItem                   // contas do último mês da janela, da maior para a menor
+	Classes map[string]domain.ExpenseClass // classe de toda conta da janela, pela chave
 }
 
 // BuildBudget classifica cada conta como fixa, parcelada ou variável e soma por mês.
 // Ordem de decisão: correção manual, parcelada, recorrente cadastrada, detecção de conta fixa e,
 // por fim, variável. A classe vale para a conta inteira na janela (from a to, primeiros dias dos meses).
-func BuildBudget(rows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseClass, from, to time.Time) Budget {
-	byKey := map[string][]ports.ExpenseKeyMonth{}
+func BuildBudget(rows []domain.ExpenseKeyMonth, rules map[string]domain.ExpenseClass, from, to time.Time) Budget {
+	byKey := map[string][]domain.ExpenseKeyMonth{}
 	for _, r := range rows {
 		byKey[r.Key] = append(byKey[r.Key], r)
 	}
 
 	type verdict struct {
-		class  ports.ExpenseClass
+		class  domain.ExpenseClass
 		manual bool
 		months int
 	}
@@ -73,19 +73,19 @@ func BuildBudget(rows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseCla
 	for key, list := range byKey {
 		v := verdict{months: len(list)}
 		switch rule := rules[key]; {
-		case rule == ports.ClassFixed || rule == ports.ClassVariable:
+		case rule == domain.ClassFixed || rule == domain.ClassVariable:
 			v.class, v.manual = rule, true
-		case anyRow(list, func(r ports.ExpenseKeyMonth) bool { return r.Installment }):
-			v.class = ports.ClassInstallment
-		case anyRow(list, func(r ports.ExpenseKeyMonth) bool { return r.Recurring }), looksFixed(list, needed):
-			v.class = ports.ClassFixed
+		case anyRow(list, func(r domain.ExpenseKeyMonth) bool { return r.Installment }):
+			v.class = domain.ClassInstallment
+		case anyRow(list, func(r domain.ExpenseKeyMonth) bool { return r.Recurring }), looksFixed(list, needed):
+			v.class = domain.ClassFixed
 		default:
-			v.class = ports.ClassVariable
+			v.class = domain.ClassVariable
 		}
 		verdicts[key] = v
 	}
 
-	b := Budget{Classes: make(map[string]ports.ExpenseClass, len(verdicts))}
+	b := Budget{Classes: make(map[string]domain.ExpenseClass, len(verdicts))}
 	for key, v := range verdicts {
 		b.Classes[key] = v.class
 	}
@@ -100,9 +100,9 @@ func BuildBudget(rows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseCla
 			continue
 		}
 		switch verdicts[r.Key].class {
-		case ports.ClassFixed:
+		case domain.ClassFixed:
 			b.Series[i].Fixed += r.Total
-		case ports.ClassInstallment:
+		case domain.ClassInstallment:
 			b.Series[i].Installment += r.Total
 		default:
 			b.Series[i].Variable += r.Total
@@ -119,7 +119,7 @@ func BuildBudget(rows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseCla
 	return b
 }
 
-func anyRow(list []ports.ExpenseKeyMonth, f func(ports.ExpenseKeyMonth) bool) bool {
+func anyRow(list []domain.ExpenseKeyMonth, f func(domain.ExpenseKeyMonth) bool) bool {
 	for _, r := range list {
 		if f(r) {
 			return true
@@ -129,7 +129,7 @@ func anyRow(list []ports.ExpenseKeyMonth, f func(ports.ExpenseKeyMonth) bool) bo
 }
 
 // looksFixed detecta a conta que se repete todo mês com valor parecido (assinatura, seguro, mensalidade).
-func looksFixed(list []ports.ExpenseKeyMonth, needed int) bool {
+func looksFixed(list []domain.ExpenseKeyMonth, needed int) bool {
 	if needed < minFixedMonthsNeeded || len(list) < needed {
 		return false
 	}

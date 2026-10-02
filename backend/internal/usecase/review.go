@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 const (
@@ -73,8 +73,8 @@ type Review struct {
 
 // BuildReview roda os detectores sobre o mês to (primeiro dia). catMonths cobre os meses da matriz,
 // keyRows a janela do orçamento (para reconhecer fixas e contas novas) e payments só as despesas de to.
-func BuildReview(catMonths []ports.CategoryMonth, keyRows []ports.ExpenseKeyMonth, rules map[string]ports.ExpenseClass,
-	payments []ports.ExpensePayment, dismissed []ports.Dismissal, to time.Time) Review {
+func BuildReview(catMonths []domain.CategoryMonth, keyRows []domain.ExpenseKeyMonth, rules map[string]domain.ExpenseClass,
+	payments []domain.ExpensePayment, dismissed []domain.Dismissal, to time.Time) Review {
 	from := to.AddDate(0, -(ReviewMatrixMonths - 1), 0)
 	budget := BuildBudget(keyRows, rules, to.AddDate(0, -(BudgetMonths-1), 0), to)
 
@@ -90,13 +90,13 @@ func BuildReview(catMonths []ports.CategoryMonth, keyRows []ports.ExpenseKeyMont
 	r.Candidates = append(r.Candidates, duplicates(payments, budget.Classes)...)
 	r.Candidates = append(r.Candidates, newBills(budget, keyRows, to)...)
 
-	off := make(map[ports.Dismissal]bool, len(dismissed))
+	off := make(map[domain.Dismissal]bool, len(dismissed))
 	for _, d := range dismissed {
 		off[d] = true
 	}
 	for i := range r.Candidates {
 		c := &r.Candidates[i]
-		c.Dismissed = off[ports.Dismissal{Kind: c.Kind, Key: c.Key}]
+		c.Dismissed = off[domain.Dismissal{Kind: c.Kind, Key: c.Key}]
 	}
 	// As que se repetem todo mês primeiro, pelo custo no ano; as avulsas depois, pelo valor.
 	sort.SliceStable(r.Candidates, func(i, j int) bool {
@@ -112,7 +112,7 @@ func BuildReview(catMonths []ports.CategoryMonth, keyRows []ports.ExpenseKeyMont
 // BudgetMonths é a janela (em meses) do orçamento: a usada para reconhecer contas que se repetem.
 const BudgetMonths = 12
 
-func reviewMatrix(catMonths []ports.CategoryMonth, months []time.Time) []ReviewRow {
+func reviewMatrix(catMonths []domain.CategoryMonth, months []time.Time) []ReviewRow {
 	index := make(map[time.Time]int, len(months))
 	for i, m := range months {
 		index[m] = i
@@ -186,7 +186,7 @@ func increases(matrix []ReviewRow) []Candidate {
 func fixedBills(b Budget) []Candidate {
 	var out []Candidate
 	for _, it := range b.Items {
-		if it.Class == ports.ClassFixed {
+		if it.Class == domain.ClassFixed {
 			out = append(out, Candidate{Kind: ReviewFixed, Key: it.Key, Label: it.Label, Category: it.Category, Saving: it.Total, Recurring: true, Amount: it.Total, Months: it.Months})
 		}
 	}
@@ -194,7 +194,7 @@ func fixedBills(b Budget) []Candidate {
 }
 
 // antSpending soma as compras pequenas e frequentes de uma mesma conta variável.
-func antSpending(payments []ports.ExpensePayment, classes map[string]ports.ExpenseClass) []Candidate {
+func antSpending(payments []domain.ExpensePayment, classes map[string]domain.ExpenseClass) []Candidate {
 	type acc struct {
 		label, category string
 		total           float64
@@ -202,7 +202,7 @@ func antSpending(payments []ports.ExpensePayment, classes map[string]ports.Expen
 	}
 	byKey := map[string]*acc{}
 	for _, p := range payments {
-		if p.Amount > maxAntAmount || p.PaymentMethod == "PIX" || classes[p.Key] != ports.ClassVariable {
+		if p.Amount > maxAntAmount || p.PaymentMethod == "PIX" || classes[p.Key] != domain.ClassVariable {
 			continue
 		}
 		a := byKey[p.Key]
@@ -224,20 +224,20 @@ func antSpending(payments []ports.ExpensePayment, classes map[string]ports.Expen
 
 // duplicates acha cobranças de mesmo valor na mesma conta com poucos dias de diferença.
 // payments vem em ordem de data.
-func duplicates(payments []ports.ExpensePayment, classes map[string]ports.ExpenseClass) []Candidate {
+func duplicates(payments []domain.ExpensePayment, classes map[string]domain.ExpenseClass) []Candidate {
 	type id struct {
 		key    string
 		amount float64
 	}
 	type run struct {
-		first ports.ExpensePayment
+		first domain.ExpensePayment
 		last  time.Time
 		count int
 	}
 	open := map[id]*run{}
 	var found []*run
 	for _, p := range payments {
-		if p.Amount < minDuplicateAmount || classes[p.Key] == ports.ClassInstallment {
+		if p.Amount < minDuplicateAmount || classes[p.Key] == domain.ClassInstallment {
 			continue
 		}
 		k := id{p.Key, p.Amount}
@@ -261,7 +261,7 @@ func duplicates(payments []ports.ExpensePayment, classes map[string]ports.Expens
 }
 
 // newBills lista as contas que só aparecem no mês escolhido.
-func newBills(b Budget, keyRows []ports.ExpenseKeyMonth, to time.Time) []Candidate {
+func newBills(b Budget, keyRows []domain.ExpenseKeyMonth, to time.Time) []Candidate {
 	history := map[time.Time]bool{}
 	for _, r := range keyRows {
 		if r.Month.Before(to) {
@@ -273,7 +273,7 @@ func newBills(b Budget, keyRows []ports.ExpenseKeyMonth, to time.Time) []Candida
 	}
 	var out []Candidate
 	for _, it := range b.Items {
-		if it.Months == 1 && it.Total >= minNewAmount && it.Class != ports.ClassInstallment {
+		if it.Months == 1 && it.Total >= minNewAmount && it.Class != domain.ClassInstallment {
 			out = append(out, Candidate{Kind: ReviewNew, Key: it.Key, Label: it.Label, Category: it.Category, Saving: it.Total, Amount: it.Total, Count: it.Count})
 		}
 	}

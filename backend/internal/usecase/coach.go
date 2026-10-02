@@ -91,8 +91,8 @@ var coachKindNames = map[string]string{
 	ReviewDuplicate: "possível cobrança duplicada", ReviewNew: "conta nova no mês",
 }
 
-var coachGoalNames = map[ports.GoalKind]string{
-	ports.GoalSave: "juntar valor", ports.GoalCut: "reduzir categoria (alvo = teto mensal)", ports.GoalReserve: "reserva de emergência",
+var coachGoalNames = map[domain.GoalKind]string{
+	domain.GoalSave: "juntar valor", domain.GoalCut: "reduzir categoria (alvo = teto mensal)", domain.GoalReserve: "reserva de emergência",
 }
 
 var (
@@ -143,7 +143,7 @@ func CoachCandidates(rev Review) []Candidate {
 
 // BuildCoachContext monta o que vai para a IA a partir dos resultados dos detectores e das metas (os IDs "m1",
 // "m2"... seguem a ordem de goals). past são as análises guardadas, da mais nova para a mais antiga.
-func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals []GoalProgress, past []ports.CoachAnalysis, decisions []DecisionResult) CoachContext {
+func BuildCoachContext(rev Review, month string, totals domain.MonthTotals, goals []GoalProgress, past []domain.CoachAnalysis, decisions []DecisionResult) CoachContext {
 	c := CoachContext{Month: month, Income: totals.Income, Expense: totals.Expense,
 		Months: []string{}, Categories: []CoachCategory{}, Suggestions: []CoachSuggestion{}, Goals: []CoachGoal{}, Decisions: []CoachDecision{}, Memory: BuildCoachMemory(past)}
 	for _, m := range rev.Months {

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *PostgresPurchaseRepository) Positions(ctx context.Context) ([]ports.Position, error) {
+func (r *PostgresPurchaseRepository) Positions(ctx context.Context) ([]domain.Position, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id, type, subtype, name, balance, amount, updated_at
 		FROM investments
@@ -19,8 +19,8 @@ func (r *PostgresPurchaseRepository) Positions(ctx context.Context) ([]ports.Pos
 	if err != nil {
 		return nil, fmt.Errorf("erro ao listar posições: %w", err)
 	}
-	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (ports.Position, error) {
-		var p ports.Position
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.Position, error) {
+		var p domain.Position
 		err := row.Scan(&p.ID, &p.Type, &p.Subtype, &p.Name, &p.Balance, &p.Amount, &p.UpdatedAt)
 		return p, err
 	})
@@ -30,7 +30,7 @@ func (r *PostgresPurchaseRepository) Positions(ctx context.Context) ([]ports.Pos
 	return result, nil
 }
 
-func (r *PostgresPurchaseRepository) PortfolioHistory(ctx context.Context, from, to time.Time) ([]ports.PortfolioMonth, error) {
+func (r *PostgresPurchaseRepository) PortfolioHistory(ctx context.Context, from, to time.Time) ([]domain.PortfolioMonth, error) {
 	// A partir do mês da primeira sincronização o saldo é exato: soma do último saldo gravado de
 	// cada posição até o fim do mês (NULL se ainda não havia registro).
 	// Antes disso é estimado, por posição: saldo do primeiro registro menos o que foi aplicado
@@ -78,9 +78,9 @@ func (r *PostgresPurchaseRepository) PortfolioHistory(ctx context.Context, from,
 	}
 	defer rows.Close()
 
-	var result []ports.PortfolioMonth
+	var result []domain.PortfolioMonth
 	for rows.Next() {
-		var m ports.PortfolioMonth
+		var m domain.PortfolioMonth
 		if err := rows.Scan(&m.Month, &m.Balance, &m.Estimated); err != nil {
 			return nil, fmt.Errorf("erro ao escanear histórico do patrimônio: %w", err)
 		}

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -23,7 +22,7 @@ var ruleCategories = []domain.Category{
 }
 
 // categorizeAI monta o que iria à IA (contas de comércio e serviços, nunca Pix) e o hash que a pessoa confere.
-func (a *api) categorizeAI(ctx context.Context) (usecase.CategorizeContext, []byte, string, []ports.UncategorizedGroup, error) {
+func (a *api) categorizeAI(ctx context.Context) (usecase.CategorizeContext, []byte, string, []domain.UncategorizedGroup, error) {
 	groups, err := a.reader.UncategorizedExpenses(ctx, maxUncategorized)
 	if err != nil {
 		return usecase.CategorizeContext{}, nil, "", nil, err

@@ -7,14 +7,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/google/uuid"
 )
 
 // filterParams lê os filtros comuns da lista e dos grupos de transações, validando cada um.
-func (a *api) filterParams(w http.ResponseWriter, r *http.Request) (ports.TransactionFilter, bool) {
+func (a *api) filterParams(w http.ResponseWriter, r *http.Request) (domain.TransactionFilter, bool) {
 	q := r.URL.Query()
-	f := ports.TransactionFilter{Limit: defaultPageSize, Search: q.Get("q")}
+	f := domain.TransactionFilter{Limit: defaultPageSize, Search: q.Get("q")}
 
 	month, ok := a.monthParam(w, r, "month", false)
 	if !ok {
@@ -61,8 +60,8 @@ func (a *api) transactionGroups(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	by := ports.GroupBy(r.URL.Query().Get("by"))
-	if by != ports.GroupByCategory && by != ports.GroupByDay {
+	by := domain.GroupBy(r.URL.Query().Get("by"))
+	if by != domain.GroupByCategory && by != domain.GroupByDay {
 		writeError(w, http.StatusBadRequest, "by deve ser category ou day")
 		return
 	}
@@ -82,7 +81,7 @@ func (a *api) transactionGroups(w http.ResponseWriter, r *http.Request) {
 	out := make([]item, len(groups))
 	for i, g := range groups {
 		label := g.Key
-		if by == ports.GroupByCategory {
+		if by == domain.GroupByCategory {
 			label = domain.Category(g.Key).Label()
 		}
 		out[i] = item{g.Key, label, g.Count, g.Expense, g.Income, g.Transfer}

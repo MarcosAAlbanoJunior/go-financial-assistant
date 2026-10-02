@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -89,7 +88,7 @@ func (a *api) setDismissal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "key inválida")
 		return
 	}
-	if err := a.reader.SetDismissal(r.Context(), ports.Dismissal{Kind: body.Kind, Key: body.Key}, *body.Dismissed); err != nil {
+	if err := a.reader.SetDismissal(r.Context(), domain.Dismissal{Kind: body.Kind, Key: body.Key}, *body.Dismissed); err != nil {
 		a.fail(w, "sugestão dispensada", err)
 		return
 	}

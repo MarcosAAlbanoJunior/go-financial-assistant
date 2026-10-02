@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -18,22 +18,22 @@ func isoDay(s string) *time.Time {
 	return &t
 }
 
-func bank(inst *uuid.UUID, item, name string, balance float64, updated time.Time) ports.Account {
-	return ports.Account{ID: uuid.New(), ItemID: item, InstitutionID: inst, Type: "BANK", Name: name, Last4: "1234", Balance: balance, UpdatedAt: updated}
+func bank(inst *uuid.UUID, item, name string, balance float64, updated time.Time) domain.Account {
+	return domain.Account{ID: uuid.New(), ItemID: item, InstitutionID: inst, Type: "BANK", Name: name, Last4: "1234", Balance: balance, UpdatedAt: updated}
 }
 
-func card(inst *uuid.UUID, item, name string, invoice float64, limit, avail *float64, due *time.Time) ports.Account {
-	return ports.Account{ID: uuid.New(), ItemID: item, InstitutionID: inst, Type: "CREDIT", Name: name, Last4: "9012", Balance: invoice,
+func card(inst *uuid.UUID, item, name string, invoice float64, limit, avail *float64, due *time.Time) domain.Account {
+	return domain.Account{ID: uuid.New(), ItemID: item, InstitutionID: inst, Type: "CREDIT", Name: name, Last4: "9012", Balance: invoice,
 		CreditLimit: limit, AvailableCreditLimit: avail, DueDate: due, UpdatedAt: balNow.Add(-time.Hour)}
 }
 
 func TestBuildBalances_TotalsAndShares(t *testing.T) {
 	sID, iID := uuid.New(), uuid.New()
-	insts := []ports.Institution{
+	insts := []domain.Institution{
 		{ID: sID, ItemID: "s", Name: "Santander", Color: "ec0000", HasLogo: true},
 		{ID: iID, ItemID: "i", Name: "Itaú", Color: "ec7000"},
 	}
-	accts := []ports.Account{
+	accts := []domain.Account{
 		bank(&sID, "s", "Santander", 8000, balNow.Add(-time.Hour)),
 		bank(&iID, "i", "Itaú", 2000, balNow.Add(-2*time.Hour)),
 		card(&sID, "s", "SANTANDER ELITE MASTER", 1200, fp(10000), fp(5800), isoDay("2026-10-10")),
@@ -67,9 +67,9 @@ func TestBuildBalances_TotalsAndShares(t *testing.T) {
 
 func TestBuildBalances_NegativeBankHasNoShare(t *testing.T) {
 	a, b := uuid.New(), uuid.New()
-	v := BuildBalances([]ports.Account{
+	v := BuildBalances([]domain.Account{
 		bank(&a, "a", "A", -300, balNow), bank(&b, "b", "B", 700, balNow),
-	}, []ports.Institution{{ID: a, Name: "A"}, {ID: b, Name: "B"}}, balNow)
+	}, []domain.Institution{{ID: a, Name: "A"}, {ID: b, Name: "B"}}, balNow)
 	if *v.TotalInAccount != 400 {
 		t.Errorf("o negativo entra com sinal no total: %v", *v.TotalInAccount)
 	}
@@ -84,7 +84,7 @@ func TestBuildBalances_NegativeBankHasNoShare(t *testing.T) {
 }
 
 func TestBuildBalances_WithoutInstitutionGroupsByItem(t *testing.T) {
-	v := BuildBalances([]ports.Account{
+	v := BuildBalances([]domain.Account{
 		bank(nil, "item-x", "Banco Antigo", 100, balNow),
 		card(nil, "item-x", "Cartão Antigo", 10, nil, nil, nil),
 		bank(nil, "item-y", "Outro", 5, balNow),
@@ -105,7 +105,7 @@ func TestBuildBalances_WithoutInstitutionGroupsByItem(t *testing.T) {
 }
 
 func TestBuildBalances_NoBankAccount(t *testing.T) {
-	v := BuildBalances([]ports.Account{card(nil, "i", "Cartão", 50, nil, nil, nil)}, nil, balNow)
+	v := BuildBalances([]domain.Account{card(nil, "i", "Cartão", 50, nil, nil, nil)}, nil, balNow)
 	if v.TotalInAccount != nil {
 		t.Errorf("sem conta corrente o total é desconhecido, não zero: %v", *v.TotalInAccount)
 	}
@@ -157,7 +157,7 @@ func TestDaysUntil_UsesCalendarDays(t *testing.T) {
 }
 
 func TestBuildBalances_CardLimitEdgeCases(t *testing.T) {
-	v := BuildBalances([]ports.Account{
+	v := BuildBalances([]domain.Account{
 		card(nil, "i", "A", 100, fp(1000), fp(300), nil),                 // 70%
 		card(nil, "i", "B", 100, fp(1000), fp(100), nil),                 // 90%
 		card(nil, "i", "C", 100, fp(1000), fp(-50), nil),                 // estourado
@@ -185,16 +185,16 @@ func TestBuildBalances_CardLimitEdgeCases(t *testing.T) {
 
 func TestBuildBalances_Staleness(t *testing.T) {
 	a, b := uuid.New(), uuid.New()
-	v := BuildBalances([]ports.Account{
+	v := BuildBalances([]domain.Account{
 		bank(&a, "a", "Velho", 1, balNow.Add(-36*time.Hour)),
 		bank(&b, "b", "Novo", 1, balNow.Add(-36*time.Hour+time.Minute)),
-	}, []ports.Institution{{ID: a, Name: "Velho"}, {ID: b, Name: "Novo"}}, balNow)
+	}, []domain.Institution{{ID: a, Name: "Velho"}, {ID: b, Name: "Novo"}}, balNow)
 	for _, in := range v.Institutions {
 		if in.Name == "Velho" && in.Stale {
 			t.Error("exatamente 36 h ainda não é desatualizado")
 		}
 	}
-	v = BuildBalances([]ports.Account{bank(&a, "a", "Velho", 1, balNow.Add(-36*time.Hour-time.Minute))}, []ports.Institution{{ID: a, Name: "Velho"}}, balNow)
+	v = BuildBalances([]domain.Account{bank(&a, "a", "Velho", 1, balNow.Add(-36*time.Hour-time.Minute))}, []domain.Institution{{ID: a, Name: "Velho"}}, balNow)
 	if !v.Institutions[0].Stale {
 		t.Error("mais de 36 h deveria ser desatualizado")
 	}
@@ -216,11 +216,11 @@ func TestCardTitle(t *testing.T) {
 
 func TestFormatBalances(t *testing.T) {
 	sID, iID := uuid.New(), uuid.New()
-	insts := []ports.Institution{{ID: sID, Name: "Santander"}, {ID: iID, Name: "Itaú"}}
+	insts := []domain.Institution{{ID: sID, Name: "Santander"}, {ID: iID, Name: "Itaú"}}
 	auto := 900.0
 	itau := bank(&iID, "i", "Conta", 4345.67, balNow.Add(-3*time.Hour))
 	itau.AutoInvested = &auto
-	text := FormatBalances(BuildBalances([]ports.Account{
+	text := FormatBalances(BuildBalances([]domain.Account{
 		bank(&sID, "s", "Santander", 8000, balNow.Add(-3*time.Hour)), itau,
 		card(&sID, "s", "SANTANDER ELITE", 1200, fp(10000), fp(5800), isoDay("2026-10-10")),
 		card(&iID, "i", "Click", 940, fp(1000), fp(220), isoDay("2026-10-04")),
@@ -242,7 +242,7 @@ func TestFormatBalances_EmptyAndNoBank(t *testing.T) {
 	if got := FormatBalances(BalancesView{}, balNow); !strings.Contains(got, "Open Finance") {
 		t.Errorf("sem Open Finance: %q", got)
 	}
-	text := FormatBalances(BuildBalances([]ports.Account{card(nil, "i", "Cartão", 10, nil, nil, nil)}, nil, balNow), balNow)
+	text := FormatBalances(BuildBalances([]domain.Account{card(nil, "i", "Cartão", 10, nil, nil, nil)}, nil, balNow), balNow)
 	if strings.Contains(text, "Em conta") || !strings.Contains(text, "Limite não informado") {
 		t.Errorf("só cartão: %s", text)
 	}
@@ -250,10 +250,10 @@ func TestFormatBalances_EmptyAndNoBank(t *testing.T) {
 
 func TestFormatBalances_StaleNegativeOverdueAndAsterisks(t *testing.T) {
 	a := uuid.New()
-	text := FormatBalances(BuildBalances([]ports.Account{
+	text := FormatBalances(BuildBalances([]domain.Account{
 		bank(&a, "a", "B", -50, balNow.Add(-50*time.Hour)),
 		card(&a, "a", "Meu *Cartão*", 300, fp(100), fp(5), isoDay("2026-09-30")),
-	}, []ports.Institution{{ID: a, Name: "Ban*co"}}, balNow), balNow)
+	}, []domain.Institution{{ID: a, Name: "Ban*co"}}, balNow), balNow)
 	for _, want := range []string{"negativo", "desatualizado há 2 dias", "🚨 crítico"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("faltou %q em:\n%s", want, text)
@@ -269,11 +269,11 @@ func TestFormatBalances_StaleNegativeOverdueAndAsterisks(t *testing.T) {
 
 func TestFormatBalances_FitsTelegramLimit(t *testing.T) {
 	a := uuid.New()
-	accts := []ports.Account{bank(&a, "a", "B", 1, balNow)}
+	accts := []domain.Account{bank(&a, "a", "B", 1, balNow)}
 	for i := 0; i < 200; i++ {
 		accts = append(accts, card(&a, "a", strings.Repeat("Cartão ", 5), 100, fp(1000), fp(500), isoDay("2026-10-20")))
 	}
-	text := FormatBalances(BuildBalances(accts, []ports.Institution{{ID: a, Name: "B"}}, balNow), balNow)
+	text := FormatBalances(BuildBalances(accts, []domain.Institution{{ID: a, Name: "B"}}, balNow), balNow)
 	if n := utf8.RuneCountInString(text); n > 4000 {
 		t.Errorf("mensagem com %d caracteres", n)
 	}
@@ -285,11 +285,11 @@ func TestFormatBalances_FitsTelegramLimit(t *testing.T) {
 // No Meu Pluggy todas as conexões trazem o conector "MeuPluggy": o banco vem do nome das contas.
 func TestBuildBalances_AggregatorConnectorUsesAccountNames(t *testing.T) {
 	a, b := uuid.New(), uuid.New()
-	insts := []ports.Institution{
+	insts := []domain.Institution{
 		{ID: a, ItemID: "a", Name: "MeuPluggy", Color: "ef294b", HasLogo: true},
 		{ID: b, ItemID: "b", Name: "MeuPluggy", Color: "ef294b", HasLogo: true},
 	}
-	v := BuildBalances([]ports.Account{
+	v := BuildBalances([]domain.Account{
 		bank(&a, "a", "itau", 100, balNow), bank(&b, "b", "Banco Santander", 50, balNow),
 	}, insts, balNow)
 	got := map[string]InstitutionBalance{}
@@ -304,7 +304,7 @@ func TestBuildBalances_AggregatorConnectorUsesAccountNames(t *testing.T) {
 func TestBuildBalances_AutoInvestedEqualToBalanceIsHidden(t *testing.T) {
 	a, b := bank(nil, "x", "Itaú", 100, balNow), bank(nil, "y", "Outro", 100, balNow)
 	a.AutoInvested, b.AutoInvested = fp(100), fp(40)
-	v := BuildBalances([]ports.Account{a, b}, nil, balNow)
+	v := BuildBalances([]domain.Account{a, b}, nil, balNow)
 	for _, in := range v.Institutions {
 		got := in.Accounts[0].AutoInvested
 		if in.Name == "Itaú" && got != nil {
@@ -318,7 +318,7 @@ func TestBuildBalances_AutoInvestedEqualToBalanceIsHidden(t *testing.T) {
 
 func TestBuildBalances_AccountNamedLikeBankWithoutAccent(t *testing.T) {
 	a := uuid.New()
-	v := BuildBalances([]ports.Account{bank(&a, "a", "itau", 1, balNow)}, []ports.Institution{{ID: a, Name: "MeuPluggy"}}, balNow)
+	v := BuildBalances([]domain.Account{bank(&a, "a", "itau", 1, balNow)}, []domain.Institution{{ID: a, Name: "MeuPluggy"}}, balNow)
 	if got := v.Institutions[0].Accounts[0].Name; got != "Conta corrente" {
 		t.Errorf("nome = %q", got)
 	}
