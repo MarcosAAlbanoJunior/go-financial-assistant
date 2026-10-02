@@ -1,8 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
-	"mime"
 	"net/http"
 	"regexp"
 	"slices"
@@ -120,16 +118,11 @@ var ruleKeyRE = regexp.MustCompile(`^[a-zà-ÿ ]{1,120}$`)
 // setExpenseRule corrige à mão se uma conta é fixa ou variável; "AUTO" volta à detecção automática.
 // É a única escrita da API (além do login), então exige JSON e mesma origem, como o login.
 func (a *api) setExpenseRule(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	var body struct {
 		Key   string `json:"key"`
 		Class string `json:"class"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRuleBody)).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "corpo inválido")
+	if !decodeJSON(w, r, maxRuleBody, &body) {
 		return
 	}
 	var class ports.ExpenseClass
@@ -155,5 +148,5 @@ func (a *api) setExpenseRule(w http.ResponseWriter, r *http.Request) {
 func (a *api) registerBudget(rt routes) {
 	rt.mux.Handle("GET /api/budget", rt.protected(a.budget))
 	rt.mux.Handle("GET /api/projection", rt.protected(a.projection))
-	rt.mux.Handle("PUT /api/expense-rules", rt.protected(a.setExpenseRule))
+	rt.mux.Handle("PUT /api/expense-rules", rt.protected(jsonOnly(a.setExpenseRule)))
 }

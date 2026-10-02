@@ -1,8 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
-	"mime"
 	"net/http"
 	"regexp"
 	"slices"
@@ -71,16 +69,15 @@ var dismissalKeyRE = regexp.MustCompile(`^[A-Za-zà-ÿ_ ]{1,120}$`)
 
 // setDismissal dispensa (ou traz de volta) uma sugestão da revisão. Escrita: exige JSON e mesma origem.
 func (a *api) setDismissal(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	var body struct {
 		Kind      string `json:"kind"`
 		Key       string `json:"key"`
 		Dismissed *bool  `json:"dismissed"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRuleBody)).Decode(&body); err != nil || body.Dismissed == nil {
+	if !decodeJSON(w, r, maxRuleBody, &body) {
+		return
+	}
+	if body.Dismissed == nil {
 		writeError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
@@ -101,5 +98,5 @@ func (a *api) setDismissal(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) registerReview(rt routes) {
 	rt.mux.Handle("GET /api/review", rt.protected(a.review))
-	rt.mux.Handle("PUT /api/review-dismissals", rt.protected(a.setDismissal))
+	rt.mux.Handle("PUT /api/review-dismissals", rt.protected(jsonOnly(a.setDismissal)))
 }

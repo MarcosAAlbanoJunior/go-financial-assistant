@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"mime"
 	"net/http"
 	"regexp"
 	"strings"
@@ -114,16 +113,11 @@ func (a *api) coachPreview(w http.ResponseWriter, r *http.Request) {
 // coachAnalyze envia o contexto à IA (uma chamada) e devolve a resposta validada, ligada aos números do código.
 // Só envia os dados que a pessoa viu: o hash da prévia precisa bater com o contexto de agora.
 func (a *api) coachAnalyze(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	var body struct {
 		Month string `json:"month"`
 		Hash  string `json:"hash"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCoachBody)).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "corpo inválido")
+	if !decodeJSON(w, r, maxCoachBody, &body) {
 		return
 	}
 	month, err := time.Parse("2006-01", body.Month)
@@ -141,49 +135,52 @@ func (a *api) coachAnalyze(w http.ResponseWriter, r *http.Request) {
 	}
 	defer a.coach.end()
 
-	in, err := a.coachInput(r.Context(), month)
+	analysis, err := a.runCoachAnalysis(r.Context(), month, body.Hash)
 	if err != nil {
-		a.fail(w, "coach", err)
+		a.respondErr(w, "coach", err)
 		return
 	}
-	if body.Hash != in.hash {
-		writeError(w, http.StatusConflict, "os dados mudaram desde a prévia: confira de novo o que será enviado")
-		return
+	writeJSON(w, http.StatusOK, analysisJSON(analysis))
+}
+
+// runCoachAnalysis monta o contexto, confere que é o que a pessoa viu na prévia (hash), pede a análise à IA, valida a
+// resposta e a grava. Erros de regra voltam como apiError; o resto é falha interna.
+func (a *api) runCoachAnalysis(ctx context.Context, month time.Time, hash string) (ports.CoachAnalysis, error) {
+	in, err := a.coachInput(ctx, month)
+	if err != nil {
+		return ports.CoachAnalysis{}, err
+	}
+	if hash != in.hash {
+		return ports.CoachAnalysis{}, &apiError{http.StatusConflict, "os dados mudaram desde a prévia: confira de novo o que será enviado"}
 	}
 	if len(in.payload) > usecase.MaxCoachBytes {
-		writeError(w, http.StatusRequestEntityTooLarge, "contexto grande demais para enviar")
-		return
+		return ports.CoachAnalysis{}, &apiError{http.StatusRequestEntityTooLarge, "contexto grande demais para enviar"}
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), coachTimeout)
+	adviceCtx, cancel := context.WithTimeout(ctx, coachTimeout)
 	defer cancel()
-	raw, err := a.coach.advisor.Advise(ctx, in.payload)
+	raw, err := a.coach.advisor.Advise(adviceCtx, in.payload)
 	if err != nil {
-		a.fail(w, "coach", err)
-		return
+		return ports.CoachAnalysis{}, err
 	}
 	advice, err := usecase.ValidateAdvice(raw, in.context)
 	if errors.Is(err, usecase.ErrEmptyAdvice) {
-		writeError(w, http.StatusBadGateway, "a IA não devolveu uma resposta utilizável; tente de novo")
-		return
+		return ports.CoachAnalysis{}, &apiError{http.StatusBadGateway, "a IA não devolveu uma resposta utilizável; tente de novo"}
 	}
 	if err != nil {
-		a.fail(w, "coach", err)
-		return
+		return ports.CoachAnalysis{}, err
 	}
 
 	record, err := json.Marshal(usecase.NewCoachRecord(advice, in.candidates, in.goals))
 	if err != nil {
-		a.fail(w, "coach", err)
-		return
+		return ports.CoachAnalysis{}, err
 	}
 	analysis := ports.CoachAnalysis{ID: uuid.New(), Month: month, Advice: record, Answers: map[string]string{}}
-	if err := a.reader.SaveCoachAnalysis(r.Context(), analysis); err != nil {
-		a.fail(w, "coach", err)
-		return
+	if err := a.reader.SaveCoachAnalysis(ctx, analysis); err != nil {
+		return ports.CoachAnalysis{}, err
 	}
 	analysis.CreatedAt = a.now()
-	writeJSON(w, http.StatusOK, analysisJSON(analysis))
+	return analysis, nil
 }
 
 func analysisJSON(an ports.CoachAnalysis) map[string]any {
@@ -219,10 +216,6 @@ var coachAnswerKeyRE = regexp.MustCompile(`^(a:s\d{1,2}|q:\d)$`)
 
 // setCoachAnswer guarda (ou apaga, se vazia) a resposta da pessoa a uma pergunta da IA.
 func (a *api) setCoachAnswer(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "id inválido")
@@ -232,7 +225,10 @@ func (a *api) setCoachAnswer(w http.ResponseWriter, r *http.Request) {
 		Key    string `json:"key"`
 		Answer string `json:"answer"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCoachBody)).Decode(&body); err != nil || !coachAnswerKeyRE.MatchString(body.Key) {
+	if !decodeJSON(w, r, maxCoachBody, &body) {
+		return
+	}
+	if !coachAnswerKeyRE.MatchString(body.Key) {
 		writeError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
@@ -257,10 +253,6 @@ func (a *api) setCoachAnswer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) deleteCoachAnalysis(w http.ResponseWriter, r *http.Request) {
-	if !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "id inválido")
@@ -281,8 +273,8 @@ func (a *api) deleteCoachAnalysis(w http.ResponseWriter, r *http.Request) {
 func (a *api) registerCoach(rt routes) {
 	rt.mux.Handle("GET /api/coach/preview", rt.protected(a.coachPreview))
 	rt.mux.Handle("GET /api/coach/analyses", rt.protected(a.coachAnalyses))
-	rt.mux.Handle("PUT /api/coach/analyses/{id}/answers", rt.protected(a.setCoachAnswer))
-	rt.mux.Handle("DELETE /api/coach/analyses/{id}", rt.protected(a.deleteCoachAnalysis))
+	rt.mux.Handle("PUT /api/coach/analyses/{id}/answers", rt.protected(jsonOnly(a.setCoachAnswer)))
+	rt.mux.Handle("DELETE /api/coach/analyses/{id}", rt.protected(sameOriginOnly(a.deleteCoachAnalysis)))
 	// A análise custa dinheiro e sai da máquina: limite apertado por IP (contra clique repetido ou loop).
-	rt.mux.Handle("POST /api/coach/analyze", newIPRateLimiter(3, time.Minute).middleware(rt.protected(a.coachAnalyze)))
+	rt.mux.Handle("POST /api/coach/analyze", newIPRateLimiter(3, time.Minute).middleware(rt.protected(jsonOnly(a.coachAnalyze))))
 }
