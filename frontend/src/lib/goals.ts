@@ -33,7 +33,13 @@ export interface GoalForm {
 }
 
 export const emptyGoalForm = (nextMonth: string): GoalForm => ({
-  kind: 'SAVE', name: '', amount: '', date: nextMonth, category: 'FOOD', percent: '15', months: '6',
+  kind: 'SAVE',
+  name: '',
+  amount: '',
+  date: nextMonth,
+  category: 'FOOD',
+  percent: '15',
+  months: '6',
 })
 
 /** Valida o formulário (os mesmos limites da API) e monta o corpo; ou devolve a mensagem do erro. */
@@ -88,14 +94,34 @@ export function goalStatus(g: Goal): GoalStatus {
     case 'RESERVE': {
       if (g.target <= 0) return { tone: 'warning', text: 'Sem contas fixas no histórico para calcular o alvo.' }
       const cover = `O patrimônio cobre ${g.coverage.toFixed(1).replace('.', ',')} de ${months(g.reserveMonths)} de despesas fixas.`
-      return g.done ? { tone: 'ok', text: `Reserva completa. ${cover}` } : { tone: 'warning', text: `Faltam ${formatBRL(g.target - g.current)}. ${cover}` }
+      return g.done
+        ? { tone: 'ok', text: `Reserva completa. ${cover}` }
+        : { tone: 'warning', text: `Faltam ${formatBRL(g.target - g.current)}. ${cover}` }
     }
     case 'CUT': {
-      const hit = g.history.filter((h) => h.hit).length
-      const within = `Dentro do teto em ${hit} de ${months(g.history.length)} desde que a meta existe.`
-      return g.current <= g.target
-        ? { tone: 'ok', text: `Este mês: ${formatBRL(g.current)} de ${formatBRL(g.target)}. ${within}` }
-        : { tone: 'critical', text: `Este mês passou ${formatBRL(g.current - g.target)} do teto de ${formatBRL(g.target)}. ${within}` }
+      // O mês atual ainda está aberto: só os meses fechados contam como "dentro do teto".
+      const closed = g.history.slice(0, -1)
+      const hit = closed.filter((h) => h.hit).length
+      const within =
+        closed.length === 0
+          ? 'Ainda não há mês fechado desde que a meta existe.'
+          : `Dentro do teto em ${hit} de ${months(closed.length)} fechados.`
+      const month = `Este mês: ${formatBRL(g.current)} de ${formatBRL(g.target)}.`
+      if (g.current > g.target) {
+        return {
+          tone: 'critical',
+          text: `Este mês já passou ${formatBRL(g.current - g.target)} do teto de ${formatBRL(g.target)}. ${within}`,
+        }
+      }
+      if (g.projected === null) {
+        return {
+          tone: 'ok',
+          text: `${month} Estamos no dia ${g.dayOfMonth} de ${g.daysInMonth}: o ritmo aparece a partir do dia 7. ${within}`,
+        }
+      }
+      return g.projected > g.target
+        ? { tone: 'warning', text: `${month} No ritmo atual o mês fecha em ${formatBRL(g.projected)}, acima do teto. ${within}` }
+        : { tone: 'ok', text: `${month} No ritmo atual o mês fecha em ${formatBRL(g.projected)}, dentro do teto. ${within}` }
     }
   }
 }

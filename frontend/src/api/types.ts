@@ -212,7 +212,12 @@ export interface Goal {
   fits: boolean | null
   /** Quantos meses de despesas fixas o patrimônio cobre. */
   coverage: number
+  /** Do mês da criação até o atual; o último é o mês ainda aberto. */
   history: { month: string; total: number; hit: boolean }[]
+  /** Quanto o mês fecha no ritmo atual; nulo nos primeiros dias do mês. */
+  projected: number | null
+  dayOfMonth: number
+  daysInMonth: number
 }
 
 export interface Goals {

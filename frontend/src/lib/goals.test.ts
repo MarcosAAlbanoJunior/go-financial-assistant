@@ -3,8 +3,27 @@ import type { Goal } from '../api/types'
 import { emptyGoalForm, goalStatus, progressRatio, toGoalInput } from './goals'
 
 const base: Goal = {
-  id: 'x', kind: 'SAVE', name: 'Viagem', targetDate: '2027-01', category: '', categoryLabel: '', cutPercent: 0, baseline: 0,
-  reserveMonths: 0, current: 4000, target: 10000, done: false, monthsLeft: 3, perMonth: 2000, surplus: 1300, fits: false, coverage: 0, history: [],
+  id: 'x',
+  kind: 'SAVE',
+  name: 'Viagem',
+  targetDate: '2027-01',
+  category: '',
+  categoryLabel: '',
+  cutPercent: 0,
+  baseline: 0,
+  reserveMonths: 0,
+  current: 4000,
+  target: 10000,
+  done: false,
+  monthsLeft: 3,
+  perMonth: 2000,
+  surplus: 1300,
+  fits: false,
+  coverage: 0,
+  history: [],
+  projected: null,
+  dayOfMonth: 15,
+  daysInMonth: 31,
 }
 const g = (over: Partial<Goal>): Goal => ({ ...base, ...over })
 const form = emptyGoalForm('2026-11')
@@ -63,11 +82,26 @@ describe('goalStatus', () => {
     expect(goalStatus({ ...r, target: 0 })).toMatchObject({ tone: 'warning' })
   })
 
-  it('redução: dentro ou acima do teto', () => {
-    const history = [{ month: '2026-09', total: 700, hit: false }, { month: '2026-10', total: 600, hit: true }]
-    const c = g({ kind: 'CUT', target: 680, current: 600, history })
+  it('redução: só os meses fechados contam e o ritmo avisa antes de estourar', () => {
+    const history = [
+      { month: '2026-08', total: 900, hit: false },
+      { month: '2026-09', total: 600, hit: true },
+      { month: '2026-10', total: 300, hit: true }, // mês aberto
+    ]
+    const c = g({ kind: 'CUT', target: 680, current: 300, history, projected: 600 })
     expect(goalStatus(c)).toMatchObject({ tone: 'ok' })
-    expect(goalStatus(c).text).toContain('1 de 2 meses')
-    expect(goalStatus({ ...c, current: 700 })).toMatchObject({ tone: 'critical' })
+    expect(goalStatus(c).text).toContain('1 de 2 meses fechados')
+    expect(goalStatus(c).text).toContain('dentro do teto')
+
+    const fast = goalStatus({ ...c, projected: 930 })
+    expect(fast.tone).toBe('warning')
+    expect(fast.text).toContain('acima do teto')
+
+    expect(goalStatus({ ...c, current: 700, projected: 900 })).toMatchObject({ tone: 'critical' })
+
+    const early = goalStatus({ ...c, projected: null, dayOfMonth: 3 })
+    expect(early.tone).toBe('ok')
+    expect(early.text).toContain('dia 3 de 31')
+    expect(goalStatus({ ...c, projected: null, history: [history[2]] }).text).toContain('Ainda não há mês fechado')
   })
 })
