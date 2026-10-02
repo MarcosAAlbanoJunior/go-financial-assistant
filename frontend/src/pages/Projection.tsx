@@ -88,7 +88,7 @@ export default function Projection() {
                 </p>
                 {a.incomeSources.length > 0 && (
                   <p className="tile-note">
-                    A renda vem de cada fonte que se repete, pelo valor típico (mediana), então um pagamento fora do padrão, como adiantamento de férias, não pesa:{' '}
+                    A renda é a mediana da renda total dos últimos meses, então um mês fora do padrão (13º, adiantamento de férias) não pesa. Ela se compõe de:{' '}
                     {a.incomeSources.map((s) => `${s.label} ${formatBRL(s.monthly)}`).join(' · ')}.
                   </p>
                 )}

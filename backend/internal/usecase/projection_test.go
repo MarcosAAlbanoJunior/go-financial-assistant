@@ -151,3 +151,68 @@ func TestEstimateIncome_MedianAndCounts(t *testing.T) {
 		t.Errorf("mediana 2000 x 2 por mês: %+v", got)
 	}
 }
+
+func TestMedianMonthlyIncome(t *testing.T) {
+	months := []time.Time{month(2026, time.April), month(2026, time.May), month(2026, time.June), month(2026, time.July)}
+	payments := []ports.IncomePayment{
+		inc("a", time.April, 3000), inc("b", time.April, 5000), // abril: 8000
+		inc("c", time.May, 8100),                            // maio: 8100
+		inc("d", time.June, 7900), inc("e", time.June, 100), // junho: 8000
+		inc("f", time.July, 18000), // julho atípico (13º, venda): não pesa
+	}
+	if got := MedianMonthlyIncome(payments, months); got != 8050 {
+		t.Errorf("mediana de 8000, 8100, 8000 e 18000 = 8050, got %v", got)
+	}
+	// Mês com despesa e nenhuma entrada conta como zero.
+	if got := MedianMonthlyIncome([]ports.IncomePayment{inc("a", time.April, 100)}, months[:3]); got != 0 {
+		t.Errorf("2 de 3 meses sem renda: mediana 0, got %v", got)
+	}
+	if MedianMonthlyIncome(payments, nil) != 0 {
+		t.Error("sem meses não há renda")
+	}
+}
+
+// Caso real que a estimativa só por fonte errava: a renda vem de origens variadas (cada mês de um pagador
+// diferente), só uma fonte se repete, e o mês atípico não pode puxar a média para cima.
+func TestBuildProjection_VariedIncomeSourcesAreNotLost(t *testing.T) {
+	start := month(2026, time.October)
+	var rows []ports.ExpenseKeyMonth
+	var income []ports.IncomePayment
+	amounts := map[time.Month]float64{time.April: 5000, time.May: 5100, time.June: 5000, time.July: 6500, time.August: 5100, time.September: 12000}
+	for m := time.April; m <= time.September; m++ {
+		rows = append(rows, ports.ExpenseKeyMonth{Key: "mercado", Label: "Mercado", Month: month(2026, m), Total: 6000, Count: 9})
+		income = append(income,
+			ports.IncomePayment{Key: "aluguel recebido", Label: "Aluguel recebido", Month: month(2026, m), Amount: 1000},                    // única fonte fixa
+			ports.IncomePayment{Key: "pix recebido " + m.String(), Label: "Pix recebido", Month: month(2026, m), Amount: amounts[m] - 1000}) // origem diferente a cada mês
+	}
+	a := BuildProjection(rows, nil, income, nil, start, 3).Assumptions
+
+	// Mediana de 5000, 5100, 5000, 6500, 5100 e 12000 = 5100; as fontes recorrentes explicam só 1000.
+	if a.Income != 5100 {
+		t.Fatalf("renda = mediana da renda total dos 6 meses (5100), não só a fonte recorrente (1000): %v", a.Income)
+	}
+	if len(a.IncomeSources) != 2 || a.IncomeSources[0].Monthly != 1000 || a.IncomeSources[1].Label != otherIncomeLabel || a.IncomeSources[1].Monthly != 4100 {
+		t.Errorf("fontes: recorrente 1000 + outras entradas 4100: %+v", a.IncomeSources)
+	}
+	if a.Variable != 6000 || a.BasedOn != 3 {
+		t.Errorf("despesas seguem a média dos 3 últimos meses: %+v", a)
+	}
+}
+
+// Quando as fontes recorrentes já passam da mediana (mês fraco recente), elas são o piso.
+func TestBuildProjection_RecurringSourcesAreTheFloor(t *testing.T) {
+	start := month(2026, time.October)
+	var rows []ports.ExpenseKeyMonth
+	var income []ports.IncomePayment
+	for _, m := range []time.Month{time.April, time.May, time.June, time.July, time.August, time.September} {
+		rows = append(rows, ports.ExpenseKeyMonth{Key: "mercado", Label: "Mercado", Month: month(2026, m), Total: 1000, Count: 9})
+	}
+	for _, m := range []time.Month{time.July, time.August, time.September} { // salário só nos 3 últimos meses
+		income = append(income, ports.IncomePayment{Key: "salario", Label: "Salário", Month: month(2026, m), Amount: 5000})
+	}
+	// Mediana dos 6 meses = (0 + 5000) / 2 = 2500, abaixo dos 5000 recorrentes: vale a fonte recorrente.
+	a := BuildProjection(rows, nil, income, nil, start, 3).Assumptions
+	if a.Income != 5000 || len(a.IncomeSources) != 1 {
+		t.Errorf("piso = fontes recorrentes: %+v", a)
+	}
+}
