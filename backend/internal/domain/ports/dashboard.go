@@ -125,6 +125,7 @@ type DashboardReader interface {
 	BudgetReader
 	ReviewReader
 	GoalStore
+	CoachStore
 
 	// MonthlyTotals devolve uma linha por mês de from a to (inclusive), com zeros nos meses vazios.
 	MonthlyTotals(ctx context.Context, from, to time.Time) ([]MonthTotals, error)

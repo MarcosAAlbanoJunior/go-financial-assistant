@@ -30,6 +30,7 @@ type fakeReader struct {
 	known          map[string]time.Time
 	ruleClass      ports.ExpenseClass
 	catMonths      []ports.CategoryMonth
+	analyses       []ports.CoachAnalysis
 	goals          []ports.Goal
 	created        []ports.Goal
 	deleted        uuid.UUID
@@ -124,6 +125,44 @@ func (f *fakeReader) CreateGoal(_ context.Context, g ports.Goal) error {
 func (f *fakeReader) DeleteGoal(_ context.Context, id uuid.UUID) (bool, error) {
 	f.deleted = id
 	return f.deleteFound, f.err
+}
+func (f *fakeReader) SaveCoachAnalysis(_ context.Context, a ports.CoachAnalysis) error {
+	f.analyses = append([]ports.CoachAnalysis{a}, f.analyses...)
+	return f.err
+}
+func (f *fakeReader) CoachAnalyses(_ context.Context, month *time.Time, limit int) ([]ports.CoachAnalysis, error) {
+	var out []ports.CoachAnalysis
+	for _, a := range f.analyses {
+		if (month == nil || a.Month.Equal(*month)) && len(out) < limit {
+			out = append(out, a)
+		}
+	}
+	return out, f.err
+}
+func (f *fakeReader) SetCoachAnswer(_ context.Context, id uuid.UUID, key, answer string) (bool, error) {
+	for i, a := range f.analyses {
+		if a.ID == id {
+			if f.analyses[i].Answers == nil {
+				f.analyses[i].Answers = map[string]string{}
+			}
+			if answer == "" {
+				delete(f.analyses[i].Answers, key)
+			} else {
+				f.analyses[i].Answers[key] = answer
+			}
+			return true, f.err
+		}
+	}
+	return false, f.err
+}
+func (f *fakeReader) DeleteCoachAnalysis(_ context.Context, id uuid.UUID) (bool, error) {
+	for i, a := range f.analyses {
+		if a.ID == id {
+			f.analyses = append(f.analyses[:i], f.analyses[i+1:]...)
+			return true, f.err
+		}
+	}
+	return false, f.err
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
 
