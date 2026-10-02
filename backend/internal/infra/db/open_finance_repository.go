@@ -40,13 +40,14 @@ func (r *LedgerRepo) UpsertInstitution(ctx context.Context, itemID string, inst 
 	var id uuid.UUID
 	var needsLogo bool
 	err := r.db.Pool.QueryRow(ctx, `
-		INSERT INTO institutions (item_id, name, color, updated_at)
-		VALUES ($1, $2, NULLIF($3, ''), NOW())
-		ON CONFLICT (item_id) DO UPDATE SET name = EXCLUDED.name, color = COALESCE(EXCLUDED.color, institutions.color), updated_at = NOW()
+		INSERT INTO institutions (item_id, name, color, source_updated_at, updated_at)
+		VALUES ($1, $2, NULLIF($3, ''), $4, NOW())
+		ON CONFLICT (item_id) DO UPDATE SET name = EXCLUDED.name, color = COALESCE(EXCLUDED.color, institutions.color),
+			source_updated_at = COALESCE(EXCLUDED.source_updated_at, institutions.source_updated_at), updated_at = NOW()
 		RETURNING id, (logo_checked_at IS NULL
 			OR (logo IS NULL AND logo_checked_at < NOW() - INTERVAL '1 day')
 			OR logo_checked_at < NOW() - INTERVAL '30 days')
-	`, itemID, inst.Name, inst.Color).Scan(&id, &needsLogo)
+	`, itemID, inst.Name, inst.Color, inst.UpdatedAt).Scan(&id, &needsLogo)
 	if err != nil {
 		return uuid.Nil, false, fmt.Errorf("erro ao salvar instituição: %w", err)
 	}

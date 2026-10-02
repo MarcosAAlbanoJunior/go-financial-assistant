@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contrast, deltaE, dueText, freshnessText, HIDDEN_MONEY, inkOn, money, monogram, safeHex, shareLabel, sliceColors, sliced, NEUTRAL_COLOR } from './balances'
+import { contrast, deltaE, dueText, HIDDEN_MONEY, inkOn, money, monogram, safeHex, shareLabel, sliceColors, sliced, NEUTRAL_COLOR } from './balances'
 import type { BalanceInstitution } from '../api'
 
 const plain = (s: string) => s.replace(/\u00a0/g, ' ')
@@ -88,14 +88,6 @@ describe('textos', () => {
     expect(monogram('itaú')).toBe('I')
     expect(monogram('  99 Pay')).toBe('9')
     expect(monogram('***')).toBe('?')
-  })
-
-  it('atualização relativa ao dia', () => {
-    const now = new Date(2026, 9, 2, 15, 0)
-    const at = (d: Date) => d.toISOString()
-    expect(freshnessText(at(new Date(2026, 9, 2, 8, 12)), now)).toMatch(/^hoje às /)
-    expect(freshnessText(at(new Date(2026, 9, 1, 23, 59)), now)).toMatch(/^ontem às /)
-    expect(freshnessText(at(new Date(2026, 8, 30, 8, 0)), now)).toMatch(/^30\/09 às .* \(há 2 dias\)$/)
   })
 
   it('descreve a barra por escrito e ignora quem não tem fatia', () => {

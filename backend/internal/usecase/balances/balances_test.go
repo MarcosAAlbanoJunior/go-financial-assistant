@@ -323,3 +323,26 @@ func TestBuildBalances_AccountNamedLikeBankWithoutAccent(t *testing.T) {
 		t.Errorf("nome = %q", got)
 	}
 }
+
+// A atualização mostrada é a do Pluggy (dos dados do banco), não a da cópia do app: o app pode ter sincronizado agora
+// com dados que o Pluggy buscou ontem.
+func TestBuildBalances_UsesPluggySourceUpdateTime(t *testing.T) {
+	id := uuid.New()
+	pluggyAt := balNow.Add(-40 * time.Hour)
+	insts := []domain.Institution{{ID: id, Name: "MeuPluggy", SourceUpdatedAt: &pluggyAt}}
+	v := BuildBalances([]domain.Account{bank(&id, "a", "itau", 1, balNow)}, insts, balNow) // o app copiou agora
+
+	in := v.Institutions[0]
+	if !in.UpdatedAt.Equal(pluggyAt) || !in.Stale {
+		t.Errorf("deveria valer a data do Pluggy e estar desatualizado: %v stale=%v", in.UpdatedAt, in.Stale)
+	}
+	if !v.AsOf.Equal(pluggyAt) {
+		t.Errorf("asOf = %v", v.AsOf)
+	}
+
+	// Sem a data do Pluggy, vale a da conta, como antes.
+	v = BuildBalances([]domain.Account{bank(nil, "b", "Banco", 1, balNow.Add(-time.Hour))}, nil, balNow)
+	if v.Institutions[0].Stale {
+		t.Error("sem data do Pluggy usa a da conta")
+	}
+}

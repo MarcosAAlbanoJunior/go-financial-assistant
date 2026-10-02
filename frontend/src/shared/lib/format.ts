@@ -48,3 +48,14 @@ export function deltaPercent(current: number, previous: number): number | null {
 }
 
 export const formatPercent = (value: number) => percent.format(value)
+
+/** Quando o saldo foi atualizado: "hoje às 08:12", "ontem às 08:12" ou "03/09 às 08:12 (há 29 dias)". */
+export function freshnessText(updatedAt: string, now: Date): string {
+  const t = new Date(updatedAt)
+  const time = t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOf(now) - startOf(t)) / 86_400_000)
+  if (days <= 0) return `hoje às ${time}`
+  if (days === 1) return `ontem às ${time}`
+  return `${t.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${time} (há ${days} dias)`
+}
