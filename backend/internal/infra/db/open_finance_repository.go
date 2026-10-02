@@ -70,6 +70,14 @@ func (r *PostgresPurchaseRepository) SaveExternal(ctx context.Context, purchase 
 		return fmt.Errorf("erro ao salvar pagamento externo: %w", err)
 	}
 
+	// Regra de categoria da conta (escolhida pela pessoa) vale para o que chega do banco e ficou em Outros.
+	if _, err := tx.Exec(ctx, `
+		UPDATE purchases p SET category = r.category
+		FROM category_rules r
+		WHERE p.id = $1 AND p.kind = 'EXPENSE' AND p.category = 'OTHER' AND r.category <> 'OTHER' AND r.key = `+expenseKey, purchase.ID); err != nil {
+		return fmt.Errorf("erro ao aplicar regra de categoria: %w", err)
+	}
+
 	return tx.Commit(ctx)
 }
 

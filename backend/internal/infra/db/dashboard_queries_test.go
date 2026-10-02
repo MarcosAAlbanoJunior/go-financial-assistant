@@ -660,3 +660,76 @@ func TestReview_Decisions(t *testing.T) {
 		t.Error("DUPLICATE não aceita decisão")
 	}
 }
+
+func TestCategoryRules_RetroactiveFutureAndListing(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM category_rules WHERE key LIKE 'zzteste%'`) })
+
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryOther, desc: "ZZTeste Aluguel 01", amount: 1000, date: mar1999})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryOther, desc: "ZZTeste Aluguel 02", amount: 1000, date: apr1999})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "ZZTeste Aluguel Lanche", amount: 5, date: apr1999}) // outra conta
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryOther, desc: "ZZTeste Padaria", amount: 20, date: apr1999})
+
+	groups, err := repo.UncategorizedExpenses(ctx, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	find := func(key string) *ports.UncategorizedGroup {
+		for i := range groups {
+			if groups[i].Key == key {
+				return &groups[i]
+			}
+		}
+		return nil
+	}
+	if g := find("zzteste aluguel"); g == nil || g.Count != 2 || g.Total != 2000 || g.Label == "" || g.Last.IsZero() {
+		t.Fatalf("lista as contas em Outros: %+v", groups)
+	}
+	if find("zzteste aluguel lanche") != nil {
+		t.Error("o que já tem categoria não é listado")
+	}
+
+	changed, err := repo.SetCategoryRule(ctx, "zzteste aluguel", "HOUSING")
+	if err != nil || changed != 2 {
+		t.Fatalf("reclassifica os lançamentos antigos: %d %v", changed, err)
+	}
+	if groups, _ = repo.UncategorizedExpenses(ctx, 1000); find("zzteste aluguel") != nil || find("zzteste padaria") == nil {
+		t.Error("conta com regra sai da lista; as outras ficam")
+	}
+	months, _ := repo.CategoryMonths(ctx, mar1999, apr1999)
+	got := map[string]float64{}
+	for _, m := range months {
+		got[m.Category] += m.Total
+	}
+	if got["HOUSING"] != 2000 || got["FOOD"] != 5 || got["OTHER"] != 20 {
+		t.Errorf("Moradia 2000, Alimentação intacta, Outros só a padaria: %v", got)
+	}
+
+	// Lançamento novo da mesma conta (o que a sincronização faz) já entra com a categoria da regra.
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryOther, desc: "ZZTeste Aluguel 03", amount: 1000, date: apr1999.AddDate(0, 0, 5)})
+	months, _ = repo.CategoryMonths(ctx, apr1999, apr1999)
+	housing := 0.0
+	for _, m := range months {
+		if m.Category == "HOUSING" {
+			housing = m.Total
+		}
+	}
+	if housing != 2000 {
+		t.Errorf("lançamento novo segue a regra (abril: 1000 + 1000): %v", months)
+	}
+
+	// Trocar a regra move também o que a regra anterior tinha movido; "manter em Outros" tira da lista.
+	if changed, _ = repo.SetCategoryRule(ctx, "zzteste aluguel", "PEOPLE"); changed != 3 {
+		t.Errorf("troca de regra reclassifica os 3: %d", changed)
+	}
+	if _, err := repo.SetCategoryRule(ctx, "zzteste padaria", "OTHER"); err != nil {
+		t.Fatal(err)
+	}
+	if groups, _ = repo.UncategorizedExpenses(ctx, 1000); find("zzteste padaria") != nil {
+		t.Error("manter em Outros não volta a ser perguntado")
+	}
+	if _, err := repo.SetCategoryRule(ctx, "zzteste x", "INVALIDA"); err == nil {
+		t.Error("o banco recusa categoria fora da lista")
+	}
+}
