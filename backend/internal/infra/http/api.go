@@ -193,8 +193,7 @@ func (a *api) investments(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// budgetMonths é a janela usada para reconhecer contas que se repetem (e para a evolução).
-const budgetMonths = 12
+const budgetMonths = usecase.BudgetMonths
 
 // budget: despesas do mês divididas em fixas, parceladas e variáveis, e a evolução mês a mês.
 func (a *api) budget(w http.ResponseWriter, r *http.Request) {
