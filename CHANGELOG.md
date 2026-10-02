@@ -79,6 +79,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - No Telegram, só o `TELEGRAM_CHAT_ID` configurado, em conversa privada, é atendido, e o token é removido dos erros de rede para não vazar em logs.
 
 ### Migração
+- Aplique também a migration 012 (histórico do Coach): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/012_create_coach_analyses.sql`.
+- Aplique também a migration 011 (metas): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/011_create_goals.sql`.
+- Aplique também a migration 010 (sugestões dispensadas da Revisão): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/010_create_review_dismissals.sql`.
 - Quem já importou do Itaú antes dessa mudança tem movimentos "APLIC AUT MAIS" gravados. Para removê-los: `docker compose exec -T postgres psql -U finassist -d finassist -c "DELETE FROM purchases WHERE id IN (SELECT p.id FROM purchases p JOIN payments pay ON pay.purchase_id = p.id WHERE p.kind = 'TRANSFER' AND pay.external_id IS NOT NULL AND p.description ILIKE '%aplic aut mais%')"`.
 - Aplique também a migration 009 (regras de contas fixas): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/009_create_expense_rules.sql`.
 - Aplique também a migration 008 (movimentações de investimento): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/008_create_investment_movements.sql`. A estimativa aparece depois da próxima sincronização.
