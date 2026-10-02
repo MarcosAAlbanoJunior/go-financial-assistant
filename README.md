@@ -146,13 +146,14 @@ COMPOSE_PROFILES=whatsapp
 
 Sem isso, `docker compose up` não sobe a Evolution API e o app ficará aguardando por ela. Além disso, as portas do Postgres e do Redis passaram a escutar apenas em `127.0.0.1`.
 
-**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach) e a `013` (decisões "cancelei" da Revisão):
+**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach), a `013` (decisões "cancelei" da Revisão) e a `014` (regras de categoria):
 
 ```bash
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/010_create_review_dismissals.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/011_create_goals.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/012_create_coach_analyses.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/013_create_review_decisions.sql
+docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/014_create_category_rules.sql
 ```
 
 ### 5. Open Finance (opcional)

@@ -31,6 +31,8 @@ type fakeReader struct {
 	known          map[string]time.Time
 	ruleClass      ports.ExpenseClass
 	catMonths      []ports.CategoryMonth
+	uncategorized  []ports.UncategorizedGroup
+	rules2         []ports.CategoryRule
 	decisions      []ports.Decision
 	analyses       []ports.CoachAnalysis
 	goals          []ports.Goal
@@ -176,6 +178,13 @@ func (f *fakeReader) DeleteDecision(_ context.Context, kind, key string) error {
 	f.decisions = slices.DeleteFunc(f.decisions, func(d ports.Decision) bool { return d.Kind == kind && d.Key == key })
 	f.dismissed = slices.DeleteFunc(f.dismissed, func(d ports.Dismissal) bool { return d.Kind == kind && d.Key == key })
 	return f.err
+}
+func (f *fakeReader) UncategorizedExpenses(_ context.Context, limit int) ([]ports.UncategorizedGroup, error) {
+	return f.uncategorized[:min(limit, len(f.uncategorized))], f.err
+}
+func (f *fakeReader) SetCategoryRule(_ context.Context, key, category string) (int64, error) {
+	f.rules2 = append(f.rules2, ports.CategoryRule{Key: key, Category: category})
+	return 3, f.err
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
 
