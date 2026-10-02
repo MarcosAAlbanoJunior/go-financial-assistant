@@ -3,7 +3,6 @@ import { BalanceHero } from './components/BalanceHero'
 import { BalanceTable } from './components/BalanceTable'
 import { HideValuesToggle } from './components/HideValuesToggle'
 import { InstitutionCard } from './components/InstitutionCard'
-import { SyncButton } from './components/SyncButton'
 import { useHideValues } from './lib/useHideValues'
 import { useBalances } from './api'
 
@@ -11,7 +10,6 @@ export default function Panel() {
   const query = useBalances()
   const { hidden, toggle } = useHideValues()
   const data = query.data
-  const stale = data?.institutions.some((i) => i.stale) ?? false
   // "hoje" e "ontem" são relativos ao momento em que os dados chegaram.
   const now = new Date(query.dataUpdatedAt)
 
@@ -20,7 +18,6 @@ export default function Panel() {
       <div className="bal-top">
         <h1 className="page-title">Painel</h1>
         <HideValuesToggle hidden={hidden} onToggle={toggle} />
-        <SyncButton highlight={stale} />
       </div>
 
       {data ? (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { toMonthRows } from './chart'
-import { deltaPercent, formatBRL, formatBRLCompact, formatMonthLong, formatMonthShort, formatMonthTitle, formatPercent } from './format'
+import { freshnessText, deltaPercent, formatBRL, formatBRLCompact, formatMonthLong, formatMonthShort, formatMonthTitle, formatPercent } from './format'
 
 // Intl usa espaço sem quebra entre "R$" e o valor; normalizamos para comparar.
 const plain = (s: string) => s.replace(/ /g, ' ')
@@ -44,5 +44,15 @@ describe('toMonthRows', () => {
     ])
     expect(rows.map((r) => r.label)).toEqual(['ago/26', 'set/26'])
     expect(rows[1]).toMatchObject({ income: 10, expense: 259.62 })
+  })
+})
+
+describe('freshnessText', () => {
+  it('atualização relativa ao dia', () => {
+    const now = new Date(2026, 9, 2, 15, 0)
+    const at = (d: Date) => d.toISOString()
+    expect(freshnessText(at(new Date(2026, 9, 2, 8, 12)), now)).toMatch(/^hoje às /)
+    expect(freshnessText(at(new Date(2026, 9, 1, 23, 59)), now)).toMatch(/^ontem às /)
+    expect(freshnessText(at(new Date(2026, 8, 30, 8, 0)), now)).toMatch(/^30\/09 às .* \(há 2 dias\)$/)
   })
 })
