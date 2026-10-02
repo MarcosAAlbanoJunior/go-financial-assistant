@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
 )
@@ -141,11 +143,11 @@ func (a *api) syncNow(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	result, err := a.syncer.Sync(ctx)
-	if errors.Is(err, usecase.ErrNotConfigured) {
+	if errors.Is(err, openfinance.ErrNotConfigured) {
 		writeError(w, http.StatusServiceUnavailable, "o Open Finance não está configurado")
 		return
 	}
-	if errors.Is(err, usecase.ErrSyncInProgress) {
+	if errors.Is(err, openfinance.ErrSyncInProgress) {
 		writeError(w, http.StatusConflict, "já existe uma sincronização em andamento")
 		return
 	}

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
 )
 
 type errReader struct{}
@@ -76,7 +76,7 @@ func TestHandle_NotAllowedNumber(t *testing.T) {
 
 func TestHandle_TextMessage_Success(t *testing.T) {
 	analyzer := &mockAnalyzer{
-		executeTextFn: func(_ context.Context, _ usecase.TextInput) (*usecase.ExpenseOutput, error) {
+		executeTextFn: func(_ context.Context, _ ledger.TextInput) (*ledger.ExpenseOutput, error) {
 			return defaultOutput(), nil
 		},
 	}
@@ -90,7 +90,7 @@ func TestHandle_TextMessage_Success(t *testing.T) {
 
 func TestHandle_TextMessage_AllowedNumber(t *testing.T) {
 	analyzer := &mockAnalyzer{
-		executeTextFn: func(_ context.Context, _ usecase.TextInput) (*usecase.ExpenseOutput, error) {
+		executeTextFn: func(_ context.Context, _ ledger.TextInput) (*ledger.ExpenseOutput, error) {
 			return defaultOutput(), nil
 		},
 	}
@@ -105,7 +105,7 @@ func TestHandle_TextMessage_AllowedNumber(t *testing.T) {
 func TestHandle_ExtendedTextMessage(t *testing.T) {
 	var capturedText string
 	analyzer := &mockAnalyzer{
-		executeTextFn: func(_ context.Context, input usecase.TextInput) (*usecase.ExpenseOutput, error) {
+		executeTextFn: func(_ context.Context, input ledger.TextInput) (*ledger.ExpenseOutput, error) {
 			capturedText = input.Text
 			return defaultOutput(), nil
 		},
@@ -134,7 +134,7 @@ func TestHandle_EmptyText_UnsupportedMessage(t *testing.T) {
 func TestHandle_ImageMessage_WithBase64(t *testing.T) {
 	b64 := base64.StdEncoding.EncodeToString([]byte{1, 2, 3})
 	analyzer := &mockAnalyzer{
-		executeImageFn: func(_ context.Context, _ usecase.ImageInput) (*usecase.ExpenseOutput, error) {
+		executeImageFn: func(_ context.Context, _ ledger.ImageInput) (*ledger.ExpenseOutput, error) {
 			return defaultOutput(), nil
 		},
 	}
@@ -149,7 +149,7 @@ func TestHandle_ImageMessage_WithBase64(t *testing.T) {
 func TestHandle_ImageMessage_FetchBase64(t *testing.T) {
 	b64 := base64.StdEncoding.EncodeToString([]byte{4, 5, 6})
 	analyzer := &mockAnalyzer{
-		executeImageFn: func(_ context.Context, _ usecase.ImageInput) (*usecase.ExpenseOutput, error) {
+		executeImageFn: func(_ context.Context, _ ledger.ImageInput) (*ledger.ExpenseOutput, error) {
 			return defaultOutput(), nil
 		},
 	}
@@ -191,7 +191,7 @@ func TestHandle_ImageMessage_InvalidBase64(t *testing.T) {
 
 func TestHandle_MessengerSendText_StoresSentID(t *testing.T) {
 	analyzer := &mockAnalyzer{
-		executeTextFn: func(_ context.Context, _ usecase.TextInput) (*usecase.ExpenseOutput, error) {
+		executeTextFn: func(_ context.Context, _ ledger.TextInput) (*ledger.ExpenseOutput, error) {
 			return defaultOutput(), nil
 		},
 	}
@@ -210,7 +210,7 @@ func TestHandle_MessengerSendText_StoresSentID(t *testing.T) {
 
 func TestHandle_MessengerSendText_Error(t *testing.T) {
 	analyzer := &mockAnalyzer{
-		executeTextFn: func(_ context.Context, _ usecase.TextInput) (*usecase.ExpenseOutput, error) {
+		executeTextFn: func(_ context.Context, _ ledger.TextInput) (*ledger.ExpenseOutput, error) {
 			return defaultOutput(), nil
 		},
 	}

@@ -1,4 +1,4 @@
-package usecase
+package openfinance
 
 import (
 	"context"
@@ -27,7 +27,7 @@ type SyncResult struct {
 // SyncOpenFinance copia as transações do Open Finance para o banco. É idempotente: o ID da
 // origem é único, então reexecutar (ou sobrepor a janela de datas) nunca duplica.
 type SyncOpenFinance struct {
-	repo         ports.PurchaseRepository
+	repo         ports.ExternalStore
 	provider     ports.OpenFinanceProvider
 	itemIDs      []string
 	lookbackDays int
@@ -51,7 +51,7 @@ func (s *SyncOpenFinance) SetClock(c domain.Clock) { s.clock = c }
 // SetLogoFetcher liga o cache de logos dos bancos.
 func (s *SyncOpenFinance) SetLogoFetcher(f ports.LogoFetcher) { s.logos = f }
 
-func NewSyncOpenFinance(repo ports.PurchaseRepository, provider ports.OpenFinanceProvider, itemIDs []string, lookbackDays int, logger *slog.Logger) *SyncOpenFinance {
+func NewSyncOpenFinance(repo ports.ExternalStore, provider ports.OpenFinanceProvider, itemIDs []string, lookbackDays int, logger *slog.Logger) *SyncOpenFinance {
 	return &SyncOpenFinance{repo: repo, provider: provider, itemIDs: itemIDs, lookbackDays: lookbackDays, logger: logger, clock: domain.SystemClock{}}
 }
 

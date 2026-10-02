@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func TestGenerateRecurringExpenses_SkipsWhenNotTargetDay(t *testing.T) {
 	}
 
 	paymentSaved := false
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findActiveRecurringFn: func(_ context.Context) ([]domain.Purchase, error) {
 			return []domain.Purchase{recurringPurchase(differentDay)}, nil
 		},
@@ -57,7 +57,7 @@ func TestGenerateRecurringExpenses_GeneratesOnTargetDay(t *testing.T) {
 	today := time.Now().UTC().Day()
 
 	paymentSaved := false
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findActiveRecurringFn: func(_ context.Context) ([]domain.Purchase, error) {
 			return []domain.Purchase{recurringPurchase(today)}, nil
 		},
@@ -83,7 +83,7 @@ func TestGenerateRecurringExpenses_SkipsAlreadyPaidMonth(t *testing.T) {
 	today := time.Now().UTC().Day()
 
 	paymentSaved := false
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findActiveRecurringFn: func(_ context.Context) ([]domain.Purchase, error) {
 			return []domain.Purchase{recurringPurchase(today)}, nil
 		},

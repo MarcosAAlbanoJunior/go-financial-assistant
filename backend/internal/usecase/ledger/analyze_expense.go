@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"context"
@@ -18,13 +18,13 @@ type ExpenseAnalyzer interface {
 }
 
 type AnalyzeExpense struct {
-	repo     ports.PurchaseRepository
+	repo     ports.LedgerStore
 	analyzer ports.AIAnalyzer
 	logger   *slog.Logger
 	clock    domain.Clock
 }
 
-func NewAnalyzeExpense(repo ports.PurchaseRepository, analyzer ports.AIAnalyzer, logger *slog.Logger) *AnalyzeExpense {
+func NewAnalyzeExpense(repo ports.LedgerStore, analyzer ports.AIAnalyzer, logger *slog.Logger) *AnalyzeExpense {
 	return &AnalyzeExpense{repo: repo, analyzer: analyzer, logger: logger, clock: domain.SystemClock{}}
 }
 

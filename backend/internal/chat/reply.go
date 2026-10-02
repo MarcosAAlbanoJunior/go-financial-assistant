@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
 )
 
-func formatStatementSummary(output *usecase.StatementOutput) string {
+func formatStatementSummary(output *ledger.StatementOutput) string {
 	if output.Inserted == 0 && len(output.Pending) == 0 {
 		return "📄 Nenhuma transação nova encontrada no extrato."
 	}
@@ -23,7 +23,7 @@ func formatStatementSummary(output *usecase.StatementOutput) string {
 	return sb.String()
 }
 
-func formatConfirmationQuestion(tx usecase.PendingTransaction, current, total int) string {
+func formatConfirmationQuestion(tx ledger.PendingTransaction, current, total int) string {
 	return fmt.Sprintf(
 		"❓ Transação %d/%d\n📅 %s\n📝 %s\n💰 R$ %.2f\n🏷️ %s\n\nJá existe uma transação com esse valor nessa data. Deseja inserir mesmo assim?\nResponda *sim* ou *não*",
 		current, total,
@@ -34,7 +34,7 @@ func formatConfirmationQuestion(tx usecase.PendingTransaction, current, total in
 	)
 }
 
-func formatReply(output *usecase.ExpenseOutput) string {
+func formatReply(output *ledger.ExpenseOutput) string {
 	switch output.Type {
 	case "QUERY":
 		return formatQueryReply(output)
@@ -66,7 +66,7 @@ func formatReply(output *usecase.ExpenseOutput) string {
 	}
 }
 
-func formatQueryReply(output *usecase.ExpenseOutput) string {
+func formatQueryReply(output *ledger.ExpenseOutput) string {
 	if output.QueryEmpty {
 		return fmt.Sprintf("📊 Sem lançamentos registrados em %s.", output.QueryMonth)
 	}

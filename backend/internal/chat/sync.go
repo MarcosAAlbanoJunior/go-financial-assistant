@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
 )
 
 // "/sync" é o comando natural no Telegram; "sincronizar" funciona nos dois canais.
@@ -26,11 +26,11 @@ func (h *Handler) handleSync(ctx context.Context) {
 
 	h.sendText(ctx, "🔄 Sincronizando com o Open Finance, aguarde...")
 	result, err := h.syncer.Sync(ctx)
-	if errors.Is(err, usecase.ErrNotConfigured) {
+	if errors.Is(err, openfinance.ErrNotConfigured) {
 		h.sendText(ctx, "ℹ️ O Open Finance não está configurado. Veja a página Configurações do dashboard ou a seção Open Finance no README.")
 		return
 	}
-	if errors.Is(err, usecase.ErrSyncInProgress) {
+	if errors.Is(err, openfinance.ErrSyncInProgress) {
 		h.sendText(ctx, "⏳ Já existe uma sincronização em andamento. Tente em instantes.")
 		return
 	}
