@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -34,15 +36,15 @@ func TestCoachLabel(t *testing.T) {
 	}
 }
 
-func sampleReview() Review {
-	return Review{
+func sampleReview() review.Review {
+	return review.Review{
 		Months: []time.Time{month(2026, time.August), month(2026, time.September)},
-		Matrix: []ReviewRow{{Category: "FOOD", Values: []float64{800, 1200}}},
-		Candidates: []Candidate{
-			{Kind: ReviewFixed, Key: "streaming", Label: "STREAMING 12345678900", Category: "ENTERTAINMENT", Saving: 40, Recurring: true, Amount: 40, Months: 6},
-			{Kind: ReviewDuplicate, Key: "pix", Label: "Pix enviado Fulano", Category: "OTHER", Saving: 100, Amount: 100, Count: 2},
-			{Kind: ReviewIncrease, Key: "FOOD", Category: "FOOD", Saving: 400, Recurring: true, Amount: 1200, Baseline: 800},
-			{Kind: ReviewAnt, Key: "padaria", Label: "Padaria", Category: "FOOD", Saving: 45, Recurring: true, Amount: 90, Dismissed: true},
+		Matrix: []review.ReviewRow{{Category: "FOOD", Values: []float64{800, 1200}}},
+		Candidates: []review.Candidate{
+			{Kind: review.ReviewFixed, Key: "streaming", Label: "STREAMING 12345678900", Category: "ENTERTAINMENT", Saving: 40, Recurring: true, Amount: 40, Months: 6},
+			{Kind: review.ReviewDuplicate, Key: "pix", Label: "Pix enviado Fulano", Category: "OTHER", Saving: 100, Amount: 100, Count: 2},
+			{Kind: review.ReviewIncrease, Key: "FOOD", Category: "FOOD", Saving: 400, Recurring: true, Amount: 1200, Baseline: 800},
+			{Kind: review.ReviewAnt, Key: "padaria", Label: "Padaria", Category: "FOOD", Saving: 45, Recurring: true, Amount: 90, Dismissed: true},
 		},
 	}
 }
@@ -73,12 +75,12 @@ func TestBuildCoachContext(t *testing.T) {
 }
 
 func TestBuildCoachContext_LimitsSizeAndCount(t *testing.T) {
-	rev := Review{Months: make([]time.Time, ReviewMatrixMonths)}
+	rev := review.Review{Months: make([]time.Time, review.ReviewMatrixMonths)}
 	for i := 0; i < 40; i++ {
-		rev.Candidates = append(rev.Candidates, Candidate{Kind: ReviewFixed, Label: strings.Repeat("Serviço ", 20), Category: "ENTERTAINMENT", Saving: 10, Recurring: true, Amount: 10, Months: 12})
+		rev.Candidates = append(rev.Candidates, review.Candidate{Kind: review.ReviewFixed, Label: strings.Repeat("Serviço ", 20), Category: "ENTERTAINMENT", Saving: 10, Recurring: true, Amount: 10, Months: 12})
 	}
 	for _, cat := range []string{"FOOD", "MARKET", "TRANSPORT", "HEALTH", "ENTERTAINMENT", "SHOPPING", "INVESTMENT", "SALARY", "OTHER"} {
-		rev.Matrix = append(rev.Matrix, ReviewRow{Category: cat, Values: make([]float64, ReviewMatrixMonths)})
+		rev.Matrix = append(rev.Matrix, review.ReviewRow{Category: cat, Values: make([]float64, review.ReviewMatrixMonths)})
 	}
 	var goals []planning.GoalProgress
 	for i := 0; i < 20; i++ {
@@ -157,9 +159,9 @@ func TestCleanAnswer(t *testing.T) {
 }
 
 func TestNewCoachRecordAndQuestionKeys(t *testing.T) {
-	cands := []Candidate{
-		{Kind: ReviewFixed, Key: "streaming", Label: "STREAMING", Category: "ENTERTAINMENT", Saving: 40, Recurring: true, Amount: 40},
-		{Kind: ReviewDuplicate, Key: "oficina", Label: "Oficina", Category: "OTHER", Saving: 100, Amount: 100},
+	cands := []review.Candidate{
+		{Kind: review.ReviewFixed, Key: "streaming", Label: "STREAMING", Category: "ENTERTAINMENT", Saving: 40, Recurring: true, Amount: 40},
+		{Kind: review.ReviewDuplicate, Key: "oficina", Label: "Oficina", Category: "OTHER", Saving: 100, Amount: 100},
 	}
 	goals := []planning.GoalProgress{{Goal: domain.Goal{Name: "Reserva"}}}
 	adv := ports.CoachAdvice{

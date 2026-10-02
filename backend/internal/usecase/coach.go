@@ -8,6 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -58,7 +60,7 @@ type CoachDecision struct {
 }
 
 var coachStatusNames = map[string]string{
-	SavingPending: "aguardando o primeiro mês fechado", SavingConfirmed: "cobrança sumiu, economia confirmada", SavingReturned: "a cobrança voltou",
+	review.SavingPending: "aguardando o primeiro mês fechado", review.SavingConfirmed: "cobrança sumiu, economia confirmada", review.SavingReturned: "a cobrança voltou",
 }
 
 type CoachCategory struct {
@@ -89,8 +91,8 @@ type CoachGoal struct {
 }
 
 var coachKindNames = map[string]string{
-	ReviewIncrease: "aumento de categoria", ReviewFixed: "conta fixa ou assinatura", ReviewAnt: "gasto formiga",
-	ReviewDuplicate: "possível cobrança duplicada", ReviewNew: "conta nova no mês",
+	review.ReviewIncrease: "aumento de categoria", review.ReviewFixed: "conta fixa ou assinatura", review.ReviewAnt: "gasto formiga",
+	review.ReviewDuplicate: "possível cobrança duplicada", review.ReviewNew: "conta nova no mês",
 }
 
 var coachGoalNames = map[domain.GoalKind]string{
@@ -133,8 +135,8 @@ func CoachLabel(label string) string {
 
 // CoachCandidates são as sugestões que vão para a IA, na ordem dos IDs "s1", "s2"...: as dispensadas ficam
 // de fora (é assim que a pessoa tira um item do envio) e só as MaxCoachSuggestions de maior impacto seguem.
-func CoachCandidates(rev Review) []Candidate {
-	var out []Candidate
+func CoachCandidates(rev review.Review) []review.Candidate {
+	var out []review.Candidate
 	for _, c := range rev.Candidates {
 		if !c.Dismissed && len(out) < MaxCoachSuggestions {
 			out = append(out, c)
@@ -145,7 +147,7 @@ func CoachCandidates(rev Review) []Candidate {
 
 // BuildCoachContext monta o que vai para a IA a partir dos resultados dos detectores e das metas (os IDs "m1",
 // "m2"... seguem a ordem de goals). past são as análises guardadas, da mais nova para a mais antiga.
-func BuildCoachContext(rev Review, month string, totals domain.MonthTotals, goals []planning.GoalProgress, past []domain.CoachAnalysis, decisions []DecisionResult) CoachContext {
+func BuildCoachContext(rev review.Review, month string, totals domain.MonthTotals, goals []planning.GoalProgress, past []domain.CoachAnalysis, decisions []review.DecisionResult) CoachContext {
 	c := CoachContext{Month: month, Income: totals.Income, Expense: totals.Expense,
 		Months: []string{}, Categories: []CoachCategory{}, Suggestions: []CoachSuggestion{}, Goals: []CoachGoal{}, Decisions: []CoachDecision{}, Memory: BuildCoachMemory(past)}
 	for _, m := range rev.Months {
@@ -159,7 +161,7 @@ func BuildCoachContext(rev Review, month string, totals domain.MonthTotals, goal
 			ID: "s" + strconv.Itoa(i+1), Kind: coachKindNames[cand.Kind], Category: domain.Category(cand.Category).Label(),
 			Amount: cand.Amount, SavingMonth: cand.Saving, Months: cand.Months, Count: cand.Count,
 		}
-		if cand.Kind == ReviewIncrease {
+		if cand.Kind == review.ReviewIncrease {
 			s.Name = s.Category
 		} else {
 			s.Name = CoachLabel(cand.Label)

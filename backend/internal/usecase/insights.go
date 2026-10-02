@@ -5,6 +5,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -45,7 +47,7 @@ func BankBalance(accounts []domain.Account) *float64 {
 
 // Projection projeta `months` meses a partir de start (primeiro dia do mês atual).
 func (i *Insights) Projection(ctx context.Context, start time.Time, months int) (planning.Projection, error) {
-	from, to := start.AddDate(0, -BudgetMonths, 0), start.AddDate(0, -1, 0)
+	from, to := start.AddDate(0, -review.BudgetMonths, 0), start.AddDate(0, -1, 0)
 	rows, err := i.reader.ExpenseKeyMonths(ctx, from, to)
 	if err != nil {
 		return planning.Projection{}, err
@@ -66,28 +68,28 @@ func (i *Insights) Projection(ctx context.Context, start time.Time, months int) 
 }
 
 // Review roda os detectores da revisão sobre o mês to (primeiro dia).
-func (i *Insights) Review(ctx context.Context, to time.Time) (Review, error) {
-	cats, err := i.reader.CategoryMonths(ctx, to.AddDate(0, -(ReviewMatrixMonths-1), 0), to)
+func (i *Insights) Review(ctx context.Context, to time.Time) (review.Review, error) {
+	cats, err := i.reader.CategoryMonths(ctx, to.AddDate(0, -(review.ReviewMatrixMonths-1), 0), to)
 	if err != nil {
-		return Review{}, err
+		return review.Review{}, err
 	}
-	keyRows, err := i.reader.ExpenseKeyMonths(ctx, to.AddDate(0, -(BudgetMonths-1), 0), to)
+	keyRows, err := i.reader.ExpenseKeyMonths(ctx, to.AddDate(0, -(review.BudgetMonths-1), 0), to)
 	if err != nil {
-		return Review{}, err
+		return review.Review{}, err
 	}
 	rules, err := i.reader.ExpenseRules(ctx)
 	if err != nil {
-		return Review{}, err
+		return review.Review{}, err
 	}
 	payments, err := i.reader.ExpensePayments(ctx, to, to)
 	if err != nil {
-		return Review{}, err
+		return review.Review{}, err
 	}
 	dismissed, err := i.reader.Dismissals(ctx)
 	if err != nil {
-		return Review{}, err
+		return review.Review{}, err
 	}
-	return BuildReview(cats, keyRows, rules, payments, dismissed, to), nil
+	return review.BuildReview(cats, keyRows, rules, payments, dismissed, to), nil
 }
 
 // Goals calcula o andamento de todas as metas hoje e o patrimônio (contas correntes + investimentos).
@@ -131,7 +133,7 @@ func (i *Insights) Goals(ctx context.Context, today time.Time) ([]planning.GoalP
 }
 
 // Savings confere as decisões "cancelei" contra o que foi cobrado desde então (now = primeiro dia do mês atual).
-func (i *Insights) Savings(ctx context.Context, now time.Time) ([]DecisionResult, error) {
+func (i *Insights) Savings(ctx context.Context, now time.Time) ([]review.DecisionResult, error) {
 	decisions, err := i.reader.Decisions(ctx)
 	if err != nil || len(decisions) == 0 {
 		return nil, err
@@ -141,5 +143,5 @@ func (i *Insights) Savings(ctx context.Context, now time.Time) ([]DecisionResult
 	if err != nil {
 		return nil, err
 	}
-	return BuildSavings(decisions, rows, now), nil
+	return review.BuildSavings(decisions, rows, now), nil
 }
