@@ -208,30 +208,13 @@ Se algum `PLUGGY_*` estiver preenchido, os três são obrigatórios. Sem nenhum,
 
 ## Dashboard (front-end)
 
-O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `frontend/` e é servido por um container nginx que também repassa `/api` ao app Go. Como front e API ficam na **mesma origem**, não há CORS e o cookie de sessão não sai do domínio.
+O front-end (React + TypeScript + Vite) fica em `frontend/` e é servido por um container nginx que também repassa `/api` ao app (mesma origem, sem CORS).
 
 1. Defina `DASHBOARD_PASSWORD` no `.env` (mínimo de 12 caracteres).
 2. `docker compose up -d --build` e abra **http://localhost:8080** (mude a porta com `WEB_PORT`).
-3. Entre com a senha. As telas são:
-   - **Configurações**: edite no navegador o que antes só existia no `.env`: resumo semanal (liga/desliga, dia, hora, fuso), sincronização (intervalo, dias para trás), seus nomes (`OWN_NAMES`), credenciais e bancos do Pluggy, chave e modelo do Gemini, e o Telegram ou o WhatsApp do canal ativo. O valor salvo aqui vale mais que o `.env`; "Voltar ao valor do ambiente" apaga o salvo. Cada campo mostra de onde vem o valor e se só vale depois de reiniciar (há um botão para isso; o Docker sobe o app de novo). Resumo, sincronização, nomes, Pluggy e o plano pago do Coach valem na hora; chaves do Gemini, Telegram e WhatsApp pedem reinício. **Segredos** (tokens e chaves) só podem ser salvos se `APP_SECRET_KEY` estiver definida no ambiente: eles ficam cifrados (AES-256-GCM) no banco, nunca voltam para a tela (só "Configurado") e cada um tem "Testar conexão". Ao salvar `OWN_NAMES`, o app procura Pix/TED antigos com o seu nome e pergunta se deve desconsiderá-los. **Camada extra de segurança:** mudar ou restaurar o que é sensível (segredos, Client ID e Item IDs do Pluggy, ID autorizado no Telegram, dados do WhatsApp) pede a **senha do dashboard de novo**, então uma sessão roubada não basta; as tentativas erradas têm limite. Todas as alterações vão para o **Histórico de alterações** (sem valores), e as sensíveis (e senha errada) também **avisam no seu chat**. A chave mestra pode ficar num **arquivo** em vez do ambiente: `make secret-key` cria `secrets/app_secret_key` (600, fora do git) e basta `APP_SECRET_KEY_FILE=/run/secrets/app_secret_key` no `.env`; assim ela não aparece em `docker inspect`. Porta, banco, senha do dashboard, canal e backup continuam só no ambiente. Exige as migrations `016` e `017`.
-   - **Painel** (página inicial): total em conta com a participação de cada banco, e, por banco (logo ou monograma e cor de marca), a conta corrente e cada cartão **separado**: fatura, limite usado, disponível e vencimento, com ícone e texto para atenção (limite ≥ 70%, ≥ 90% ou vencimento em até 3 dias) e "desatualizado" (mais de 36 h). "Faturas em aberto" aparece à parte, sem subtrair do total, e o aplicado automaticamente do Itaú fica fora dele. "Ocultar valores" (só no navegador) e "Sincronizar" (mesma sincronização do `/sync`). Exige a migration `015`. O logo vem do conector do Pluggy, é baixado só por https, sem rede interna, até 256 KB, e servido pelo próprio app (o CSP não muda); falhando, usa o monograma. Os logos não são versionados.
-   - **Visão geral**: receitas, despesas, saldo do mês, "em conta" e investimentos, com a variação sobre o mês anterior, e o histórico de 12 meses.
-   - **Gastos**: despesas do mês por categoria, forma de pagamento e conta/cartão.
-   - **Comparações**: despesas por categoria no mês escolhido contra o anterior, e a evolução de receitas e despesas em 6, 12 ou 24 meses.
-   - **Transações**: lançamentos manuais e do Open Finance com filtros por mês, tipo, categoria, forma de pagamento, conta e busca na descrição. Três visões: **por categoria** (cards coloridos com ícone, que abrem para mostrar os lançamentos), **por dia** e **lista** paginada.
-   - **Investimentos**: o patrimônio investido hoje (saldo real das posições do Open Finance, total, por tipo e por produto), a evolução desse saldo ao longo do tempo (exato desde a primeira sincronização, estimado antes dela) e o fluxo de dinheiro: aplicado, resgatado e líquido acumulado por mês, em 6, 12 ou 24 meses.
-   - **Classificar**: as contas que ficaram em "Outros" (a maior parte costuma ser Pix), da maior para a menor. Escolha a categoria (inclusive as novas: Moradia, Contas, Educação e Pessoas) e aplique: as despesas antigas mudam e as próximas sincronizações já chegam classificadas; a IA pode sugerir só para comércio e serviços, nunca para Pix.
-   - **Orçamento**: despesas do mês em **fixas, parceladas e variáveis**, com a parte da receita já comprometida, a evolução por mês e cards das contas. Conta fixa é a que se repete (até 2 vezes por mês, valor parecido; precisa de pelo menos 3 meses de histórico, ou 2 quando só há 2, e então o valor tem de ser quase igual). Parcelada é a que tem "n/m" na descrição. Dá para corrigir à mão ("Marcar como fixa", "Não é fixa") e voltar ao automático. Quanto mais histórico (`SYNC_LOOKBACK_DAYS=365`), melhor a detecção.
-   - **Revisão**: mapa de calor de categoria por mês (clique numa célula para ver as transações) e sugestões de corte calculadas por código, sem IA: maiores aumentos, assinaturas e contas fixas com o custo anual, gasto formiga, possíveis cobranças duplicadas e contas novas, cada uma com a economia estimada por mês e por ano. Sugestões podem ser dispensadas ou marcadas como **"Cancelei"** (contas fixas e gasto formiga): o app confere nos meses seguintes se a cobrança sumiu e mostra a **economia realizada**, avisando se ela voltar. Exige a migration `010` (veja *Atualizando uma instalação existente*).
-   - **Metas**: juntar um valor até uma data, reduzir uma categoria em X% contra a média dos meses anteriores, ou manter N meses de despesas fixas de reserva. O progresso vem do patrimônio (saldo das contas correntes + investimentos) e a meta de juntar é checada contra a sobra média da projeção. As metas ficam no banco (migration `011`). Não é aconselhamento financeiro.
-   - **Projeção**: a base dos próximos 6, 12 ou 24 meses (renda, fixas e variáveis médios, mais as parcelas que já existem, com premissas editáveis) e um **simulador de financiamento** para ver como o orçamento fica com a nova parcela: pior mês, sobra média, meses no vermelho, peso na renda e total pago. A renda é a mediana da renda total dos últimos 6 meses (um 13º ou um adiantamento de férias não infla a renda, e entradas de origens variadas não ficam de fora). Os cenários e as premissas que você editar ficam só no navegador. É uma estimativa, não uma previsão.
-   - **Contas**: saldo das contas correntes e limite usado dos cartões.
+3. Entre com a senha. Telas: Painel (saldos por banco e cartão), Visão geral, Gastos, Comparações, Transações, Classificar, Orçamento, Revisão, Metas, Coach, Projeção, Investimentos e **Configurações** (edição no navegador do que antes só existia no `.env`, com segredos cifrados).
 
-   O mês e os filtros ficam na URL (`?mes=AAAA-MM`), então dá para guardar ou compartilhar a visão. Os gráficos têm visão em tabela, e o tema claro/escuro segue o sistema (botão no topo para trocar).
-
-O container escuta só em `127.0.0.1`. Para acessar de outro dispositivo, ponha na frente um proxy com **HTTPS** (Caddy, Traefik, Cloudflare Tunnel…) apontando para a porta do dashboard; sem HTTPS a senha e o cookie trafegam em claro. O nginx envia `Content-Security-Policy` restritiva, `X-Frame-Options: DENY`, `nosniff` e `Referrer-Policy: no-referrer`.
-
-**Desenvolvimento** (precisa de Node 22+; com nvm, `nvm use 22`): suba o app (`docker compose up -d`) e rode `make front-dev`; o Vite abre em http://localhost:5173 e repassa `/api` para `127.0.0.1:3000`. `make front-test` roda os testes (Vitest) e o lint; `make front-build` gera o build de produção.
+Detalhes de cada tela, segurança e desenvolvimento em [docs/dashboard.md](docs/dashboard.md). O container escuta só em `127.0.0.1`; para acessar de outro dispositivo, ponha na frente um proxy com **HTTPS** (a API e o dashboard devem ficar na mesma origem).
 
 ## Backup e restauração
 
@@ -248,143 +231,15 @@ Toda semana (padrão: segunda às 9h, no fuso configurado) o app manda ao seu ch
 
 ## Coach com IA (opcional)
 
-A tela **Coach** pede ao Google Gemini que interprete os resultados da Revisão e das Metas, priorize os cortes e faça perguntas ("você ainda usa este serviço?"). Ela é **opcional e bloqueada por padrão**.
-
-- **Plano da chave:** pelos [termos da API do Gemini](https://ai.google.dev/gemini-api/terms), nos serviços gratuitos o Google pode usar o conteúdo enviado para melhorar seus produtos e **revisores humanos podem lê-lo** ("não envie informação sensível ou pessoal"); nos serviços pagos isso não acontece. Por isso o Coach só funciona com `GEMINI_PAID_PLAN=true` no `.env`, o que você declara depois de ativar o faturamento do projeto da chave. Sem isso, a tela explica o motivo e nada é enviado.
-- **Só sugere e pergunta:** nada muda sozinho. Os números (economia, valores, progresso das metas) vêm sempre do código; a IA devolve só texto, e o app descarta ids desconhecidos e textos com números ou longos demais.
-- **O que é enviado:** agregados (gasto por categoria e mês), as sugestões da Revisão e as metas. Nomes de estabelecimentos e serviços vão; **Pix, TED e transferências viram "transferência para pessoa"**, e números longos (CPF, conta) e e-mails são removidos. Não vão CPF, nome do titular nem número de conta. Uma limitação: nomes de pessoas que aparecem *dentro* da descrição de uma compra no cartão não têm como ser reconhecidos. A tela mostra o JSON exato antes do envio, e dispensar uma sugestão na Revisão a tira do envio.
-- **Controle:** nunca roda em segundo plano, só ao clicar; uma chamada por clique, contexto limitado (15 sugestões, 8 KB), uma análise por vez. Não há teto diário: o gasto com a sua chave é responsabilidade de quem hospeda.
-- **Histórico e memória:** cada análise fica salva no seu banco (migration `012`) e reaparece ao voltar ao mês. Você pode **responder as perguntas da IA** em texto curto (até 300 caracteres) e apagar qualquer análise. As 3 últimas análises e as suas respostas entram no contexto da próxima, para a IA lembrar o que já foi dito; isso aparece na prévia antes do envio, e o que vai ao Gemini segue as regras acima.
-- **Sugestão de categorias:** na tela de classificação, a IA pode sugerir categorias para as contas de comércio e serviços em "Outros". Vão só nomes limpos, quantidade e total, **nunca Pix, TED ou transferências**; a resposta é validada, nada é gravado sem você aplicar, e valem o plano pago, a prévia com aceite e as demais travas acima.
-- **Segurança dos dados guardados:** as análises e respostas ficam em texto no Postgres, sem criptografia própria, e nomes aparecem sem restrição na tela (é o seu ambiente). O dashboard exige a senha, o Postgres só escuta em `127.0.0.1` e nada é registrado em log. Em VPS: use HTTPS na frente, uma `DASHBOARD_PASSWORD` forte, firewall e disco criptografado, e mantenha o `.env` e os backups do banco fora de repositórios e de serviços de terceiros. Quem invadir a máquina lê o banco, então a proteção é a da própria máquina.
-- **Não é aconselhamento financeiro.**
+A tela **Coach** pede ao Google Gemini que interprete a Revisão e as Metas e priorize cortes. Só sugere e pergunta; os números vêm sempre do código; nunca roda em segundo plano. Exige `GEMINI_PAID_PLAN=true` (ou ligar na página Configurações) por causa dos termos do plano gratuito do Google. O que é enviado, o histórico e os limites estão em [docs/coach.md](docs/coach.md).
 
 ## API do dashboard
 
-Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas, dispensar sugestões da revisão criar ou apagar metas e o histórico do Coach (análises e respostas)), que alimenta o front-end. Sem a variável, a API nem é montada.
-
-- **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`) devolve um cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
-- **Proteção contra CSRF:** o login e o logout exigem JSON e recusam requisições cujo `Origin` não seja o próprio host, além do `SameSite=Strict`.
-- **Rotas** (`month` e `from`/`to` no formato `AAAA-MM`; a janela de `from`/`to` vai de 1 a 60 meses, padrão: últimos 12):
-
-| Rota | Conteúdo |
-| --- | --- |
-| `POST /api/login`, `POST /api/logout`, `GET /api/me` | sessão |
-| `GET /api/summary?month=` | totais do mês e do mês anterior (receitas, despesas, aplicado, resgatado) e o saldo das contas correntes (`bankBalance`, `null` sem Open Finance) |
-| `GET /api/timeseries?from=&to=` | os mesmos totais, mês a mês |
-| `GET /api/breakdown?month=&by=category\|payment_method\|account` | despesas do mês agrupadas |
-| `GET /api/investments?from=&to=` | aplicado, resgatado e **líquido acumulado desde o primeiro lançamento** |
-| `GET /api/transactions?month=&kind=&category=&payment_method=&account=&q=&page=&limit=` | lista paginada (padrão 50, máx. 100), manual e Open Finance |
-| `GET /api/accounts` | contas e cartões, com saldo e limite |
-| `GET /api/balances` | painel: total em conta, bancos, contas e cartões (fatura, limite, vencimento) |
-| `GET /api/institutions/{id}/logo` | logo do banco em cache |
-| `POST /api/sync` | sincroniza o Open Finance agora (JSON, mesma origem; 409 se já houver uma em andamento) |
-| `GET /api/budget?month=` | despesas do mês e dos 11 anteriores por classe (fixas, parceladas, variáveis) e as contas do mês |
-| `GET /api/projection?months=` | base da projeção: premissas (renda, fixas, variáveis) e parcelas já conhecidas por mês |
-| `PUT /api/expense-rules` | corrige a classe de uma conta (`FIXED`, `VARIABLE` ou `AUTO`); só JSON na mesma origem |
-| `GET /api/review?month=` | revisão do mês: matriz categoria × 6 meses e sugestões de corte (aumentos, fixas, gasto formiga, duplicatas, contas novas) com a economia em R$/mês e R$/ano |
-| `PUT /api/review-dismissals` | dispensa (ou restaura) uma sugestão da revisão; só JSON na mesma origem |
-| `GET /api/categorize` | contas com despesa em "Outros" (da maior para a menor), as categorias atribuíveis e a prévia do que a IA receberia |
-| `PUT /api/categorize/rules` | classifica uma conta (ou mantém em Outros): reclassifica as despesas antigas e vale nas próximas sincronizações; só JSON na mesma origem |
-| `POST /api/categorize/suggest` | pede à IA categorias para as contas de comércio e serviços da prévia (nunca Pix); não grava nada. Mesmas travas do Coach |
-| `GET /api/savings` | economia realizada: as contas que você marcou como canceladas, conferidas mês a mês (cobrança sumiu, voltou ou aguardando), com o total acumulado e o ritmo por mês e por ano |
-| `PUT /api/savings/decisions` | marca (ou desfaz) "cancelei" numa sugestão fixa ou de gasto formiga; só JSON na mesma origem |
-| `GET /api/goals` | metas com o andamento calculado na hora: patrimônio (contas correntes + investimentos), projeção e gastos por categoria |
-| `POST /api/goals`, `DELETE /api/goals/{id}` | cria (juntar valor até uma data, reduzir uma categoria, reserva de N meses; máx. 20) ou apaga uma meta; só JSON na mesma origem |
-| `GET /api/coach/preview?month=` | o que o Coach enviaria ao Gemini (mesmo JSON, com hash), sem enviar nada |
-| `POST /api/coach/analyze` | envia o que a prévia mostrou (o hash precisa bater) e devolve a análise da IA validada; só JSON na mesma origem, 3/min por IP, uma por vez |
-| `GET /api/coach/analyses?month=` | análises guardadas do mês, com as respostas que você deu |
-| `PUT /api/coach/analyses/{id}/answers`, `DELETE /api/coach/analyses/{id}` | grava (ou apaga, se vazia) a resposta a uma pergunta da IA; apaga a análise. Só JSON na mesma origem |
-| `GET /api/portfolio` | posições de investimento (saldo real do Open Finance), total e total por tipo |
-| `GET /api/portfolio/history?from=&to=` | saldo total ao fim de cada mês (existe a partir da primeira sincronização) |
-
-- **Segurança:** a porta `3000` do app é publicada só em `127.0.0.1`. Para acessar de outra máquina, ponha um proxy com **HTTPS** na frente (sem HTTPS a senha e o cookie trafegam em claro) e repasse `X-Real-IP` e `X-Forwarded-Proto`, usados pelo rate limit e pelo atributo `Secure` do cookie; esses cabeçalhos só são aceitos de IPs da rede privada.
+Com `DASHBOARD_PASSWORD` definida o app expõe uma API JSON sob `/api` (sessão por cookie assinado, escritas só com JSON na mesma origem). Todas as rotas, autenticação e segurança estão em [docs/api.md](docs/api.md).
 
 ## Uso
 
-Com o container rodando, envie mensagens para **si mesmo** no WhatsApp ou para o seu bot no Telegram. Os exemplos abaixo valem para os dois canais.
-
-### Registrar gasto simples
-```
-gastei 45 reais no almoço no pix
-```
-
-### Registrar compra parcelada
-```
-comprei um tênis de 300 reais em 3x no cartão
-```
-
-### Registrar despesa recorrente
-```
-netflix 55 reais todo mês todo dia 15
-```
-
-### Cancelar recorrente
-```
-cancelar netflix
-```
-
-### Registrar entrada (salário, renda)
-```
-recebi 6000 reais de salário
-entrou 500 reais de freela no pix
-```
-
-### Registrar transferência entre contas próprias
-```
-coloquei 2000 reais no cofrinho
-resgatei 500 do CDB
-```
-Transferências não afetam despesas nem entradas — servem apenas para rastrear movimentações entre suas próprias contas.
-
-### Consultar resumo do mês
-```
-quanto gastei esse mês?
-quanto gastei em fevereiro?
-```
-
-O resumo mostra:
-- **Despesas** por categoria
-- **Entradas** totais (se houver)
-- **Resultado** do mês (entradas − despesas)
-- **Investimentos no mês**: quanto foi aplicado, quanto foi resgatado
-- **Em conta**: resultado descontando o líquido que ficou investido
-
-### Importar extrato bancário (PDF)
-
-Envie o PDF do extrato do seu banco diretamente no WhatsApp. O assistente processa todas as transações automaticamente:
-
-- Despesas, entradas e transferências são classificadas pela IA
-- Aplicações no cofrinho e resgates de CDB são detectados como **Transferência** — não inflam as despesas
-- Transações já existentes no banco são sinalizadas para confirmação individual
-- Suporta o formato de extrato do **Itaú** (e outros formatos com datas DD/MM/AAAA ou AAAA-MM-DD)
-
-### Exportar planilha CSV
-
-Peça ao assistente para exportar os gastos de um mês e ele enviará um arquivo `.csv` diretamente na conversa — pronto para abrir no Excel ou Google Sheets:
-
-```
-exportar meus gastos de março
-me manda o csv de fevereiro 2024
-quero a planilha de janeiro
-exportar
-```
-
-- Se nenhum mês for especificado, exporta o **mês atual**.
-- Se não houver lançamentos no período, o assistente avisa por texto.
-- O arquivo vem com **BOM UTF-8** para compatibilidade com Excel.
-- Colunas: Data, Descrição, Categoria, Forma de Pagamento, Tipo, Parcela, Valor (R$).
-- Linhas de totais ao final: **TOTAL DESPESAS**, **TOTAL ENTRADAS** (se houver), **SALDO**, **TOTAL APLICADO** / **TOTAL RESGATADO** (se houver transferências).
-- A mensagem que acompanha o arquivo já traz o resumo financeiro: despesas, entradas, resultado, aplicado/resgatado e valor em conta.
-
-> O Gemini interpreta a intenção de exportação, então frases naturais como _"quero ver meus gastos em planilha"_ ou _"gera um csv pra mim"_ também funcionam.
-
-### Relatório mensal automático
-
-No primeiro dia de cada mês, o assistente envia automaticamente a planilha CSV com todos os gastos do mês anterior — sem você precisar pedir.
-
-### Enviar recibo ou nota fiscal
-Tire uma foto ou encaminhe a imagem do recibo diretamente na conversa. No Telegram, imagens enviadas "como arquivo" também são tratadas como recibo.
+Envie mensagens para **si mesmo** no WhatsApp ou para o seu bot no Telegram: gastos simples, compras parceladas, despesas recorrentes, entradas, transferências, consulta do mês, extrato em PDF, planilha CSV, recibos e comandos (`/sync`, `/resumo`, `/saldos`). Exemplos de cada um em [docs/uso-do-chat.md](docs/uso-do-chat.md).
 
 ## Segurança e gerenciamento remoto
 
@@ -434,10 +289,12 @@ docker compose exec postgres psql -U finassist -d finassist
 backend/                                    aplicação em Go
     cmd/                                    entrypoint da aplicação
     internal/
-        config/                             carregamento de variáveis de ambiente
+        app/                                composição: monta e liga todas as peças
+        config/                             leitura e validação do ambiente
         chat/                               lógica de conversa independente de canal
-        domain/                             entidades e regras de negócio
-        usecase/                            casos de uso (análise, recorrentes, consulta, exportação)
+        domain/                             entidades e regras puras; domain/ports: só interfaces
+        usecase/                            casos de uso por contexto: ledger, openfinance, planning, review, coach, balances, insights
+        settings/                           configurações do dashboard (valor salvo > ambiente > padrão), segredos cifrados
         infra/
             db/                             repositório PostgreSQL
             evolution/                      cliente da Evolution API (WhatsApp)
@@ -451,7 +308,10 @@ frontend/                                   dashboard em React + TypeScript (Vit
     src/lib/                                formatação, meses e tema (com testes)
     src/components/, src/pages/             telas e componentes
 docker-compose.yml, Makefile, .env.example  na raiz
+docs/                                   arquitetura, regras de cálculo, decisões, API, telas e uso do chat
 ```
+
+Camadas e fluxos em [docs/arquitetura.md](docs/arquitetura.md); como contribuir em [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licença
 
