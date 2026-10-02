@@ -73,6 +73,7 @@ Variáveis comuns aos dois canais:
 | --- | --- |
 | `GEMINI_API_KEY` | Chave da API do Google Gemini — obtenha em [aistudio.google.com](https://aistudio.google.com/app/apikey) |
 | `GEMINI_PAID_PLAN` | Opcional (padrão `false`). Declare `true` só se o projeto da chave tiver faturamento (serviços pagos): é o que libera o **Coach com IA**, que envia dados financeiros ao Gemini (veja *Coach com IA*) |
+| `DIGEST_ENABLED`, `DIGEST_WEEKDAY`, `DIGEST_HOUR`, `DIGEST_TIMEZONE` | Opcionais. **Resumo semanal** no canal de conversa (padrão: ligado, segunda às 9h, fuso `America/Sao_Paulo`): veja *Resumo semanal*. `DIGEST_ENABLED=false` desliga |
 | `COACH_GEMINI_MODEL` | Opcional. Troca o modelo do Coach (padrão `gemini-3.5-flash-lite`) |
 | `CHANNEL` | `whatsapp` (padrão) ou `telegram` |
 | `COMPOSE_PROFILES` | `whatsapp` para subir Evolution API + Redis; vazio para Telegram |
@@ -225,6 +226,10 @@ O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `fronten
 O container escuta só em `127.0.0.1`. Para acessar de outro dispositivo, ponha na frente um proxy com **HTTPS** (Caddy, Traefik, Cloudflare Tunnel…) apontando para a porta do dashboard; sem HTTPS a senha e o cookie trafegam em claro. O nginx envia `Content-Security-Policy` restritiva, `X-Frame-Options: DENY`, `nosniff` e `Referrer-Policy: no-referrer`.
 
 **Desenvolvimento** (precisa de Node 22+; com nvm, `nvm use 22`): suba o app (`docker compose up -d`) e rode `make front-dev`; o Vite abre em http://localhost:5173 e repassa `/api` para `127.0.0.1:3000`. `make front-test` roda os testes (Vitest) e o lint; `make front-build` gera o build de produção.
+
+## Resumo semanal
+
+Toda semana (padrão: segunda às 9h, no fuso configurado) o app manda ao seu chat (Telegram ou WhatsApp) um resumo curto do que merece atenção, **calculado só por código, sem IA e sem enviar nada a terceiros além do próprio canal**: total do mês até agora, possíveis cobranças duplicadas, contas novas do mês, contas que você marcou como canceladas e **voltaram a ser cobradas**, metas de redução que estouram o teto no ritmo atual, metas de juntar que não cabem na sobra projetada e a economia já realizada. Sem nada a avisar, ele diz "Sem alertas esta semana". No Telegram, `/resumo` pede um na hora. Se o app estiver desligado na hora marcada, aquela semana é pulada. O Telegram (ou o WhatsApp) recebe os nomes das contas em texto, como em qualquer mensagem do bot.
 
 ## Coach com IA (opcional)
 

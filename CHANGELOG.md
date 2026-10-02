@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- **Resumo semanal** no chat (Telegram ou WhatsApp), calculado por código, sem IA: total do mês, possíveis duplicatas, contas novas, cobranças que voltaram depois de canceladas, metas em risco e economia realizada. Padrão: segunda às 9h em `America/Sao_Paulo`, configurável por `DIGEST_ENABLED`, `DIGEST_WEEKDAY`, `DIGEST_HOUR` e `DIGEST_TIMEZONE`. No Telegram, `/resumo` pede na hora.
 - Tela **Classificar** (menu Dia a dia): lista as contas em Outros (com o nome só para você), escolha da categoria por conta, aplicação em lote e, para comércio e serviços, sugestão da IA com prévia do envio e aceite.
 - API de **classificação de "Outros"**: `GET /api/categorize` lista as contas que ficaram em Outros, `PUT /api/categorize/rules` classifica uma conta (retroativo e nas próximas sincronizações) e `POST /api/categorize/suggest` pede sugestões à IA só para comércio e serviços (nunca Pix), com as mesmas travas do Coach (plano pago, prévia com hash, uma por vez). A IA só sugere; só vale o que você aplicar.
 - Regras de categoria por conta: classificar uma conta reclassifica as despesas que estavam em "Outros" e vale também para as próximas sincronizações; "manter em Outros" tira a conta da lista. Migration `014_create_category_rules.sql`.
