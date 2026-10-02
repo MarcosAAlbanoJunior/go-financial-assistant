@@ -72,7 +72,9 @@ func main() {
 	// syncer fica nil (interface vazia) sem Open Finance; o chat avisa que não está configurado.
 	var syncer chat.Syncer
 	if cfg.OpenFinanceEnabled() {
-		sync := usecase.NewSyncOpenFinance(purchaseRepo, pluggy.NewClient(cfg.PluggyClientID, cfg.PluggyClientSecret),
+		pluggyClient := pluggy.NewClient(cfg.PluggyClientID, cfg.PluggyClientSecret)
+		pluggyClient.SetOwnNames(cfg.OwnNames)
+		sync := usecase.NewSyncOpenFinance(purchaseRepo, pluggyClient,
 			cfg.PluggyItemIDs, cfg.OpenFinanceLookbackDays, logger)
 		sync.SetLogoFetcher(logo.New())
 		syncer = sync

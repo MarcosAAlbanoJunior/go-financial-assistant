@@ -123,6 +123,9 @@ func (c *Client) FetchItem(ctx context.Context, itemID string, from time.Time) (
 		}
 		for _, t := range txs {
 			if ext, ok := toExternal(acc.Type, t); ok {
+				if c.isOwnTransfer(t.Description + " " + t.DescriptionRaw) {
+					continue
+				}
 				ext.AccountID = acc.ID
 				data.Transactions = append(data.Transactions, ext)
 			}
