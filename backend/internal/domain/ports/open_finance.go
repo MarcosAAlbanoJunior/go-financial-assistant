@@ -53,6 +53,8 @@ type ExternalInstitution struct {
 	Name     string
 	Color    string
 	ImageURL string
+	// UpdatedAt é quando o Pluggy atualizou os dados do banco pela última vez (nil se não informado).
+	UpdatedAt *time.Time
 }
 
 // LogoFetcher baixa o logo de uma instituição de forma segura (só https, sem rede interna,

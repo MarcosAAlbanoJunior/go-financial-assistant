@@ -93,13 +93,15 @@ func BuildBalances(accounts []domain.Account, institutions []domain.Institution,
 	}
 
 	groups := map[string]*InstitutionBalance{}
+	fromSource := map[string]bool{} // grupos cuja data de atualização veio do Pluggy
 	var order []string
 	for _, a := range accounts {
 		key := "item-" + shortHash(a.ItemID)
 		var meta *domain.Institution
+		var sourceAt *time.Time
 		if a.InstitutionID != nil {
 			if in, ok := known[a.InstitutionID.String()]; ok {
-				key, meta = in.ID.String(), &in
+				key, meta, sourceAt = in.ID.String(), &in, in.SourceUpdatedAt
 			}
 		}
 		if meta != nil && isAggregator(meta.Name) {
@@ -109,13 +111,18 @@ func BuildBalances(accounts []domain.Account, institutions []domain.Institution,
 		g := groups[key]
 		if g == nil {
 			g = &InstitutionBalance{ID: key, UpdatedAt: a.UpdatedAt}
+			if sourceAt != nil {
+				// O que importa é quando o Pluggy atualizou os dados do banco, não quando o app os copiou.
+				g.UpdatedAt = *sourceAt
+				fromSource[key] = true
+			}
 			if meta != nil {
 				g.Name, g.Color, g.HasLogo = meta.Name, meta.Color, meta.HasLogo
 			}
 			groups[key] = g
 			order = append(order, key)
 		}
-		if a.UpdatedAt.Before(g.UpdatedAt) {
+		if !fromSource[key] && a.UpdatedAt.Before(g.UpdatedAt) {
 			g.UpdatedAt = a.UpdatedAt
 		}
 		if g.Name == "" {

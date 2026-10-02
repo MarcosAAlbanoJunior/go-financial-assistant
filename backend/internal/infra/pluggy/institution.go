@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
@@ -17,7 +18,8 @@ var hexColor = regexp.MustCompile(`^[0-9a-fA-F]{6}$`)
 // se a leitura falhar ou o conector não tiver nome. Nada aqui é dado pessoal.
 func (c *Client) institution(ctx context.Context, itemID string) *ports.ExternalInstitution {
 	var res struct {
-		Connector struct {
+		LastUpdatedAt string `json:"lastUpdatedAt"`
+		Connector     struct {
 			Name         string `json:"name"`
 			ImageURL     string `json:"imageUrl"`
 			PrimaryColor string `json:"primaryColor"`
@@ -37,5 +39,9 @@ func (c *Client) institution(ctx context.Context, itemID string) *ports.External
 	if !hexColor.MatchString(color) {
 		color = ""
 	}
-	return &ports.ExternalInstitution{Name: name, Color: strings.ToLower(color), ImageURL: res.Connector.ImageURL}
+	inst := &ports.ExternalInstitution{Name: name, Color: strings.ToLower(color), ImageURL: res.Connector.ImageURL}
+	if t, err := time.Parse(time.RFC3339, res.LastUpdatedAt); err == nil {
+		inst.UpdatedAt = &t
+	}
+	return inst
 }
