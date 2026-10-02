@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de saldos — mockup</title>
+<style>
+  /* Mockup estático com DADOS FICTÍCIOS. Não faz parte do app; ilustra a spec painel-de-saldos.md. */
+  :root {
+    --page: #f5f4f0; --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --text-3: #6b6a66;
+    --border: rgba(11, 11, 11, .1); --track: #e6e4dd; --warn: #b36b00; --crit: #b02a2a; --ok: #0d7a4d;
+    --series-2: #2a78d6; /* cor reserva quando duas cores de marca vizinhas ficam parecidas */
+    --shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 8px 24px rgba(0, 0, 0, .06);
+  }
+  :root[data-theme='dark'] {
+    --page: #0b0b0b; --surface: #1a1a19; --text: #fff; --text-2: #c3c2b7; --text-3: #a3a29b;
+    --border: rgba(255, 255, 255, .1); --track: #2c2c2a; --warn: #f0a63a; --crit: #ff7b7b; --ok: #4cc38a;
+    --series-2: #5b9bf0; --shadow: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --page: #0b0b0b; --surface: #1a1a19; --text: #fff; --text-2: #c3c2b7; --text-3: #a3a29b;
+      --border: rgba(255, 255, 255, .1); --track: #2c2c2a; --warn: #f0a63a; --crit: #ff7b7b; --ok: #4cc38a;
+      --series-2: #5b9bf0; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 16px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { margin: 0 auto 0 0; font-size: 1.5rem; }
+  button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; min-height: 40px; }
+  button:focus-visible { outline: 2px solid var(--series-2); outline-offset: 2px; }
+  .note { color: var(--text-3); font-size: .8125rem; }
+  .tag { display: inline-block; font-size: .6875rem; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-3); }
+
+  .hero { background: linear-gradient(135deg, color-mix(in srgb, var(--series-2) 14%, var(--surface)), var(--surface) 60%); border: 1px solid var(--border); border-radius: 20px; padding: 24px; box-shadow: var(--shadow); }
+  .hero-label { color: var(--text-2); font-size: .8125rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+  .hero-value { font-size: clamp(2.2rem, 7vw, 3.4rem); font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: 2px 0; }
+  .share { display: flex; height: 18px; margin: 14px 0 10px; gap: 2px; } /* vão de 2px entre fatias */
+  .share span { display: block; height: 100%; border-radius: 4px; min-width: 6px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0; padding: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 8px; font-size: .9375rem; }
+  .legend .v { font-variant-numeric: tabular-nums; font-weight: 650; }
+  .legend .p { color: var(--text-3); }
+  .rule { margin: 12px 0 0; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 16px; }
+  .bank { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px 18px 18px 22px; position: relative; overflow: hidden; box-shadow: var(--shadow); }
+  .bank::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 6px; background: var(--brand); }
+  .bank-head { display: flex; align-items: center; gap: 12px; }
+  .chip { width: 40px; height: 40px; border-radius: 12px; background: var(--brand); color: var(--on-brand); display: grid; place-items: center; font-weight: 800; flex: none; }
+  .bank-name { font-weight: 700; font-size: 1.0625rem; }
+  .fresh { margin-left: auto; text-align: right; }
+  .fresh .stale { color: var(--warn); font-weight: 600; }
+  .acc-label { color: var(--text-2); font-size: .8125rem; margin-top: 14px; }
+  .balance { font-size: 2rem; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .sub { color: var(--text-3); font-size: .8125rem; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
+
+  .card { border-radius: 14px; padding: 14px 16px; color: #fff; background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 55%, #000)); }
+  /* Cor de marca clara (laranja): texto escuro e gradiente que clareia, para o contraste valer no cartão inteiro. */
+  .card.dark-text { color: #111; background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 70%, #fff)); }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: .875rem; opacity: .95; }
+  .invoice { font-size: 1.5rem; font-weight: 750; font-variant-numeric: tabular-nums; margin: 4px 0 0; }
+  .due { display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, .22); border-radius: 999px; padding: 2px 10px; font-size: .8125rem; font-weight: 600; margin-top: 4px; }
+  .meter { height: 10px; background: rgba(255, 255, 255, .28); border-radius: 5px; overflow: hidden; margin: 12px 0 6px; }
+  .card.dark-text .meter { background: rgba(0, 0, 0, .18); }
+  .meter i { display: block; height: 100%; background: #fff; border-radius: 5px; }
+  .card.dark-text .meter i { background: #111; }
+  .meter-row { display: flex; justify-content: space-between; font-size: .8125rem; gap: 8px; flex-wrap: wrap; }
+  .flag { font-weight: 700; }
+
+  .aside { margin-top: 12px; font-size: .8125rem; color: var(--text-2); }
+  .hidden-values .money { filter: blur(9px); user-select: none; }
+  @media (prefers-reduced-motion: no-preference) { .share span { transition: width .6s ease; } }
+  @media print { .top button { display: none; } }
+</style>
+</head>
+<body>
+<main id="root">
+  <div class="top">
+    <h1>Painel</h1>
+    <span class="tag">mockup · dados fictícios</span>
+    <button id="hide" aria-pressed="false">👁 Ocultar valores</button>
+    <button id="theme">🌓 Tema</button>
+    <button>↻ Sincronizar</button>
+  </div>
+
+  <section class="hero" aria-labelledby="h-total">
+    <div class="hero-label" id="h-total">Total em conta</div>
+    <div class="hero-value money">R$ 12.345,67</div>
+    <div class="note">3 bancos · atualizado hoje às 08:12</div>
+
+    <div class="share" role="img" aria-label="Participação de cada banco no total em conta: Santander 49%, Itaú 28%, Banco Roxo 23%">
+      <span style="width:49%;background:#ec0000"></span>
+      <span style="width:28%;background:var(--series-2)"></span>
+      <span style="width:23%;background:#8a05be"></span>
+    </div>
+    <ul class="legend">
+      <li><b class="chip" style="--brand:#ec0000;--on-brand:#fff;width:26px;height:26px;border-radius:8px;font-size:.8rem">S</b> Santander <span class="v money">R$ 6.050,00</span> <span class="p">49%</span></li>
+      <li><b class="chip" style="--brand:#ec7000;--on-brand:#111;width:26px;height:26px;border-radius:8px;font-size:.8rem">I</b> Itaú <span class="v money">R$ 3.395,67</span> <span class="p">28%</span></li>
+      <li><b class="chip" style="--brand:#8a05be;--on-brand:#fff;width:26px;height:26px;border-radius:8px;font-size:.8rem">R</b> Banco Roxo <span class="v money">R$ 2.900,00</span> <span class="p">23%</span></li>
+    </ul>
+    <p class="note rule">Cores da barra: a cor de marca só é usada quando cada par vizinho passa na checagem de distinção (ΔE ≥ 15). Vermelho e laranja reprovam, então o Itaú usa a cor reserva na barra e mantém o laranja no chip e na faixa do cartão.</p>
+    <div class="aside">Faturas em aberto, à parte (não subtraídas): <b class="money">R$ 2.140,00</b></div>
+  </section>
+
+  <div class="grid">
+    <article class="bank" style="--brand:#ec0000;--on-brand:#fff" aria-label="Santander">
+      <div class="bank-head">
+        <b class="chip">S</b>
+        <div><div class="bank-name">Santander</div><div class="sub">Open Finance</div></div>
+        <div class="fresh sub">hoje 08:12</div>
+      </div>
+      <div class="acc-label">Conta corrente · final 1234</div>
+      <div class="balance money">R$ 6.050,00</div>
+      <hr>
+      <div class="card">
+        <div class="card-top"><span>💳 Elite Master · final 9012</span><span>Mastercard</span></div>
+        <div class="invoice money">R$ 1.200,00</div>
+        <div class="sub" style="color:inherit;opacity:.9">fatura atual</div>
+        <span class="due">🗓 vence 10/10 · em 8 dias</span>
+        <div class="meter" role="meter" aria-label="Limite usado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="42" aria-valuetext="42% do limite usado"><i style="width:42%"></i></div>
+        <div class="meter-row"><span>Usado <b>42%</b></span><span>Disponível <b class="money">R$ 5.800,00</b> de <span class="money">R$ 10.000,00</span></span></div>
+      </div>
+    </article>
+
+    <article class="bank" style="--brand:#ec7000;--on-brand:#111" aria-label="Itaú">
+      <div class="bank-head">
+        <b class="chip">I</b>
+        <div><div class="bank-name">Itaú</div><div class="sub">Open Finance</div></div>
+        <div class="fresh sub">hoje 08:12</div>
+      </div>
+      <div class="acc-label">Conta corrente · final 5678</div>
+      <div class="balance money">R$ 3.395,67</div>
+      <div class="sub">Aplicado automaticamente <span class="money">R$ 900,00</span> (já está no Patrimônio)</div>
+      <hr>
+      <div class="card dark-text">
+        <div class="card-top"><span>💳 Click Platinum · final 3456</span><span>Mastercard</span></div>
+        <div class="invoice money">R$ 940,00</div>
+        <div class="sub" style="color:inherit;opacity:.85">fatura atual</div>
+        <span class="due" style="background:rgba(0,0,0,.14)">⚠ vence em 2 dias · 04/10</span>
+        <div class="meter" role="meter" aria-label="Limite usado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="78" aria-valuetext="78% do limite usado, atenção"><i style="width:78%"></i></div>
+        <div class="meter-row"><span class="flag">⚠ Usado 78% · atenção</span><span>Disponível <b class="money">R$ 2.200,00</b> de <span class="money">R$ 10.000,00</span></span></div>
+      </div>
+    </article>
+
+    <article class="bank" style="--brand:#8a05be;--on-brand:#fff" aria-label="Banco Roxo">
+      <div class="bank-head">
+        <b class="chip">R</b>
+        <div><div class="bank-name">Banco Roxo</div><div class="sub">Open Finance</div></div>
+        <div class="fresh sub"><span class="stale">⚠ há 2 dias</span></div>
+      </div>
+      <div class="acc-label">Conta corrente · final 4321</div>
+      <div class="balance money">R$ 2.900,00</div>
+      <div class="sub">Sem cartão de crédito neste banco</div>
+    </article>
+  </div>
+</main>
+<script>
+  const root = document.documentElement;
+  document.getElementById('hide').onclick = (e) => {
+    const on = document.getElementById('root').classList.toggle('hidden-values');
+    e.currentTarget.setAttribute('aria-pressed', String(on));
+    e.currentTarget.textContent = on ? '👁 Mostrar valores' : '👁 Ocultar valores';
+  };
+  document.getElementById('theme').onclick = () => {
+    const dark = root.dataset.theme === 'dark' || (!root.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+    root.dataset.theme = dark ? 'light' : 'dark';
+  };
+</script>
+</body>
+</html>
