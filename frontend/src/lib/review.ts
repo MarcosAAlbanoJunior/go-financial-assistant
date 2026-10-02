@@ -60,10 +60,11 @@ export function candidateDetail(c: ReviewCandidate): string {
   }
 }
 
-/** Como a economia aparece: por mês e por ano, ou uma vez só nas avulsas. */
-export function savingText(c: ReviewCandidate): string {
-  return c.annual === null ? `${formatBRL(c.monthly)} uma vez só` : `${formatBRL(c.monthly)}/mês · ${formatBRL(c.annual)}/ano`
-}
+/** Como a economia aparece: por mês e por ano, ou uma vez só nas avulsas (annual nulo). */
+export const savingLine = (monthly: number, annual: number | null) =>
+  annual === null ? `${formatBRL(monthly)} uma vez só` : `${formatBRL(monthly)}/mês · ${formatBRL(annual)}/ano`
+
+export const savingText = (c: ReviewCandidate) => savingLine(c.monthly, c.annual)
 
 /** Nome para exibir: tira a marcação de parcela e, nos aumentos, usa o nome da categoria. */
 export const candidateName = (c: ReviewCandidate) => (c.kind === 'INCREASE' ? c.categoryLabel : cleanLabel(c.label))

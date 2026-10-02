@@ -229,3 +229,52 @@ export interface GoalInput {
   cutPercent?: number
   reserveMonths?: number
 }
+
+/** O que o Coach envia à IA (as chaves seguem o JSON do servidor). */
+export interface CoachContext {
+  mes: string
+  meses: string[]
+  receita_do_mes: number
+  despesa_do_mes: number
+  categorias: { nome: string; gasto_por_mes: number[] }[]
+  sugestoes: { id: string; tipo: string; nome: string; categoria: string; valor_no_mes: number; economia_possivel: number }[]
+  metas: { id: string; tipo: string; nome: string; atual: number; alvo: number; atingida: boolean }[]
+}
+
+export interface CoachPreview {
+  enabled: boolean
+  blockedReason: string
+  provider: string
+  month: string
+  bytes: number
+  /** Identifica o contexto exibido: a análise só envia se ele ainda for o mesmo. */
+  hash: string
+  callsLeft: number
+  context: CoachContext
+}
+
+export interface CoachAction {
+  suggestionId: string
+  priority: number
+  comment: string
+  question: string
+  /** Números calculados pelo código (nulo se o id não casar). */
+  suggestion: {
+    kind: ReviewKind
+    key: string
+    label: string
+    category: string
+    categoryLabel: string
+    monthly: number
+    annual: number | null
+    amount: number
+  } | null
+}
+
+export interface CoachResult {
+  summary: string
+  actions: CoachAction[]
+  goals: { goalId: string; name: string; comment: string }[]
+  questions: string[]
+  callsLeft: number
+}
