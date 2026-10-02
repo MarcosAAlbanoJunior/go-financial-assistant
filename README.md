@@ -72,6 +72,8 @@ Variáveis comuns aos dois canais:
 | Variável | Descrição |
 | --- | --- |
 | `GEMINI_API_KEY` | Chave da API do Google Gemini — obtenha em [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| `GEMINI_PAID_PLAN` | Opcional (padrão `false`). Declare `true` só se o projeto da chave tiver faturamento (serviços pagos): é o que libera o **Coach com IA**, que envia dados financeiros ao Gemini (veja *Coach com IA*) |
+| `COACH_GEMINI_MODEL` | Opcional. Troca o modelo do Coach (padrão `gemini-3.5-flash-lite`) |
 | `CHANNEL` | `whatsapp` (padrão) ou `telegram` |
 | `COMPOSE_PROFILES` | `whatsapp` para subir Evolution API + Redis; vazio para Telegram |
 | `ADMIN_SECRET` | Senha para o endpoint `/admin/qrcode` (somente WhatsApp) — defina um valor forte em produção |
@@ -220,9 +222,19 @@ O container escuta só em `127.0.0.1`. Para acessar de outro dispositivo, ponha 
 
 **Desenvolvimento** (precisa de Node 22+; com nvm, `nvm use 22`): suba o app (`docker compose up -d`) e rode `make front-dev`; o Vite abre em http://localhost:5173 e repassa `/api` para `127.0.0.1:3000`. `make front-test` roda os testes (Vitest) e o lint; `make front-build` gera o build de produção.
 
+## Coach com IA (opcional)
+
+A tela **Coach** pede ao Google Gemini que interprete os resultados da Revisão e das Metas, priorize os cortes e faça perguntas ("você ainda usa este serviço?"). Ela é **opcional e bloqueada por padrão**.
+
+- **Plano da chave:** pelos [termos da API do Gemini](https://ai.google.dev/gemini-api/terms), nos serviços gratuitos o Google pode usar o conteúdo enviado para melhorar seus produtos e **revisores humanos podem lê-lo** ("não envie informação sensível ou pessoal"); nos serviços pagos isso não acontece. Por isso o Coach só funciona com `GEMINI_PAID_PLAN=true` no `.env`, o que você declara depois de ativar o faturamento do projeto da chave. Sem isso, a tela explica o motivo e nada é enviado.
+- **Só sugere e pergunta:** nada muda sozinho. Os números (economia, valores, progresso das metas) vêm sempre do código; a IA devolve só texto, e o app descarta ids desconhecidos e textos com números ou longos demais.
+- **O que é enviado:** agregados (gasto por categoria e mês), as sugestões da Revisão e as metas. Nomes de estabelecimentos e serviços vão; **Pix, TED e transferências viram "transferência para pessoa"**, e números longos (CPF, conta) e e-mails são removidos. Não vão CPF, nome do titular nem número de conta. Uma limitação: nomes de pessoas que aparecem *dentro* da descrição de uma compra no cartão não têm como ser reconhecidos. A tela mostra o JSON exato antes do envio, e dispensar uma sugestão na Revisão a tira do envio.
+- **Controle:** nunca roda em segundo plano, só ao clicar; uma chamada por clique, contexto limitado (15 sugestões, 8 KB), uma análise por vez e no máximo 10 por dia. A resposta não é guardada no servidor.
+- **Não é aconselhamento financeiro.**
+
 ## API do dashboard
 
-Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas, dispensar sugestões da revisão e criar ou apagar metas), que alimenta o front-end. Sem a variável, a API nem é montada.
+Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas, dispensar sugestões da revisão e criar ou apagar metas; a análise do Coach é um POST, mas não grava nada), que alimenta o front-end. Sem a variável, a API nem é montada.
 
 - **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`) devolve um cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
 - **Proteção contra CSRF:** o login e o logout exigem JSON e recusam requisições cujo `Origin` não seja o próprio host, além do `SameSite=Strict`.
@@ -244,6 +256,8 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 | `PUT /api/review-dismissals` | dispensa (ou restaura) uma sugestão da revisão; só JSON na mesma origem |
 | `GET /api/goals` | metas com o andamento calculado na hora: patrimônio (contas correntes + investimentos), projeção e gastos por categoria |
 | `POST /api/goals`, `DELETE /api/goals/{id}` | cria (juntar valor até uma data, reduzir uma categoria, reserva de N meses; máx. 20) ou apaga uma meta; só JSON na mesma origem |
+| `GET /api/coach/preview?month=` | o que o Coach enviaria ao Gemini (mesmo JSON, com hash), sem enviar nada |
+| `POST /api/coach/analyze` | envia o que a prévia mostrou (o hash precisa bater) e devolve a análise da IA validada; só JSON na mesma origem, 3/min por IP, 10 por dia |
 | `GET /api/portfolio` | posições de investimento (saldo real do Open Finance), total e total por tipo |
 | `GET /api/portfolio/history?from=&to=` | saldo total ao fim de cada mês (existe a partir da primeira sincronização) |
 

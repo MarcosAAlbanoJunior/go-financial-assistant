@@ -73,12 +73,14 @@ func main() {
 	}
 
 	server := httpserver.NewServer(cfg.Port, logger)
+	geminiClient.CoachModel = cfg.CoachModel
+	server.SetCoach(geminiClient, cfg.GeminiPaidPlan)
 	if cfg.DashboardPassword != "" {
 		if err := server.MountAPI(cfg.DashboardPassword, db.NewDashboardReader(postgresDB)); err != nil {
 			slog.Error("failed to mount dashboard API", "error", err)
 			os.Exit(1)
 		}
-		slog.Info("API do dashboard ativa")
+		slog.Info("API do dashboard ativa", "coach", cfg.GeminiPaidPlan)
 	}
 
 	var (
