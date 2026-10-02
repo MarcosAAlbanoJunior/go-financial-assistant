@@ -124,6 +124,7 @@ type PortfolioMonth struct {
 type DashboardReader interface {
 	BudgetReader
 	ReviewReader
+	GoalStore
 
 	// MonthlyTotals devolve uma linha por mês de from a to (inclusive), com zeros nos meses vazios.
 	MonthlyTotals(ctx context.Context, from, to time.Time) ([]MonthTotals, error)
@@ -218,4 +219,34 @@ type ReviewReader interface {
 	Dismissals(ctx context.Context) ([]Dismissal, error)
 	// SetDismissal dispensa a sugestão; dismissed falso a traz de volta.
 	SetDismissal(ctx context.Context, d Dismissal, dismissed bool) error
+}
+
+type GoalKind string
+
+const (
+	GoalSave    GoalKind = "SAVE"
+	GoalCut     GoalKind = "CUT"
+	GoalReserve GoalKind = "RESERVE"
+)
+
+// Goal é uma meta financeira; cada tipo usa só os seus campos.
+type Goal struct {
+	ID            uuid.UUID
+	Kind          GoalKind
+	Name          string
+	TargetAmount  float64   // SAVE
+	TargetDate    time.Time // SAVE: primeiro dia do mês-alvo
+	Category      string    // CUT
+	CutPercent    int       // CUT
+	Baseline      float64   // CUT: média mensal da categoria antes da meta
+	ReserveMonths int       // RESERVE
+	CreatedAt     time.Time
+}
+
+// GoalStore guarda as metas.
+type GoalStore interface {
+	Goals(ctx context.Context) ([]Goal, error)
+	CreateGoal(ctx context.Context, g Goal) error
+	// DeleteGoal apaga a meta; false se ela não existe.
+	DeleteGoal(ctx context.Context, id uuid.UUID) (bool, error)
 }

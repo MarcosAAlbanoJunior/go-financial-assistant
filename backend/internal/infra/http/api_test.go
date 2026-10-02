@@ -30,6 +30,10 @@ type fakeReader struct {
 	known          map[string]time.Time
 	ruleClass      ports.ExpenseClass
 	catMonths      []ports.CategoryMonth
+	goals          []ports.Goal
+	created        []ports.Goal
+	deleted        uuid.UUID
+	deleteFound    bool
 	catFrom        time.Time
 	payFrom        time.Time
 	payments       []ports.ExpensePayment
@@ -111,6 +115,15 @@ func (f *fakeReader) Dismissals(context.Context) ([]ports.Dismissal, error) {
 func (f *fakeReader) SetDismissal(_ context.Context, d ports.Dismissal, dismissed bool) error {
 	f.setDismissed, f.setDismissedTo = d, dismissed
 	return f.err
+}
+func (f *fakeReader) Goals(context.Context) ([]ports.Goal, error) { return f.goals, f.err }
+func (f *fakeReader) CreateGoal(_ context.Context, g ports.Goal) error {
+	f.created = append(f.created, g)
+	return f.err
+}
+func (f *fakeReader) DeleteGoal(_ context.Context, id uuid.UUID) (bool, error) {
+	f.deleted = id
+	return f.deleteFound, f.err
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
 

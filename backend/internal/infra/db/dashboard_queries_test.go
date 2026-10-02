@@ -506,3 +506,47 @@ func TestReview_CategoryMonthsPaymentsAndDismissals(t *testing.T) {
 		t.Errorf("restaurar apaga a dispensa: %+v", all)
 	}
 }
+
+func TestGoals_CreateListDelete(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM goals WHERE name LIKE 'zzteste%'`) })
+
+	save := ports.Goal{ID: uuid.New(), Kind: ports.GoalSave, Name: "zzteste viagem", TargetAmount: 5000.5, TargetDate: time.Date(1999, 12, 1, 0, 0, 0, 0, time.UTC)}
+	cut := ports.Goal{ID: uuid.New(), Kind: ports.GoalCut, Name: "zzteste comida", Category: "FOOD", CutPercent: 15, Baseline: 800}
+	reserve := ports.Goal{ID: uuid.New(), Kind: ports.GoalReserve, Name: "zzteste reserva", ReserveMonths: 6}
+	for _, g := range []ports.Goal{save, cut, reserve} {
+		if err := repo.CreateGoal(ctx, g); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// O banco recusa meta sem os campos do tipo.
+	if err := repo.CreateGoal(ctx, ports.Goal{ID: uuid.New(), Kind: ports.GoalSave, Name: "zzteste inválida"}); err == nil {
+		t.Error("SAVE sem valor e data deveria falhar")
+	}
+
+	all, err := repo.Goals(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[uuid.UUID]ports.Goal{}
+	for _, g := range all {
+		got[g.ID] = g
+	}
+	if g := got[save.ID]; g.TargetAmount != 5000.5 || !g.TargetDate.Equal(save.TargetDate) || g.Kind != ports.GoalSave || g.CreatedAt.IsZero() {
+		t.Errorf("SAVE: %+v", g)
+	}
+	if g := got[cut.ID]; g.Category != "FOOD" || g.CutPercent != 15 || g.Baseline != 800 || !g.TargetDate.IsZero() {
+		t.Errorf("CUT: %+v", g)
+	}
+	if g := got[reserve.ID]; g.ReserveMonths != 6 || g.TargetAmount != 0 {
+		t.Errorf("RESERVE: %+v", g)
+	}
+
+	if ok, err := repo.DeleteGoal(ctx, save.ID); err != nil || !ok {
+		t.Errorf("apagar existente: %v %v", ok, err)
+	}
+	if ok, err := repo.DeleteGoal(ctx, save.ID); err != nil || ok {
+		t.Errorf("apagar de novo: %v %v", ok, err)
+	}
+}
