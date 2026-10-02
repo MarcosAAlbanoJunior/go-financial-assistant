@@ -41,6 +41,7 @@ type api struct {
 	sessions *sessions
 	logger   *slog.Logger
 	now      func() time.Time
+	coach    *coachService
 }
 
 // MountAPI registra a API do dashboard. Tudo, exceto o login, exige sessão.
@@ -53,7 +54,7 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	if err != nil {
 		return err
 	}
-	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now}
+	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid)}
 
 	// Login com limite apertado contra tentativa de força bruta; o restante, mais folgado.
 	loginLimiter := newIPRateLimiter(5, time.Minute)
@@ -75,6 +76,9 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	s.mux.Handle("GET /api/goals", protected(a.goals))
 	s.mux.Handle("POST /api/goals", protected(a.createGoal))
 	s.mux.Handle("DELETE /api/goals/{id}", protected(a.deleteGoal))
+	s.mux.Handle("GET /api/coach/preview", protected(a.coachPreview))
+	// A análise custa dinheiro e sai da máquina: limite apertado por IP, além do teto diário.
+	s.mux.Handle("POST /api/coach/analyze", newIPRateLimiter(3, time.Minute).middleware(protected(a.coachAnalyze)))
 	s.mux.Handle("GET /api/review", protected(a.review))
 	s.mux.Handle("PUT /api/review-dismissals", protected(a.setDismissal))
 	s.mux.Handle("GET /api/portfolio", protected(a.portfolio))
@@ -365,40 +369,42 @@ func (a *api) setExpenseRule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// buildReview roda os detectores da revisão sobre o mês to (primeiro dia).
+func (a *api) buildReview(ctx context.Context, to time.Time) (usecase.Review, error) {
+	cats, err := a.reader.CategoryMonths(ctx, to.AddDate(0, -(usecase.ReviewMatrixMonths-1), 0), to)
+	if err != nil {
+		return usecase.Review{}, err
+	}
+	keyRows, err := a.reader.ExpenseKeyMonths(ctx, to.AddDate(0, -(budgetMonths-1), 0), to)
+	if err != nil {
+		return usecase.Review{}, err
+	}
+	rules, err := a.reader.ExpenseRules(ctx)
+	if err != nil {
+		return usecase.Review{}, err
+	}
+	payments, err := a.reader.ExpensePayments(ctx, to, to)
+	if err != nil {
+		return usecase.Review{}, err
+	}
+	dismissed, err := a.reader.Dismissals(ctx)
+	if err != nil {
+		return usecase.Review{}, err
+	}
+	return usecase.BuildReview(cats, keyRows, rules, payments, dismissed, to), nil
+}
+
 // review: matriz categoria x mês e sugestões de corte do mês, calculadas pelos detectores (sem IA).
 func (a *api) review(w http.ResponseWriter, r *http.Request) {
 	to, ok := a.monthParam(w, r, "month", true)
 	if !ok {
 		return
 	}
-	ctx := r.Context()
-	matrixFrom := to.AddDate(0, -(usecase.ReviewMatrixMonths - 1), 0)
-	cats, err := a.reader.CategoryMonths(ctx, matrixFrom, to)
+	rev, err := a.buildReview(r.Context(), to)
 	if err != nil {
 		a.fail(w, "revisão", err)
 		return
 	}
-	keyRows, err := a.reader.ExpenseKeyMonths(ctx, to.AddDate(0, -(budgetMonths-1), 0), to)
-	if err != nil {
-		a.fail(w, "revisão", err)
-		return
-	}
-	rules, err := a.reader.ExpenseRules(ctx)
-	if err != nil {
-		a.fail(w, "revisão", err)
-		return
-	}
-	payments, err := a.reader.ExpensePayments(ctx, to, to)
-	if err != nil {
-		a.fail(w, "revisão", err)
-		return
-	}
-	dismissed, err := a.reader.Dismissals(ctx)
-	if err != nil {
-		a.fail(w, "revisão", err)
-		return
-	}
-	rev := usecase.BuildReview(cats, keyRows, rules, payments, dismissed, to)
 
 	type row struct {
 		Category      string    `json:"category"`

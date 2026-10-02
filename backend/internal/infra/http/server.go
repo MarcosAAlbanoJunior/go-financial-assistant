@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -26,6 +27,15 @@ type Server struct {
 	mux      *http.ServeMux
 	logger   *slog.Logger
 	cleanups []func(context.Context)
+
+	// coach é opcional; coachPaid é a declaração de que a chave do Gemini é de um projeto com faturamento.
+	coach     ports.Coach
+	coachPaid bool
+}
+
+// SetCoach liga o Coach com IA da API do dashboard. Sem plano pago declarado, ele fica bloqueado.
+func (s *Server) SetCoach(coach ports.Coach, paidPlan bool) {
+	s.coach, s.coachPaid = coach, paidPlan
 }
 
 // NewServer expõe apenas /health; as rotas de cada canal são adicionadas por Mount*.
