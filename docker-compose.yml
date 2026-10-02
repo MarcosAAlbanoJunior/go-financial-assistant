@@ -131,6 +131,10 @@ services:
       SYNC_LOOKBACK_DAYS: ${SYNC_LOOKBACK_DAYS:-60}
       OWN_NAMES: ${OWN_NAMES:-}
       APP_SECRET_KEY: ${APP_SECRET_KEY:-}
+      # Preferível à variável: o arquivo (em ./secrets, montado só leitura) não aparece em `docker inspect`. Ex.: /run/secrets/app_secret_key
+      APP_SECRET_KEY_FILE: ${APP_SECRET_KEY_FILE:-}
+    volumes:
+      - ./secrets:/run/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy

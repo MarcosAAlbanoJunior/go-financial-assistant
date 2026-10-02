@@ -5,7 +5,9 @@ import type { OwnTransfers, SettingGroup } from '../api/types'
 import { OwnTransfersDialog } from '../components/OwnTransfersDialog'
 import { QueryState } from '../components/QueryState'
 import { SettingInput } from '../components/SettingInput'
-import { TEST_TARGET, changedValues, currentValue } from '../lib/settings'
+import { PasswordDialog } from '../components/PasswordDialog'
+import { SettingsAudit } from '../components/SettingsAudit'
+import { TEST_TARGET, changedValues, currentValue, needsPassword } from '../lib/settings'
 
 const errorMessage = (e: unknown) => (e instanceof ApiError ? e.message : 'Não foi possível concluir. Tente de novo.')
 
@@ -16,20 +18,27 @@ export default function Settings() {
   const [notice, setNotice] = useState<{ group: string; ok: boolean; text: string } | null>(null)
   const [own, setOwn] = useState<OwnTransfers | null>(null)
   const [restarting, setRestarting] = useState(false)
+  // Ação sensível à espera da confirmação da senha.
+  const [pending, setPending] = useState<
+    { kind: 'save'; group: SettingGroup; values: Record<string, string> } | { kind: 'reset'; key: string; label: string } | null
+  >(null)
+  const [pwError, setPwError] = useState<string | null>(null)
 
   const save = useMutation({
-    mutationFn: (values: Record<string, string>) => saveSettings(values),
-    onSuccess: (res, values) => {
+    mutationFn: ({ values, password }: { values: Record<string, string>; password?: string }) => saveSettings(values, password),
+    onSuccess: (res, { values }) => {
       setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !(k in values))))
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['settings-audit'] })
       if (res.ownTransfers) setOwn(res.ownTransfers)
     },
   })
   const reset = useMutation({
-    mutationFn: resetSetting,
-    onSuccess: (_, key) => {
+    mutationFn: ({ key, password }: { key: string; password?: string }) => resetSetting(key, password),
+    onSuccess: (_, { key }) => {
       setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== key)))
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['settings-audit'] })
     },
   })
   const apply = useMutation({
@@ -45,11 +54,46 @@ export default function Settings() {
     setNotice(null)
     const values = changedValues(group, drafts)
     if (Object.keys(values).length === 0) return
+    if (needsPassword(group, Object.keys(values))) {
+      setPwError(null)
+      setPending({ kind: 'save', group, values })
+      return
+    }
+    await doSave(group, values)
+  }
+
+  async function doSave(group: SettingGroup, values: Record<string, string>, password?: string) {
     try {
-      await save.mutateAsync(values)
+      await save.mutateAsync({ values, password })
+      setPending(null)
       setNotice({ group: group.id, ok: true, text: 'Salvo.' })
     } catch (e) {
-      setNotice({ group: group.id, ok: false, text: errorMessage(e) })
+      if (password !== undefined) setPwError(errorMessage(e))
+      else setNotice({ group: group.id, ok: false, text: errorMessage(e) })
+    }
+  }
+
+  function onReset(group: SettingGroup, key: string) {
+    const field = group.fields.find((f) => f.key === key)
+    if (field?.sensitive) {
+      setPwError(null)
+      setPending({ kind: 'reset', key, label: field.label })
+      return
+    }
+    reset.mutate({ key })
+  }
+
+  async function confirmPending(password: string) {
+    if (!pending) return
+    if (pending.kind === 'save') {
+      await doSave(pending.group, pending.values, password)
+      return
+    }
+    try {
+      await reset.mutateAsync({ key: pending.key, password })
+      setPending(null)
+    } catch (e) {
+      setPwError(errorMessage(e))
     }
   }
 
@@ -129,7 +173,7 @@ export default function Settings() {
                         encryption={data.encryption}
                         busy={save.isPending || reset.isPending}
                         onChange={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
-                        onReset={() => reset.mutate(f.key)}
+                        onReset={() => onReset(group, f.key)}
                       />
                     ))}
                   </div>
@@ -154,6 +198,18 @@ export default function Settings() {
           </>
         )}
       </QueryState>
+
+      <SettingsAudit />
+
+      {pending && (
+        <PasswordDialog
+          action={pending.kind === 'save' ? `Salvar ${Object.keys(pending.values).map((k) => pending.group.fields.find((f) => f.key === k)?.label ?? k).join(', ')}` : `Restaurar ${pending.label} ao valor do ambiente`}
+          busy={save.isPending || reset.isPending}
+          error={pwError}
+          onConfirm={confirmPending}
+          onCancel={() => setPending(null)}
+        />
+      )}
 
       {own && (
         <OwnTransfersDialog

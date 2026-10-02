@@ -248,7 +248,28 @@ func Bootstrap() (databaseURL, secretKey string, err error) {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		return "", "", fmt.Errorf("erro ao carregar .env: %w", err)
 	}
-	return os.Getenv("DATABASE_URL"), os.Getenv("APP_SECRET_KEY"), nil
+	key, err := ReadSecretKey(os.Getenv("APP_SECRET_KEY"), os.Getenv("APP_SECRET_KEY_FILE"))
+	if err != nil {
+		return "", "", err
+	}
+	return os.Getenv("DATABASE_URL"), key, nil
+}
+
+// ReadSecretKey devolve a chave mestra dos segredos. Prefere o arquivo (APP_SECRET_KEY_FILE, ex.: um Docker secret): ele
+// não aparece em `docker inspect` nem no ambiente do processo. Sem arquivo, usa a variável APP_SECRET_KEY.
+func ReadSecretKey(envValue, file string) (string, error) {
+	if file == "" {
+		return envValue, nil
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("APP_SECRET_KEY_FILE ilegível: %w", err)
+	}
+	key := strings.TrimSpace(string(raw))
+	if key == "" {
+		return "", errors.New("APP_SECRET_KEY_FILE está vazio")
+	}
+	return key, nil
 }
 
 func getEnv(key, defaultValue string) string {

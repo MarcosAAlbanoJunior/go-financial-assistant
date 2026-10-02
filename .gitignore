@@ -5,3 +5,5 @@ backend/finassist
 backend/coverage.out
 backups/*
 !backups/.gitkeep
+secrets/*
+!secrets/.gitkeep
