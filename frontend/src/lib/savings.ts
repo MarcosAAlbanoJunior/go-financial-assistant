@@ -2,8 +2,8 @@ import type { ReviewKind, SavingDecision } from '../api/types'
 import { formatBRL, formatMonthLong } from './format'
 import type { Tone } from './goals'
 
-/** Só as sugestões que se repetem todo mês aceitam "cancelei" (aumento e duplicata são avulsos). */
-export const canDecide = (kind: ReviewKind) => kind === 'FIXED' || kind === 'ANT' || kind === 'NEW'
+/** Só as sugestões que já provaram se repetir aceitam "cancelei" (aumento, duplicata e conta nova podem ser avulsos). */
+export const canDecide = (kind: ReviewKind) => kind === 'FIXED' || kind === 'ANT'
 
 const months = (n: number) => `${n} ${n === 1 ? 'mês' : 'meses'}`
 

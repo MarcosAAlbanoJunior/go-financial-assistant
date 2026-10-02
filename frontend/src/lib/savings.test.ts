@@ -18,7 +18,7 @@ const base: SavingDecision = {
 
 describe('canDecide', () => {
   it('só as sugestões recorrentes', () => {
-    expect(['INCREASE', 'FIXED', 'ANT', 'DUPLICATE', 'NEW'].map((k) => canDecide(k as never))).toEqual([false, true, true, false, true])
+    expect(['INCREASE', 'FIXED', 'ANT', 'DUPLICATE', 'NEW'].map((k) => canDecide(k as never))).toEqual([false, true, true, false, false])
   })
 })
 

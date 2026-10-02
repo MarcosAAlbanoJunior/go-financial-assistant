@@ -891,6 +891,7 @@ func TestAPI_SetDecision(t *testing.T) {
 	}{
 		"tipo avulso":          {`{"kind":"DUPLICATE","key":"netflix","month":"2026-10","decided":true}`, 400},
 		"aumento":              {`{"kind":"INCREASE","key":"FOOD","month":"2026-10","decided":true}`, 400},
+		"conta nova":           {`{"kind":"NEW","key":"netflix","month":"2026-10","decided":true}`, 400},
 		"chave com SQL":        {`{"kind":"FIXED","key":"x'; drop table payments;--","month":"2026-10","decided":true}`, 400},
 		"sem decided":          {`{"kind":"FIXED","key":"netflix","month":"2026-10"}`, 400},
 		"mês futuro":           {`{"kind":"FIXED","key":"netflix","month":"2026-12","decided":true}`, 400},
