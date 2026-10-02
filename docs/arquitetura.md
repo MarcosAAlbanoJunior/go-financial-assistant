@@ -58,4 +58,16 @@ Cada contexto tem o seu `*_api.go` com os handlers e um `register*` com as rotas
 
 ## Frontend (`frontend/src/`)
 
-React + TypeScript + React Query + Recharts. `pages/` (uma por tela), `components/`, `lib/` (lógica pura, com testes) e `api/` (tipos e hooks). Cores e tema por variáveis CSS em `index.css`.
+React + TypeScript + React Query + Recharts, organizado por funcionalidade:
+
+```
+src/
+  features/<contexto>/   balances, settings, budget, projection, review, goals, coach, categorize, investments,
+                         transactions, overview, spending, compare, auth. Cada uma tem a página, api.ts (tipos e hooks
+                         do contexto), components/, lib/ (lógica pura, com testes) e styles.css quando precisa.
+  shared/                api/ (request, totais, contas), components/ (QueryState, StatTile, gráficos...), lib/ (formatação, meses, tema)
+  shell/Layout.tsx       menu lateral e estrutura das telas logadas
+  index.css              tokens (cores, tema) e base compartilhada
+```
+
+Regra (verificada por `architecture.test.ts`): uma funcionalidade só importa dela mesma e de `shared/`; a única exceção é `coach → review` (o Coach comenta as sugestões da Revisão). Para compartilhar algo entre funcionalidades, mova para `shared/`.

@@ -1,6 +1,6 @@
 # Spec: Refatoração de estrutura e boas práticas
 
-- **Status:** proposta, pronta para implementar
+- **Status:** implementada (fases 1 a 8); a fase 9 (dinheiro como tipo) segue em aberto, aguardando decisão. Veja "Resultado e descobertas" ao fim.
 - **Origem:** varredura do projeto feita em 02/10/2026 (código, testes, documentação, frontend e processo)
 - **Natureza:** refatoração **sem mudança de comportamento**. Nenhuma funcionalidade nova, nenhuma rota, tela ou mensagem muda.
 - **Esta spec é aberta de propósito:** quem implementar deve fazer a sua própria varredura (seção 9) e registrar o que achar, além do que está listado aqui.
@@ -232,3 +232,27 @@ A varredura acima é um ponto de partida, **não o limite**. Antes de cada fase,
 - Tabela da seção 9 preenchida e sem itens de gravidade alta sem decisão.
 - `docs/arquitetura.md`, `docs/regras-de-calculo.md` e os ADRs existem e batem com o código.
 - CHANGELOG com uma entrada "Interno" resumindo a refatoração.
+
+
+## 11. Resultado e descobertas (preenchido na implementação)
+
+**Fases 1 a 8 concluídas** em `refactor/estrutura`, com os testes verdes a cada commit (`go test` com banco descartável, `golangci-lint`, `tsc`, `oxlint`, `vitest`) e o app rodando (rotas da API idênticas: 40 antes e depois do `api.go`).
+
+Desvios em relação ao texto da spec:
+
+- **Fase 3:** os repositórios por contexto são tipos separados (`LedgerRepo`, `BudgetRepo`...) compostos em `DashboardRepo`, em vez de um tipo por interface em pacotes separados; `ports.PurchaseRepository` foi dividido em `LedgerStore` + `ExternalStore`.
+- **Fase 5:** `Clock` só nos casos de uso com regra de tempo (`AnalyzeExpense`, `SyncOpenFinance`, `DigestJob`); ficam com `time.Now()` três funções puras de `ledger` (`processExportCSV`, `resolveQueryMonth`, `previousMonth`).
+- **Fase 6:** `balances` ficou separado de `insights`; a fachada `Insights` (`insights/`) e `FormatBRL` em `internal/format`. Teste de dependências em `usecase/architecture_test.go`.
+- **Fase 7:** README em 318 linhas (meta: ~300); detalhes das telas, API, Coach e uso do chat viraram `docs/*.md`.
+- **Fase 8:** `shell/Layout.tsx` fora de `features/` e `shared/` (é a casca de navegação); CSS só das funcionalidades claramente isoladas foi para `styles.css` (orçamento, simulador, transações e chips ficaram em `index.css` por serem usados por mais de uma tela).
+
+| # | Onde | Achado | Gravidade | Decisão |
+| --- | --- | --- | --- | --- |
+| 1 | `cmd/main.go` | `os.Exit(0)` dentro de `connectWhatsApp` cortava o encerramento limpo | média | corrigido na fase 5 (devolve erro) |
+| 2 | `config.go` | `OWN_NAMES` só era lido se o Open Finance estivesse configurado | baixa | registrado: o laço de sincronização já lê do serviço de configurações; vale mover a leitura para fora do bloco do Pluggy |
+| 3 | `usecase/ledger` | três funções puras ainda usam `time.Now()` direto | baixa | registrado para depois |
+| 4 | `infra/db` | nenhuma consulta de transações/agrupamento tem teste de integração dedicado; os testes ficam todos em `dashboard_queries_test.go` (735 linhas) | média | registrado: dividir o arquivo de testes por contexto, como as consultas |
+| 5 | `frontend` | `Transactions.tsx` (256 linhas) e `Projection.tsx` (216) ainda passam de ~200 | baixa | registrado: extrair `FilterBar` e a lista de cenários |
+| 6 | `frontend` | `index.css` ainda tem 339 linhas | baixa | registrado: mover orçamento/simulador/transações/chips para CSS das suas funcionalidades |
+| 7 | `settings_api.go` | `putSettings` mistura confirmar senha, validar, salvar, auditar e procurar Pix próprios | média | registrado: extrair um serviço `SettingsService` fora do handler |
+| 8 | geral | Dinheiro em `float64` (fase 9) | alta | **aberto: precisa de decisão do dono** (centavos agora, depois ou nunca; contrato da API) |
