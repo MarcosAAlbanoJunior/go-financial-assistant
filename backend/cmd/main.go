@@ -99,7 +99,7 @@ func main() {
 		slog.Error("failed to create gemini client", "error", err)
 		os.Exit(1)
 	}
-	defer geminiClient.Close()
+	defer func() { _ = geminiClient.Close() }()
 
 	purchaseRepo := db.NewPurchaseRepository(postgresDB)
 

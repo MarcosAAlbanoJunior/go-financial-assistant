@@ -88,12 +88,12 @@ type ExpenseOutput struct {
 
 	ExportMonthTime time.Time `json:"-"`
 
-	QueryIncome    float64 `json:"query_income,omitempty"`
-	QueryBalance   float64 `json:"query_balance,omitempty"`
-	QueryApplied    float64 `json:"query_applied,omitempty"`
-	QueryRedeemed   float64 `json:"query_redeemed,omitempty"`
+	QueryIncome      float64 `json:"query_income,omitempty"`
+	QueryBalance     float64 `json:"query_balance,omitempty"`
+	QueryApplied     float64 `json:"query_applied,omitempty"`
+	QueryRedeemed    float64 `json:"query_redeemed,omitempty"`
 	QueryNetInvested float64 `json:"query_net_invested,omitempty"`
-	QueryInAccount  float64 `json:"query_in_account,omitempty"`
+	QueryInAccount   float64 `json:"query_in_account,omitempty"`
 }
 
 func (uc *AnalyzeExpense) ExecuteText(ctx context.Context, input TextInput) (*ExpenseOutput, error) {

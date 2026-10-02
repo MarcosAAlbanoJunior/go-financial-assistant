@@ -116,14 +116,19 @@ func (c *Client) SendText(ctx context.Context, to, text string) (string, error) 
 func (c *Client) SendDocument(ctx context.Context, to, filename string, data []byte, caption string) (string, error) {
 	var buf bytes.Buffer
 	form := multipart.NewWriter(&buf)
-	form.WriteField("chat_id", to)
-	form.WriteField("caption", toHTML(caption, maxCaptionRunes))
-	form.WriteField("parse_mode", "HTML")
+	fields := [][2]string{{"chat_id", to}, {"caption", toHTML(caption, maxCaptionRunes)}, {"parse_mode", "HTML"}}
+	for _, f := range fields {
+		if err := form.WriteField(f[0], f[1]); err != nil {
+			return "", fmt.Errorf("telegram sendDocument: erro ao montar upload: %w", err)
+		}
+	}
 	part, err := form.CreateFormFile("document", filename)
 	if err != nil {
 		return "", fmt.Errorf("telegram sendDocument: erro ao montar upload: %w", err)
 	}
-	part.Write(data)
+	if _, err := part.Write(data); err != nil {
+		return "", fmt.Errorf("telegram sendDocument: erro ao montar upload: %w", err)
+	}
 	if err := form.Close(); err != nil {
 		return "", fmt.Errorf("telegram sendDocument: erro ao montar upload: %w", err)
 	}

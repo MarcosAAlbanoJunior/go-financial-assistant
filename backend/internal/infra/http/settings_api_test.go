@@ -56,11 +56,9 @@ func (f *fakeCleaner) CancelPayments(_ context.Context, ids []uuid.UUID) (int64,
 }
 
 type settingsEnv struct {
-	s       *Server
 	store   *memSettings
 	svc     *settings.Service
 	cleaner *fakeCleaner
-	cookie  string
 	restart atomic.Int32
 	deps    *SettingsDeps
 	audit   *memAudit
