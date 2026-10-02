@@ -1,9 +1,11 @@
-package usecase
+package insights
 
 import (
 	"context"
 	"slices"
 	"time"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/balances"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
 
@@ -144,4 +146,26 @@ func (i *Insights) Savings(ctx context.Context, now time.Time) ([]review.Decisio
 		return nil, err
 	}
 	return review.BuildSavings(decisions, rows, now), nil
+}
+
+// Balances monta os saldos por banco no instante now.
+func (i *Insights) Balances(ctx context.Context, now time.Time) (balances.BalancesView, error) {
+	accounts, err := i.reader.Accounts(ctx)
+	if err != nil {
+		return balances.BalancesView{}, err
+	}
+	institutions, err := i.reader.Institutions(ctx)
+	if err != nil {
+		return balances.BalancesView{}, err
+	}
+	return balances.BuildBalances(accounts, institutions, now), nil
+}
+
+// BalancesText é o comando /saldos: o mesmo cálculo do painel, em texto.
+func (i *Insights) BalancesText(ctx context.Context, now time.Time) (string, error) {
+	view, err := i.Balances(ctx, now)
+	if err != nil {
+		return "", err
+	}
+	return balances.FormatBalances(view, now), nil
 }

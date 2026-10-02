@@ -12,12 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/coach"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
 )
 
@@ -58,7 +59,7 @@ func (c *coachService) end() { c.busy.Store(false) }
 type coachInput struct {
 	payload    []byte
 	hash       string
-	context    usecase.CoachContext
+	context    coach.CoachContext
 	candidates []review.Candidate
 	goals      []planning.GoalProgress
 }
@@ -76,7 +77,7 @@ func (a *api) coachInput(ctx context.Context, month time.Time) (coachInput, erro
 	if err != nil {
 		return coachInput{}, err
 	}
-	past, err := a.reader.CoachAnalyses(ctx, nil, usecase.MaxCoachMemory)
+	past, err := a.reader.CoachAnalyses(ctx, nil, coach.MaxCoachMemory)
 	if err != nil {
 		return coachInput{}, err
 	}
@@ -84,7 +85,7 @@ func (a *api) coachInput(ctx context.Context, month time.Time) (coachInput, erro
 	if err != nil {
 		return coachInput{}, err
 	}
-	in := coachInput{context: usecase.BuildCoachContext(rev, formatMonth(month), totals[0], goals, past, savings), candidates: usecase.CoachCandidates(rev), goals: goals}
+	in := coachInput{context: coach.BuildCoachContext(rev, formatMonth(month), totals[0], goals, past, savings), candidates: coach.CoachCandidates(rev), goals: goals}
 	if in.payload, err = json.Marshal(in.context); err != nil {
 		return coachInput{}, err
 	}
@@ -157,7 +158,7 @@ func (a *api) runCoachAnalysis(ctx context.Context, month time.Time, hash string
 	if hash != in.hash {
 		return domain.CoachAnalysis{}, &apiError{http.StatusConflict, "os dados mudaram desde a prévia: confira de novo o que será enviado"}
 	}
-	if len(in.payload) > usecase.MaxCoachBytes {
+	if len(in.payload) > coach.MaxCoachBytes {
 		return domain.CoachAnalysis{}, &apiError{http.StatusRequestEntityTooLarge, "contexto grande demais para enviar"}
 	}
 
@@ -167,15 +168,15 @@ func (a *api) runCoachAnalysis(ctx context.Context, month time.Time, hash string
 	if err != nil {
 		return domain.CoachAnalysis{}, err
 	}
-	advice, err := usecase.ValidateAdvice(raw, in.context)
-	if errors.Is(err, usecase.ErrEmptyAdvice) {
+	advice, err := coach.ValidateAdvice(raw, in.context)
+	if errors.Is(err, coach.ErrEmptyAdvice) {
 		return domain.CoachAnalysis{}, &apiError{http.StatusBadGateway, "a IA não devolveu uma resposta utilizável; tente de novo"}
 	}
 	if err != nil {
 		return domain.CoachAnalysis{}, err
 	}
 
-	record, err := json.Marshal(usecase.NewCoachRecord(advice, in.candidates, in.goals))
+	record, err := json.Marshal(coach.NewCoachRecord(advice, in.candidates, in.goals))
 	if err != nil {
 		return domain.CoachAnalysis{}, err
 	}
@@ -239,7 +240,7 @@ func (a *api) setCoachAnswer(w http.ResponseWriter, r *http.Request) {
 	answer := ""
 	if strings.TrimSpace(body.Answer) != "" { // vazio apaga a resposta
 		var ok bool
-		if answer, ok = usecase.CleanAnswer(body.Answer); !ok {
+		if answer, ok = coach.CleanAnswer(body.Answer); !ok {
 			writeError(w, http.StatusBadRequest, "a resposta deve ter até 300 caracteres, sem caracteres de controle")
 			return
 		}

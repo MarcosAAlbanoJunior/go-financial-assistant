@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/coach"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/gemini"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 func categorizeReader() *fakeReader {
@@ -179,7 +180,7 @@ func TestAPI_SetCategoryRule(t *testing.T) {
 // As categorias do esquema enviado ao Gemini e as que o servidor aceita validar são as mesmas.
 func TestCategorizeEnumMatchesUsecase(t *testing.T) {
 	var want []string
-	for _, c := range usecase.AICategories {
+	for _, c := range coach.AICategories {
 		want = append(want, string(c))
 	}
 	if strings.Join(gemini.CategorizeEnum, ",") != strings.Join(want, ",") {
