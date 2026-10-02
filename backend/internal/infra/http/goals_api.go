@@ -72,7 +72,7 @@ func (a *api) goalProgress(ctx context.Context) ([]usecase.GoalProgress, float64
 	}
 	out := make([]usecase.GoalProgress, len(goals))
 	for i, g := range goals {
-		out[i] = usecase.BuildGoalProgress(g, wealth, proj, cats, now)
+		out[i] = usecase.BuildGoalProgress(g, wealth, proj, cats, a.now().UTC())
 	}
 	return out, wealth, nil
 }
@@ -110,6 +110,9 @@ func (a *api) goals(w http.ResponseWriter, r *http.Request) {
 		Fits          *bool      `json:"fits"`
 		Coverage      float64    `json:"coverage"`
 		History       []cutMonth `json:"history"`
+		Projected     *float64   `json:"projected"`
+		DayOfMonth    int        `json:"dayOfMonth"`
+		DaysInMonth   int        `json:"daysInMonth"`
 	}
 	out := make([]goal, len(goals))
 	for i, gp := range goals {
@@ -117,7 +120,7 @@ func (a *api) goals(w http.ResponseWriter, r *http.Request) {
 		o := goal{
 			ID: g.ID, Kind: string(g.Kind), Name: g.Name, Category: g.Category, CutPercent: g.CutPercent, Baseline: g.Baseline,
 			ReserveMonths: g.ReserveMonths, Current: gp.Current, Target: gp.Target, Done: gp.Done, MonthsLeft: gp.MonthsLeft,
-			PerMonth: gp.PerMonth, Surplus: gp.Surplus, Fits: gp.Fits, Coverage: gp.Coverage, History: []cutMonth{},
+			PerMonth: gp.PerMonth, Surplus: gp.Surplus, Fits: gp.Fits, Coverage: gp.Coverage, History: []cutMonth{}, Projected: gp.Projected, DayOfMonth: gp.DayOfMonth, DaysInMonth: gp.DaysInMonth,
 		}
 		if g.Category != "" {
 			o.CategoryLabel = domain.Category(g.Category).Label()

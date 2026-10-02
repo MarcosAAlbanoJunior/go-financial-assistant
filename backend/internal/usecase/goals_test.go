@@ -102,3 +102,21 @@ func TestCutBaseline(t *testing.T) {
 		t.Error("categoria sem gasto não tem baseline")
 	}
 }
+
+func TestBuildGoalProgress_CutPace(t *testing.T) {
+	g := ports.Goal{Kind: ports.GoalCut, Category: "FOOD", CutPercent: 20, Baseline: 1000, CreatedAt: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}
+	cats := []ports.CategoryMonth{{Category: "FOOD", Month: goalNow, Total: 300}}
+	day := func(d int) time.Time { return time.Date(2026, time.October, d, 12, 0, 0, 0, time.UTC) }
+
+	if gp := BuildGoalProgress(g, 0, Projection{}, cats, day(3)); gp.Projected != nil || gp.DayOfMonth != 3 || gp.DaysInMonth != 31 {
+		t.Errorf("nos primeiros dias não há ritmo confiável: %+v", gp)
+	}
+	// 300 em 10 dias de um mês de 31 dias: fecha em 930, acima do teto de 800 mesmo estando abaixo dele hoje.
+	gp := BuildGoalProgress(g, 0, Projection{}, cats, day(10))
+	if gp.Projected == nil || math.Abs(*gp.Projected-930) > 0.01 || gp.Current != 300 || gp.Target != 800 {
+		t.Errorf("ritmo: %+v", gp)
+	}
+	if gp := BuildGoalProgress(g, 0, Projection{}, cats, day(7)); gp.Projected == nil {
+		t.Error("o ritmo aparece a partir do dia 7")
+	}
+}
