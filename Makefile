@@ -1,4 +1,4 @@
-.PHONY: run build test lint front-dev front-test front-build compose-up compose-down compose-logs db-shell
+.PHONY: run build test lint front-dev front-test front-build compose-up compose-down compose-logs db-shell backup restore
 
 run:
 	docker compose up postgres redis -d
@@ -73,3 +73,11 @@ help:
 	@echo "  make front-test       Testes e lint do front"
 	@echo "  make front-build      Build de produção do front"
 	@echo ""
+# Backup na hora, além do diário (arquivo 600 em ./backups, fora do git).
+backup:
+	@umask 077 && docker compose exec -T postgres pg_dump -U finassist -d finassist -Fc --no-owner > backups/finassist-$$(date -u +%Y%m%d-%H%M%S)-manual.dump && ls -l backups | tail -1
+
+# Restaura um backup: make restore FILE=backups/finassist-AAAAMMDD-HHMMSS.dump  (SUBSTITUI os dados atuais)
+restore:
+	@test -n "$(FILE)" || (echo "uso: make restore FILE=backups/<arquivo>.dump" && exit 1)
+	docker compose exec -T postgres pg_restore -U finassist -d finassist --clean --if-exists --no-owner < $(FILE)
