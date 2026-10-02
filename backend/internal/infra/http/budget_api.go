@@ -1,18 +1,19 @@
 package httpserver
 
 import (
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
-const budgetMonths = usecase.BudgetMonths
+const budgetMonths = review.BudgetMonths
 
 // budget: despesas do mês divididas em fixas, parceladas e variáveis, e a evolução mês a mês.
 func (a *api) budget(w http.ResponseWriter, r *http.Request) {
