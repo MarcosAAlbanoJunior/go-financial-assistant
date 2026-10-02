@@ -76,3 +76,23 @@ func (r *PostgresPurchaseRepository) CancelPayments(ctx context.Context, ids []u
 
 // NewTransferCleaner devolve quem acha e cancela transferências entre contas da própria pessoa.
 func NewTransferCleaner(db *DB) ports.TransferCleaner { return &PostgresPurchaseRepository{db: db} }
+
+func (s *SettingsStore) RecordAudit(ctx context.Context, e settings.AuditEntry) error {
+	_, err := s.db.Pool.Exec(ctx, `INSERT INTO settings_audit (action, key, sensitive, ip) VALUES ($1, $2, $3, $4)`, e.Action, e.Key, e.Sensitive, e.IP)
+	if err != nil {
+		return fmt.Errorf("erro ao registrar alteração: %w", err)
+	}
+	return nil
+}
+
+func (s *SettingsStore) RecentAudit(ctx context.Context, limit int) ([]settings.AuditEntry, error) {
+	rows, err := s.db.Pool.Query(ctx, `SELECT at, action, key, sensitive, ip FROM settings_audit ORDER BY at DESC, id DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao ler o histórico de alterações: %w", err)
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (settings.AuditEntry, error) {
+		var e settings.AuditEntry
+		err := row.Scan(&e.At, &e.Action, &e.Key, &e.Sensitive, &e.IP)
+		return e, err
+	})
+}

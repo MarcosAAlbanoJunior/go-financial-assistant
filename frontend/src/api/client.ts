@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Balances, SettingsData, SaveSettingsResult, SyncResult, Budget, Categorize, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Balances, SettingsData, SettingsAuditEntry, SaveSettingsResult, SyncResult, Budget, Categorize, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -203,15 +203,19 @@ export const suggestCategories = (hash: string) =>
 export const useSettings = () => useQuery({ queryKey: ['settings'], queryFn: () => request<SettingsData>('/api/settings') })
 
 /** Salva só o que mudou. Ao mudar OWN_NAMES, a resposta traz as transferências antigas que parecem ser suas. */
-export const saveSettings = (values: Record<string, string>) =>
+export const saveSettings = (values: Record<string, string>, password?: string) =>
   request<SaveSettingsResult>('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values }),
+    body: JSON.stringify({ values, password }),
   })
 
 /** Apaga o valor salvo aqui: volta a valer o ambiente (ou o padrão). */
-export const resetSetting = (key: string) => request(`/api/settings/${encodeURIComponent(key)}`, { method: 'DELETE' })
+export const resetSetting = (key: string, password?: string) =>
+  postJSON(`/api/settings/reset/${encodeURIComponent(key)}`, { password })
+
+/** Últimas alterações de configuração (sem valores). */
+export const useSettingsAudit = () => useQuery({ queryKey: ['settings-audit'], queryFn: () => request<SettingsAuditEntry[]>('/api/settings/audit') })
 
 export const applyOwnTransfers = () => postJSON<{ cancelled: number }>('/api/settings/own-transfers/apply')
 

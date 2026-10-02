@@ -124,9 +124,10 @@ func main() {
 	settingsSvc.OnChange(func() { geminiClient.SetCoachModel(settingsSvc.Get("COACH_GEMINI_MODEL")) })
 	server.SetCoach(geminiClient, cfg.GeminiPaidPlan)
 	server.SetSyncer(syncer)
-	server.SetSettings(&httpserver.SettingsDeps{
+	settingsDeps := &httpserver.SettingsDeps{
 		Service: settingsSvc,
 		Channel: cfg.Channel,
+		Audit:   settingsStore,
 		Cleaner: db.NewTransferCleaner(postgresDB),
 		PluggyCheck: func(ctx context.Context, id, secret string, items []string) ([]pluggy.ItemCheck, error) {
 			return pluggy.NewClient(id, secret).Check(ctx, items)
@@ -134,7 +135,8 @@ func main() {
 		TelegramPing: func(ctx context.Context, token string) (string, error) { return telegram.NewClient(token).GetMe(ctx) },
 		GeminiPing:   gemini.Ping,
 		Restart:      cancel, // o Docker (restart: unless-stopped) sobe o app de novo com as configurações novas
-	})
+	}
+	server.SetSettings(settingsDeps)
 	if cfg.DashboardPassword != "" {
 		if err := server.MountAPI(cfg.DashboardPassword, dashboardReader); err != nil {
 			slog.Error("failed to mount dashboard API", "error", err)
@@ -179,6 +181,12 @@ func main() {
 
 	var monthlyReport *usecase.MonthlyReport
 	if messenger != nil {
+		// Avisos de segurança das configurações (senha errada, segredo trocado) vão para o mesmo chat.
+		settingsDeps.Notify = func(ctx context.Context, text string) {
+			if _, err := messenger.SendText(ctx, owner, text); err != nil {
+				logger.Error("erro ao enviar aviso de segurança", "error", err)
+			}
+		}
 		go usecase.NewDigestJob(insights, messenger, owner, logger, settingsSvc.Digest, onChange()).Run(ctx)
 		monthlyReport = usecase.NewMonthlyReport(exportCSV, messenger, owner, logger)
 	}

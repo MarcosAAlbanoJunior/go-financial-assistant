@@ -243,3 +243,21 @@ func TestOnChangeNotifies(t *testing.T) {
 		t.Errorf("notificações = %d", n)
 	}
 }
+
+func TestSensitiveCoversSecretsAndAccessControl(t *testing.T) {
+	for _, d := range Defs {
+		if d.Kind == KindSecret && !d.Sensitive() {
+			t.Errorf("segredo %s deve exigir a senha", d.Key)
+		}
+	}
+	for _, k := range []string{"PLUGGY_ITEM_IDS", "TELEGRAM_CHAT_ID", "EVOLUTION_API_URL", "OWNER_PHONE", "ALLOWED_NUMBERS"} {
+		if d, _ := Lookup(k); !d.Sensitive() {
+			t.Errorf("%s redireciona dados ou abre acesso: deve exigir a senha", k)
+		}
+	}
+	for _, k := range []string{"DIGEST_HOUR", "SYNC_INTERVAL_HOURS", "OWN_NAMES", "GEMINI_PAID_PLAN", "COACH_GEMINI_MODEL"} {
+		if d, _ := Lookup(k); d.Sensitive() {
+			t.Errorf("%s é ajuste comum: não deve pedir a senha", k)
+		}
+	}
+}
