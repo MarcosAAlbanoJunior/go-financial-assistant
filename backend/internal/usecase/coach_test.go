@@ -46,7 +46,7 @@ func sampleReview() Review {
 
 func TestBuildCoachContext(t *testing.T) {
 	goals := []GoalProgress{{Goal: ports.Goal{Kind: ports.GoalSave, Name: "Viagem"}, Current: 100, Target: 1000}}
-	c := BuildCoachContext(sampleReview(), "2026-09", ports.MonthTotals{Income: 5000, Expense: 3000}, goals)
+	c := BuildCoachContext(sampleReview(), "2026-09", ports.MonthTotals{Income: 5000, Expense: 3000}, goals, nil)
 
 	if len(c.Suggestions) != 3 || c.Suggestions[0].ID != "s1" || c.Suggestions[2].ID != "s3" {
 		t.Fatalf("dispensadas ficam de fora e os IDs seguem a ordem: %+v", c.Suggestions)
@@ -81,7 +81,7 @@ func TestBuildCoachContext_LimitsSizeAndCount(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		goals = append(goals, GoalProgress{Goal: ports.Goal{Kind: ports.GoalCut, Name: strings.Repeat("m", 60)}})
 	}
-	c := BuildCoachContext(rev, "2026-09", ports.MonthTotals{}, goals)
+	c := BuildCoachContext(rev, "2026-09", ports.MonthTotals{}, goals, nil)
 	raw, _ := json.Marshal(c)
 	if len(c.Suggestions) != MaxCoachSuggestions || len(raw) > MaxCoachBytes {
 		t.Errorf("%d sugestões, %d bytes (limite %d)", len(c.Suggestions), len(raw), MaxCoachBytes)
@@ -134,5 +134,80 @@ func TestValidateAdvice_CapsActionsAndRejectsEmpty(t *testing.T) {
 	}
 	if _, err := ValidateAdvice(ports.CoachAdvice{Summary: "Gastou R$ 500."}, c); err == nil {
 		t.Error("resposta só com texto inválido deveria falhar")
+	}
+}
+
+func TestCleanAnswer(t *testing.T) {
+	for in, want := range map[string]string{
+		"  sim,\n  uso toda semana ": "sim, uso toda semana",
+		"cancelei":                   "cancelei",
+	} {
+		if got, ok := CleanAnswer(in); !ok || got != want {
+			t.Errorf("CleanAnswer(%q) = %q %v", in, got, ok)
+		}
+	}
+	for name, in := range map[string]string{"vazia": "   ", "longa": strings.Repeat("a", 301), "controle": "a\x00b", "escape": "a\x1b[31mb"} {
+		if _, ok := CleanAnswer(in); ok {
+			t.Errorf("%s deveria ser recusada", name)
+		}
+	}
+}
+
+func TestNewCoachRecordAndQuestionKeys(t *testing.T) {
+	cands := []Candidate{
+		{Kind: ReviewFixed, Key: "streaming", Label: "STREAMING", Category: "ENTERTAINMENT", Saving: 40, Recurring: true, Amount: 40},
+		{Kind: ReviewDuplicate, Key: "oficina", Label: "Oficina", Category: "OTHER", Saving: 100, Amount: 100},
+	}
+	goals := []GoalProgress{{Goal: ports.Goal{Name: "Reserva"}}}
+	adv := ports.CoachAdvice{
+		Summary:   "Resumo.",
+		Actions:   []ports.CoachAction{{SuggestionID: "s1", Priority: 1, Comment: "Rever.", Question: "Ainda usa?"}, {SuggestionID: "s2", Priority: 2, Comment: "Conferir."}},
+		Goals:     []ports.CoachNote{{GoalID: "m1", Comment: "Ok."}, {GoalID: "m7", Comment: "sem meta"}},
+		Questions: []string{"Mudou algo?"},
+	}
+	r := NewCoachRecord(adv, cands, goals)
+
+	if s := r.Actions[0].Suggestion; s == nil || s.Label != "STREAMING" || s.Annual == nil || *s.Annual != 480 || s.CategoryLabel != "Lazer" {
+		t.Errorf("números vêm dos detectores: %+v", s)
+	}
+	if s := r.Actions[1].Suggestion; s == nil || s.Annual != nil {
+		t.Errorf("avulsa sem anual: %+v", s)
+	}
+	if len(r.Goals) != 1 || r.Goals[0].Name != "Reserva" {
+		t.Errorf("meta desconhecida some: %+v", r.Goals)
+	}
+	keys := r.QuestionKeys()
+	if len(keys) != 2 || keys["a:s1"] != "Ainda usa?" || keys["q:0"] != "Mudou algo?" {
+		t.Errorf("chaves das perguntas (só as que existem): %v", keys)
+	}
+}
+
+func TestBuildCoachMemory(t *testing.T) {
+	rec := CoachRecord{
+		Summary:   "Resumo antigo.",
+		Actions:   []CoachRecordAction{{SuggestionID: "s1", Question: "Ainda usa?", Suggestion: &CoachSuggestionRef{Label: "Pix enviado Fulano"}}, {SuggestionID: "s2", Question: "E esta?", Suggestion: &CoachSuggestionRef{Label: "STREAMING"}}},
+		Questions: []string{"Mudou algo?"},
+	}
+	raw, _ := json.Marshal(rec)
+	mk := func(m time.Month, answers map[string]string) ports.CoachAnalysis {
+		return ports.CoachAnalysis{Month: month(2026, m), Advice: raw, Answers: answers}
+	}
+	past := []ports.CoachAnalysis{
+		mk(time.September, map[string]string{"a:s1": "cancelei", "a:s2": "uso sim", "q:0": "mudei de emprego", "a:s9": "sem pergunta"}),
+		{Month: month(2026, time.August), Advice: []byte("não é json")},
+		mk(time.July, nil),
+		mk(time.June, nil),
+		mk(time.May, nil),
+	}
+	got := BuildCoachMemory(past)
+	if len(got) != MaxCoachMemory || got[0].Month != "2026-09" || got[1].Month != "2026-07" || got[1].Answers == nil || len(got[1].Answers) != 0 {
+		t.Fatalf("até 3 análises legíveis, da mais nova: %+v", got)
+	}
+	if a := got[0].Answers; len(a) != 3 || a[0].About != personTransfer || a[0].Answer != "cancelei" || a[1].About != "STREAMING" || a[2].Question != "Mudou algo?" || a[2].About != "" {
+		t.Errorf("respostas ligadas às perguntas, com nomes sanitizados: %+v", a)
+	}
+	b, _ := json.Marshal(got)
+	if strings.Contains(string(b), "Fulano") || strings.Contains(string(b), "sem pergunta") {
+		t.Errorf("nome de pessoa ou resposta órfã vazou: %s", b)
 	}
 }

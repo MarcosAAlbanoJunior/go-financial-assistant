@@ -8,13 +8,14 @@ import (
 	"errors"
 	"mime"
 	"net/http"
-	"strconv"
+	"regexp"
+	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
+	"github.com/google/uuid"
 )
 
 const (
@@ -65,7 +66,11 @@ func (a *api) coachInput(ctx context.Context, month time.Time) (coachInput, erro
 	if err != nil {
 		return coachInput{}, err
 	}
-	in := coachInput{context: usecase.BuildCoachContext(rev, formatMonth(month), totals[0], goals), candidates: usecase.CoachCandidates(rev), goals: goals}
+	past, err := a.reader.CoachAnalyses(ctx, nil, usecase.MaxCoachMemory)
+	if err != nil {
+		return coachInput{}, err
+	}
+	in := coachInput{context: usecase.BuildCoachContext(rev, formatMonth(month), totals[0], goals, past), candidates: usecase.CoachCandidates(rev), goals: goals}
 	if in.payload, err = json.Marshal(in.context); err != nil {
 		return coachInput{}, err
 	}
@@ -156,57 +161,108 @@ func (a *api) coachAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type suggestion struct {
-		Kind          string   `json:"kind"`
-		Key           string   `json:"key"`
-		Label         string   `json:"label"`
-		Category      string   `json:"category"`
-		CategoryLabel string   `json:"categoryLabel"`
-		Monthly       float64  `json:"monthly"`
-		Annual        *float64 `json:"annual"`
-		Amount        float64  `json:"amount"`
+	record, err := json.Marshal(usecase.NewCoachRecord(advice, in.candidates, in.goals))
+	if err != nil {
+		a.fail(w, "coach", err)
+		return
 	}
-	type action struct {
-		SuggestionID string      `json:"suggestionId"`
-		Priority     int         `json:"priority"`
-		Comment      string      `json:"comment"`
-		Question     string      `json:"question"`
-		Suggestion   *suggestion `json:"suggestion"`
+	analysis := ports.CoachAnalysis{ID: uuid.New(), Month: month, Advice: record, Answers: map[string]string{}}
+	if err := a.reader.SaveCoachAnalysis(r.Context(), analysis); err != nil {
+		a.fail(w, "coach", err)
+		return
 	}
-	type note struct {
-		GoalID  string `json:"goalId"`
-		Name    string `json:"name"`
-		Comment string `json:"comment"`
+	analysis.CreatedAt = a.now()
+	writeJSON(w, http.StatusOK, analysisJSON(analysis))
+}
+
+func analysisJSON(an ports.CoachAnalysis) map[string]any {
+	answers := an.Answers
+	if answers == nil {
+		answers = map[string]string{}
 	}
-	actions := make([]action, 0, len(advice.Actions))
-	for _, act := range advice.Actions {
-		out := action{SuggestionID: act.SuggestionID, Priority: act.Priority, Comment: act.Comment, Question: act.Question}
-		// Os números mostrados vêm dos detectores, nunca do texto da IA.
-		if i, err := strconv.Atoi(act.SuggestionID[1:]); err == nil && i >= 1 && i <= len(in.candidates) {
-			c := in.candidates[i-1]
-			s := suggestion{Kind: c.Kind, Key: c.Key, Label: c.Label, Category: c.Category, CategoryLabel: domain.Category(c.Category).Label(), Monthly: c.Saving, Amount: c.Amount}
-			if c.Label == "" {
-				s.Label = s.CategoryLabel
-			}
-			if c.Recurring {
-				annual := c.Saving * 12
-				s.Annual = &annual
-			}
-			out.Suggestion = &s
+	return map[string]any{"id": an.ID, "month": formatMonth(an.Month), "createdAt": an.CreatedAt, "advice": json.RawMessage(an.Advice), "answers": answers}
+}
+
+const maxCoachHistory = 20
+
+// coachAnalyses lista as análises guardadas do mês, da mais nova para a mais antiga.
+func (a *api) coachAnalyses(w http.ResponseWriter, r *http.Request) {
+	month, ok := a.monthParam(w, r, "month", true)
+	if !ok {
+		return
+	}
+	list, err := a.reader.CoachAnalyses(r.Context(), &month, maxCoachHistory)
+	if err != nil {
+		a.fail(w, "coach", err)
+		return
+	}
+	out := make([]map[string]any, len(list))
+	for i, an := range list {
+		out[i] = analysisJSON(an)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// coachAnswerKeyRE: "a:s3" (pergunta sobre a sugestão s3) ou "q:0" (pergunta geral).
+var coachAnswerKeyRE = regexp.MustCompile(`^(a:s\d{1,2}|q:\d)$`)
+
+// setCoachAnswer guarda (ou apaga, se vazia) a resposta da pessoa a uma pergunta da IA.
+func (a *api) setCoachAnswer(w http.ResponseWriter, r *http.Request) {
+	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "requisição não permitida")
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		Key    string `json:"key"`
+		Answer string `json:"answer"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCoachBody)).Decode(&body); err != nil || !coachAnswerKeyRE.MatchString(body.Key) {
+		writeError(w, http.StatusBadRequest, "corpo inválido")
+		return
+	}
+	answer := ""
+	if strings.TrimSpace(body.Answer) != "" { // vazio apaga a resposta
+		var ok bool
+		if answer, ok = usecase.CleanAnswer(body.Answer); !ok {
+			writeError(w, http.StatusBadRequest, "a resposta deve ter até 300 caracteres, sem caracteres de controle")
+			return
 		}
-		actions = append(actions, out)
 	}
-	notes := make([]note, 0, len(advice.Goals))
-	for _, g := range advice.Goals {
-		if i, err := strconv.Atoi(g.GoalID[1:]); err == nil && i >= 1 && i <= len(in.goals) {
-			notes = append(notes, note{GoalID: g.GoalID, Name: in.goals[i-1].Goal.Name, Comment: g.Comment})
-		}
+	found, err := a.reader.SetCoachAnswer(r.Context(), id, body.Key, answer)
+	if err != nil {
+		a.fail(w, "coach", err)
+		return
 	}
-	questions := advice.Questions
-	if questions == nil {
-		questions = []string{}
+	if !found {
+		writeError(w, http.StatusNotFound, "análise não encontrada")
+		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"summary": advice.Summary, "actions": actions, "goals": notes, "questions": questions,
-	})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (a *api) deleteCoachAnalysis(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "requisição não permitida")
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	found, err := a.reader.DeleteCoachAnalysis(r.Context(), id)
+	if err != nil {
+		a.fail(w, "coach", err)
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "análise não encontrada")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
