@@ -227,6 +227,15 @@ O container escuta só em `127.0.0.1`. Para acessar de outro dispositivo, ponha 
 
 **Desenvolvimento** (precisa de Node 22+; com nvm, `nvm use 22`): suba o app (`docker compose up -d`) e rode `make front-dev`; o Vite abre em http://localhost:5173 e repassa `/api` para `127.0.0.1:3000`. `make front-test` roda os testes (Vitest) e o lint; `make front-build` gera o build de produção.
 
+## Backup e restauração
+
+O serviço `backup` do Docker Compose grava um `pg_dump` completo do banco em `./backups` ao subir e depois a cada 24 horas, guardando os 14 mais recentes (`BACKUP_INTERVAL_HOURS` e `BACKUP_KEEP`). Sem isso, perder o volume do Postgres (um `docker compose down -v`, um disco com problema) apagaria tudo: lançamentos, metas, regras, decisões e o histórico do Coach.
+
+- **Fora do git e privado:** `./backups` está no `.gitignore` e os arquivos ficam com permissão 600. Eles contêm todos os seus dados financeiros em texto: **não os envie a serviços de terceiros sem criptografar** (por exemplo `age` ou `gpg --symmetric arquivo.dump`) e guarde também uma cópia **fora da máquina** (outro disco ou servidor seu): um backup no mesmo disco não protege de perder o disco.
+- **Dono dos arquivos:** o serviço roda com o usuário `1000:1000`; se o seu for outro (`id -u`, `id -g`), defina `BACKUP_UID` e `BACKUP_GID` no `.env` e crie a pasta antes (`mkdir -p backups`).
+- **Backup na hora:** `make backup`.
+- **Restaurar** (substitui os dados atuais): `make restore FILE=backups/finassist-AAAAMMDD-HHMMSS.dump`. Para testar sem risco, restaure num banco à parte: `docker compose exec -T postgres psql -U finassist -d finassist -c "CREATE DATABASE teste"` e depois `docker compose exec -T postgres pg_restore -U finassist -d teste --no-owner < backups/<arquivo>.dump`.
+
 ## Resumo semanal
 
 Toda semana (padrão: segunda às 9h, no fuso configurado) o app manda ao seu chat (Telegram ou WhatsApp) um resumo curto do que merece atenção, **calculado só por código, sem IA e sem enviar nada a terceiros além do próprio canal**: total do mês até agora, possíveis cobranças duplicadas, contas novas do mês, contas que você marcou como canceladas e **voltaram a ser cobradas**, metas de redução que estouram o teto no ritmo atual, metas de juntar que não cabem na sobra projetada e a economia já realizada. Sem nada a avisar, ele diz "Sem alertas esta semana". No Telegram, `/resumo` pede um na hora. Se o app estiver desligado na hora marcada, aquela semana é pulada. O Telegram (ou o WhatsApp) recebe os nomes das contas em texto, como em qualquer mensagem do bot.
