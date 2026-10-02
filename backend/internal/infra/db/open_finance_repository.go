@@ -70,7 +70,10 @@ func (r *PostgresPurchaseRepository) RefreshExternal(ctx context.Context, tx por
 	// O CTE com UPDATE roda sempre; a consulta final só diz se a transação existia.
 	query := `
 		WITH linked AS (
-			UPDATE payments SET account_id = COALESCE(account_id, $2) WHERE external_id = $1 RETURNING purchase_id
+			UPDATE payments SET account_id = COALESCE(account_id, $2),
+				due_date = CASE WHEN $4 THEN $5::date ELSE due_date END,
+				paid_at = CASE WHEN $4 AND paid_at IS NOT NULL THEN $5::timestamptz ELSE paid_at END
+			WHERE external_id = $1 RETURNING purchase_id
 		), recategorized AS (
 			UPDATE purchases SET category = $3
 			WHERE id IN (SELECT purchase_id FROM linked) AND category = 'OTHER' AND $3 <> 'OTHER'
@@ -78,7 +81,7 @@ func (r *PostgresPurchaseRepository) RefreshExternal(ctx context.Context, tx por
 		SELECT COUNT(*) FROM linked
 	`
 	var n int
-	if err := r.db.Pool.QueryRow(ctx, query, tx.ID, accountID, tx.Category).Scan(&n); err != nil {
+	if err := r.db.Pool.QueryRow(ctx, query, tx.ID, accountID, tx.Category, tx.Installment, tx.Date).Scan(&n); err != nil {
 		return false, fmt.Errorf("erro ao verificar transação externa: %w", err)
 	}
 	return n > 0, nil

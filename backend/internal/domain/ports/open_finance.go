@@ -23,6 +23,7 @@ type ExternalTransaction struct {
 	Category      domain.Category
 	PaymentMethod domain.PaymentMethod
 	Pending       bool // compra ainda na fatura aberta do cartão
+	Installment   bool // parcela de compra parcelada; a data já é a do mês da fatura
 }
 
 // ExternalAccount é uma conta ou cartão do Open Finance. Só guarda o necessário:

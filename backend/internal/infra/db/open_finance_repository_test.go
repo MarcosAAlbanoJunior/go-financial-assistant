@@ -353,3 +353,41 @@ func TestExpenseKey_DebitPrefix(t *testing.T) {
 		}
 	}
 }
+
+// Parcela já gravada na data da compra passa para o mês da fatura quando a sincronização a reconhece de novo.
+func TestRefreshExternal_MovesInstallmentDate(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	acc, err := repo.UpsertAccount(ctx, ports.ExternalAccount{ID: "of-test-inst-acc", ItemID: "of-test", Type: "CREDIT", Name: "Cartão"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM accounts WHERE external_id = 'of-test-inst-acc'`) })
+
+	purchase := manualExpense(t, repo, pg, 143.08, domain.PurchaseTypeSingle)
+	buy := time.Date(2026, 6, 5, 0, 0, 0, 0, time.UTC)
+	if _, err := pg.Pool.Exec(ctx, `UPDATE payments SET external_id = 'of-test-parcela', due_date = $2::date, paid_at = $2::timestamptz WHERE purchase_id = $1`, purchase.ID, buy); err != nil {
+		t.Fatal(err)
+	}
+
+	moved := time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC)
+	if ok, err := repo.RefreshExternal(ctx, ports.ExternalTransaction{ID: "of-test-parcela", Date: moved, Installment: true, Category: domain.CategoryOther}, acc); err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	var due, paid time.Time
+	if err := pg.Pool.QueryRow(ctx, `SELECT due_date, paid_at FROM payments WHERE external_id = 'of-test-parcela'`).Scan(&due, &paid); err != nil {
+		t.Fatal(err)
+	}
+	if due.Format("2006-01-02") != "2026-09-05" || paid.UTC().Format("2006-01-02") != "2026-09-05" {
+		t.Errorf("due=%v paid=%v", due, paid)
+	}
+
+	// Lançamento comum não muda de data.
+	if _, err := repo.RefreshExternal(ctx, ports.ExternalTransaction{ID: "of-test-parcela", Date: buy, Installment: false, Category: domain.CategoryOther}, acc); err != nil {
+		t.Fatal(err)
+	}
+	pg.Pool.QueryRow(ctx, `SELECT due_date FROM payments WHERE external_id = 'of-test-parcela'`).Scan(&due) //nolint:errcheck
+	if due.Format("2006-01-02") != "2026-09-05" {
+		t.Errorf("só parcela é movida: %v", due)
+	}
+}
