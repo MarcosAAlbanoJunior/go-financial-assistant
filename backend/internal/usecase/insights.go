@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
@@ -29,7 +30,7 @@ func MonthStart(t time.Time) time.Time {
 func BankBalance(accounts []ports.Account) *float64 {
 	var bank *float64
 	for _, acc := range accounts {
-		if acc.Type == "BANK" {
+		if acc.Type == domain.AccountBank {
 			sum := acc.Balance
 			if bank != nil {
 				sum += *bank

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -14,14 +15,14 @@ func (a *api) accounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type item struct {
-		ID                   uuid.UUID `json:"id"`
-		Type                 string    `json:"type"`
-		Name                 string    `json:"name"`
-		Last4                string    `json:"last4"`
-		Balance              float64   `json:"balance"`
-		CreditLimit          *float64  `json:"creditLimit"`
-		AvailableCreditLimit *float64  `json:"availableCreditLimit"`
-		UpdatedAt            time.Time `json:"updatedAt"`
+		ID                   uuid.UUID          `json:"id"`
+		Type                 domain.AccountType `json:"type"`
+		Name                 string             `json:"name"`
+		Last4                string             `json:"last4"`
+		Balance              float64            `json:"balance"`
+		CreditLimit          *float64           `json:"creditLimit"`
+		AvailableCreditLimit *float64           `json:"availableCreditLimit"`
+		UpdatedAt            time.Time          `json:"updatedAt"`
 	}
 	out := make([]item, len(accounts))
 	for i, acc := range accounts {

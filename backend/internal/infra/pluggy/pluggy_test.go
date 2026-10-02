@@ -29,7 +29,7 @@ func cardInvoice() transaction {
 func TestToExternal(t *testing.T) {
 	cases := []struct {
 		name     string
-		account  string
+		account  domain.AccountType
 		tx       transaction
 		ok       bool
 		kind     domain.PurchaseKind

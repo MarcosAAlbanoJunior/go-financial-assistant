@@ -31,7 +31,7 @@ type ExternalTransaction struct {
 type ExternalAccount struct {
 	ID                   string
 	ItemID               string
-	Type                 string // "BANK" ou "CREDIT"
+	Type                 domain.AccountType
 	Name                 string
 	Last4                string
 	Balance              float64
