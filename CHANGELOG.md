@@ -4,6 +4,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [Não lançado]
 
+### Interno
+- **Refatoração de estrutura** (sem mudança de comportamento): `usecase` dividido em contextos (`ledger`, `openfinance`, `planning`, `review`, `coach`, `balances`, `insights`) com teste de dependências; `ports` só com interfaces e entidades em `domain`; um repositório de banco por contexto; `api.go` e `dashboard_queries.go` divididos; guardas de HTTP (`jsonOnly`, `decodeJSON`); `internal/app` monta o aplicativo (`main.go` com 26 linhas); `config.Load(overrides)` sem estado global; `domain.Clock`; `AccountType` tipado; golangci-lint, CI e CONTRIBUTING; frontend em `features/` e `shared/`; documentação em `docs/` (arquitetura, regras de cálculo, decisões, API).
+
 ### Adicionado
 - **Confirmação de senha** para mudar ou restaurar configurações sensíveis (segredos, Pluggy Client ID e Item IDs, ID do Telegram, dados do WhatsApp), com limite de tentativas erradas; **histórico de alterações** sem valores (`settings_audit`, migration `017_create_settings_audit.sql`) e **aviso no chat** quando algo sensível muda ou a senha é errada. `POST /api/settings/reset/{key}` substitui o `DELETE`.
 - `APP_SECRET_KEY_FILE`: chave mestra em arquivo (ex.: `./secrets/app_secret_key`, montado só leitura em `/run/secrets`), preferida à variável; `make secret-key` gera uma, sem sobrescrever a existente.
