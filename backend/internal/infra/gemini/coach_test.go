@@ -90,7 +90,14 @@ func TestParseCategorizeResponse(t *testing.T) {
 // O esquema só deixa a IA responder com as categorias que o app aceita sugerir.
 func TestCategorizeEnumMatchesAppCategories(t *testing.T) {
 	schema := categorizeSchema(CategorizeEnum)
-	enum := schema.Properties["sugestoes"].Items.Properties["categoria"].Enum
+	if schema.Properties["sugestoes"].MaxItems != nil {
+		t.Error("MaxItems neste esquema faz o Gemini responder 400")
+	}
+	field := schema.Properties["sugestoes"].Items.Properties["categoria"]
+	if field.Format != "enum" {
+		t.Errorf("o Gemini recusa (400) um enum de texto sem format \"enum\": %q", field.Format)
+	}
+	enum := field.Enum
 	if len(enum) != 9 || enum[0] != "FOOD" || enum[8] != "EDUCATION" {
 		t.Errorf("enum: %v", enum)
 	}
