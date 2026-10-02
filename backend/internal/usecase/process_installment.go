@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
@@ -48,7 +47,7 @@ func (uc *AnalyzeExpense) processInstallment(
 	purchase.InstallmentCount = &n
 	purchase.InstallmentAmount = &installmentAmount
 
-	now := time.Now().UTC()
+	now := uc.clock.Now().UTC()
 	payments := make([]domain.Payment, n)
 	for i := range n {
 		p := domain.NewPayment(purchase.ID, installmentAmount, domain.PaymentStatusPending)

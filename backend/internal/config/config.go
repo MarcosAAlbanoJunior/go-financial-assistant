@@ -66,77 +66,117 @@ type Config struct {
 
 func (c *Config) OpenFinanceEnabled() bool { return c.PluggyClientID != "" }
 
-func Load() (*Config, error) {
-
+// Load lê a configuração. Os valores de overrides (salvos na página de configurações) valem mais que o ambiente;
+// nil usa só o ambiente (e o .env, se existir).
+func Load(overrides map[string]string) (*Config, error) {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("erro ao carregar .env: %w", err)
 	}
 
+	l := &loader{overrides: overrides}
 	cfg := &Config{}
-	var errs []error
+	l.app(cfg)
+	l.digest(cfg)
+	l.channel(cfg)
+	l.openFinance(cfg)
 
-	portStr := getEnv("PORT", "8080")
+	if err := errors.Join(l.errs...); err != nil {
+		return nil, fmt.Errorf("configuração inválida:\n%w", err)
+	}
+	return cfg, nil
+}
+
+// loader lê cada variável (override > ambiente > padrão) e acumula os erros, para o usuário ver todos de uma vez.
+type loader struct {
+	overrides map[string]string
+	errs      []error
+}
+
+func (l *loader) get(key, defaultValue string) string {
+	if value, ok := l.overrides[key]; ok {
+		return value
+	}
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return defaultValue
+}
+
+func (l *loader) fail(format string, args ...any) {
+	l.errs = append(l.errs, fmt.Errorf(format, args...))
+}
+
+func (l *loader) require(key string) string {
+	value := l.get(key, "")
+	if value == "" {
+		l.fail("%s é obrigatória", key)
+	}
+	return value
+}
+
+// boolean lê um booleano com padrão; vazio vale o padrão.
+func (l *loader) boolean(key string, def bool) bool {
+	raw := strings.TrimSpace(l.get(key, ""))
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		l.fail("%s inválida: %q — use true ou false", key, raw)
+	}
+	return v
+}
+
+// app lê o que é do aplicativo em si: porta, banco, Gemini, dashboard.
+func (l *loader) app(cfg *Config) {
+	portStr := l.get("PORT", "8080")
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		errs = append(errs, fmt.Errorf("PORT inválida: %q — deve ser um número", portStr))
+		l.fail("PORT inválida: %q — deve ser um número", portStr)
 	}
 	cfg.Port = port
 
-	cfg.DatabaseURL = getEnv("DATABASE_URL", "")
+	cfg.DatabaseURL = l.get("DATABASE_URL", "")
 	if cfg.DatabaseURL == "" {
-		errs = append(errs, errors.New("DATABASE_URL é obrigatória"))
+		l.fail("DATABASE_URL é obrigatória")
 	}
-
-	cfg.GeminiAPIKey = getEnv("GEMINI_API_KEY", "")
+	cfg.GeminiAPIKey = l.get("GEMINI_API_KEY", "")
 	if cfg.GeminiAPIKey == "" {
-		errs = append(errs, errors.New("GEMINI_API_KEY é obrigatória"))
+		l.fail("GEMINI_API_KEY é obrigatória")
 	}
+	cfg.GeminiPaidPlan = l.boolean("GEMINI_PAID_PLAN", false)
+	cfg.CoachModel = strings.TrimSpace(l.get("COACH_GEMINI_MODEL", ""))
 
-	paid := strings.TrimSpace(getEnv("GEMINI_PAID_PLAN", ""))
-	if paid == "" {
-		paid = "false"
-	}
-	if cfg.GeminiPaidPlan, err = strconv.ParseBool(paid); err != nil {
-		errs = append(errs, fmt.Errorf("GEMINI_PAID_PLAN inválida: %q — use true ou false", paid))
-	}
-	cfg.CoachModel = strings.TrimSpace(getEnv("COACH_GEMINI_MODEL", ""))
-	loadDigest(cfg, &errs)
-
-	cfg.Channel = strings.ToLower(strings.TrimSpace(getEnv("CHANNEL", ChannelWhatsApp)))
-	cfg.AllowedNumbers = parseAllowedNumbers(getEnv("ALLOWED_NUMBERS", ""))
-	cfg.AdminSecret = getEnv("ADMIN_SECRET", "")
-	cfg.DashboardPassword = getEnv("DASHBOARD_PASSWORD", "")
+	cfg.AdminSecret = l.get("ADMIN_SECRET", "")
+	cfg.DashboardPassword = l.get("DASHBOARD_PASSWORD", "")
 	if cfg.DashboardPassword != "" && len(cfg.DashboardPassword) < minDashboardPasswordLen {
-		errs = append(errs, fmt.Errorf("DASHBOARD_PASSWORD muito curta: use ao menos %d caracteres", minDashboardPasswordLen))
+		l.fail("DASHBOARD_PASSWORD muito curta: use ao menos %d caracteres", minDashboardPasswordLen)
 	}
+}
+
+// channel lê o canal de conversa (WhatsApp ou Telegram) e exige só o que o canal escolhido usa.
+func (l *loader) channel(cfg *Config) {
+	cfg.Channel = strings.ToLower(strings.TrimSpace(l.get("CHANNEL", ChannelWhatsApp)))
+	cfg.AllowedNumbers = parseAllowedNumbers(l.get("ALLOWED_NUMBERS", ""))
 
 	switch cfg.Channel {
 	case ChannelWhatsApp:
-		cfg.EvolutionAPIURL = getEnv("EVOLUTION_API_URL", "http://evolution:8082")
-		cfg.EvolutionInstance = requireEnv("EVOLUTION_INSTANCE", &errs)
-		cfg.EvolutionAPIKey = requireEnv("EVOLUTION_API_KEY", &errs)
-		cfg.OwnerPhone = requireEnv("OWNER_PHONE", &errs)
+		cfg.EvolutionAPIURL = l.get("EVOLUTION_API_URL", "http://evolution:8082")
+		cfg.EvolutionInstance = l.require("EVOLUTION_INSTANCE")
+		cfg.EvolutionAPIKey = l.require("EVOLUTION_API_KEY")
+		cfg.OwnerPhone = l.require("OWNER_PHONE")
 	case ChannelTelegram:
-		cfg.TelegramBotToken = requireEnv("TELEGRAM_BOT_TOKEN", &errs)
-		chatIDStr := requireEnv("TELEGRAM_CHAT_ID", &errs)
-		if chatIDStr != "" {
-			chatID, err := strconv.ParseInt(chatIDStr, 10, 64)
+		cfg.TelegramBotToken = l.require("TELEGRAM_BOT_TOKEN")
+		if raw := l.require("TELEGRAM_CHAT_ID"); raw != "" {
+			chatID, err := strconv.ParseInt(raw, 10, 64)
 			if err != nil || chatID <= 0 {
-				errs = append(errs, errors.New("TELEGRAM_CHAT_ID inválido: deve ser o ID numérico da sua conta (use @userinfobot)"))
+				l.fail("TELEGRAM_CHAT_ID inválido: deve ser o ID numérico da sua conta (use @userinfobot)")
 			}
 			cfg.TelegramChatID = chatID
 		}
 	default:
-		errs = append(errs, fmt.Errorf("CHANNEL inválido: %q — use %q ou %q", cfg.Channel, ChannelWhatsApp, ChannelTelegram))
+		l.fail("CHANNEL inválido: %q — use %q ou %q", cfg.Channel, ChannelWhatsApp, ChannelTelegram)
 	}
-
-	loadOpenFinance(cfg, &errs)
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, fmt.Errorf("configuração inválida:\n%w", err)
-	}
-
-	return cfg, nil
 }
 
 var weekdays = map[string]time.Weekday{
@@ -144,57 +184,50 @@ var weekdays = map[string]time.Weekday{
 	"thursday": time.Thursday, "friday": time.Friday, "saturday": time.Saturday,
 }
 
-// loadDigest lê DIGEST_ENABLED (padrão true), DIGEST_WEEKDAY (monday..sunday, padrão monday), DIGEST_HOUR (0-23,
-// padrão 9) e DIGEST_TIMEZONE (padrão America/Sao_Paulo).
-func loadDigest(cfg *Config, errs *[]error) {
-	enabled := strings.TrimSpace(getEnv("DIGEST_ENABLED", ""))
-	if enabled == "" {
-		enabled = "true"
-	}
-	var err error
-	if cfg.DigestEnabled, err = strconv.ParseBool(enabled); err != nil {
-		*errs = append(*errs, fmt.Errorf("DIGEST_ENABLED inválida: %q — use true ou false", enabled))
-	}
+// digest lê DIGEST_ENABLED (padrão true), DIGEST_WEEKDAY (monday..sunday, padrão monday), DIGEST_HOUR (0-23, padrão 9) e
+// DIGEST_TIMEZONE (padrão America/Sao_Paulo).
+func (l *loader) digest(cfg *Config) {
+	cfg.DigestEnabled = l.boolean("DIGEST_ENABLED", true)
 
-	day := strings.ToLower(strings.TrimSpace(getEnv("DIGEST_WEEKDAY", "monday")))
+	day := strings.ToLower(strings.TrimSpace(l.get("DIGEST_WEEKDAY", "monday")))
 	if day == "" {
 		day = "monday"
 	}
 	weekday, ok := weekdays[day]
 	if !ok {
-		*errs = append(*errs, fmt.Errorf("DIGEST_WEEKDAY inválido: %q — use monday, tuesday, wednesday, thursday, friday, saturday ou sunday", day))
+		l.fail("DIGEST_WEEKDAY inválido: %q — use monday, tuesday, wednesday, thursday, friday, saturday ou sunday", day)
 	}
 	cfg.DigestWeekday = weekday
 
-	hourStr := strings.TrimSpace(getEnv("DIGEST_HOUR", "9"))
+	hourStr := strings.TrimSpace(l.get("DIGEST_HOUR", "9"))
 	if hourStr == "" {
 		hourStr = "9"
 	}
 	hour, err := strconv.Atoi(hourStr)
 	if err != nil || hour < 0 || hour > 23 {
-		*errs = append(*errs, fmt.Errorf("DIGEST_HOUR inválida: %q — use um inteiro de 0 a 23", hourStr))
+		l.fail("DIGEST_HOUR inválida: %q — use um inteiro de 0 a 23", hourStr)
 	}
 	cfg.DigestHour = hour
 
-	zone := strings.TrimSpace(getEnv("DIGEST_TIMEZONE", "America/Sao_Paulo"))
+	zone := strings.TrimSpace(l.get("DIGEST_TIMEZONE", "America/Sao_Paulo"))
 	if zone == "" {
 		zone = "America/Sao_Paulo"
 	}
 	if cfg.DigestLocation, err = time.LoadLocation(zone); err != nil {
-		*errs = append(*errs, fmt.Errorf("DIGEST_TIMEZONE inválido: %q", zone))
+		l.fail("DIGEST_TIMEZONE inválido: %q", zone)
 	}
 }
 
-func loadOpenFinance(cfg *Config, errs *[]error) {
-	cfg.PluggyClientID = getEnv("PLUGGY_CLIENT_ID", "")
-	cfg.PluggyClientSecret = getEnv("PLUGGY_CLIENT_SECRET", "")
-	itemsRaw := getEnv("PLUGGY_ITEM_IDS", "")
+// openFinance lê as credenciais do Pluggy (opcionais, mas só valem juntas), o intervalo e a janela da sincronização.
+func (l *loader) openFinance(cfg *Config) {
+	cfg.PluggyClientID = l.get("PLUGGY_CLIENT_ID", "")
+	cfg.PluggyClientSecret = l.get("PLUGGY_CLIENT_SECRET", "")
+	itemsRaw := l.get("PLUGGY_ITEM_IDS", "")
 	if cfg.PluggyClientID == "" && cfg.PluggyClientSecret == "" && itemsRaw == "" {
 		return
 	}
-
 	if cfg.PluggyClientID == "" || cfg.PluggyClientSecret == "" || itemsRaw == "" {
-		*errs = append(*errs, errors.New("configuração do Open Finance incompleta: PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET e PLUGGY_ITEM_IDS são obrigatórias juntas"))
+		l.fail("configuração do Open Finance incompleta: PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET e PLUGGY_ITEM_IDS são obrigatórias juntas")
 		return
 	}
 
@@ -204,44 +237,30 @@ func loadOpenFinance(cfg *Config, errs *[]error) {
 			continue
 		}
 		if _, err := uuid.Parse(id); err != nil {
-			*errs = append(*errs, fmt.Errorf("PLUGGY_ITEM_IDS contém um itemId inválido: %q (deve ser um UUID)", id))
+			l.fail("PLUGGY_ITEM_IDS contém um itemId inválido: %q (deve ser um UUID)", id)
 			continue
 		}
 		cfg.PluggyItemIDs = append(cfg.PluggyItemIDs, id)
 	}
 
-	for _, name := range strings.Split(getEnv("OWN_NAMES", ""), ",") {
+	for _, name := range strings.Split(l.get("OWN_NAMES", ""), ",") {
 		if name = strings.Join(strings.Fields(name), " "); name != "" {
 			cfg.OwnNames = append(cfg.OwnNames, name)
 		}
 	}
 
-	hours, err := strconv.Atoi(getEnv("SYNC_INTERVAL_HOURS", "6"))
+	hours, err := strconv.Atoi(l.get("SYNC_INTERVAL_HOURS", "6"))
 	if err != nil || hours < 1 {
-		*errs = append(*errs, errors.New("SYNC_INTERVAL_HOURS inválida: deve ser um inteiro >= 1"))
+		l.fail("SYNC_INTERVAL_HOURS inválida: deve ser um inteiro >= 1")
 	}
 	cfg.OpenFinanceSyncInterval = time.Duration(hours) * time.Hour
 
 	// O Pluggy só guarda os últimos 12 meses.
-	cfg.OpenFinanceLookbackDays, err = strconv.Atoi(getEnv("SYNC_LOOKBACK_DAYS", "60"))
+	cfg.OpenFinanceLookbackDays, err = strconv.Atoi(l.get("SYNC_LOOKBACK_DAYS", "60"))
 	if err != nil || cfg.OpenFinanceLookbackDays < 1 || cfg.OpenFinanceLookbackDays > 365 {
-		*errs = append(*errs, errors.New("SYNC_LOOKBACK_DAYS inválida: deve ser um inteiro entre 1 e 365"))
+		l.fail("SYNC_LOOKBACK_DAYS inválida: deve ser um inteiro entre 1 e 365")
 	}
 }
-
-func requireEnv(key string, errs *[]error) string {
-	value := getEnv(key, "")
-	if value == "" {
-		*errs = append(*errs, fmt.Errorf("%s é obrigatória", key))
-	}
-	return value
-}
-
-// overrides são os valores salvos na página de configurações: valem mais que o ambiente.
-var overrides map[string]string
-
-// SetOverrides define os valores salvos no dashboard, que Load usa antes do ambiente.
-func SetOverrides(values map[string]string) { overrides = values }
 
 // Bootstrap carrega o .env e devolve o que é preciso para abrir o banco e ler as configurações salvas.
 func Bootstrap() (databaseURL, secretKey string, err error) {
@@ -270,16 +289,6 @@ func ReadSecretKey(envValue, file string) (string, error) {
 		return "", errors.New("APP_SECRET_KEY_FILE está vazio")
 	}
 	return key, nil
-}
-
-func getEnv(key, defaultValue string) string {
-	if value, ok := overrides[key]; ok {
-		return value
-	}
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return defaultValue
 }
 
 func parseAllowedNumbers(raw string) map[string]struct{} {
