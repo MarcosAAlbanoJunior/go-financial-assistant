@@ -407,3 +407,16 @@ func (a *api) restart(w http.ResponseWriter, r *http.Request) {
 		a.settings.Restart()
 	}()
 }
+
+func (a *api) registerSettings(rt routes, deps *SettingsDeps) {
+	a.coach.paidFn = func() bool { return deps.Service.Bool("GEMINI_PAID_PLAN") }
+	a.confirmLimiter = newIPRateLimiter(8, time.Minute)
+	writeLimiter := newIPRateLimiter(30, time.Minute)
+	rt.mux.Handle("GET /api/settings", rt.protected(a.getSettings))
+	rt.mux.Handle("PUT /api/settings", writeLimiter.middleware(rt.protected(a.putSettings)))
+	rt.mux.Handle("POST /api/settings/reset/{key}", writeLimiter.middleware(rt.protected(a.resetSetting)))
+	rt.mux.Handle("GET /api/settings/audit", rt.protected(a.auditLog))
+	rt.mux.Handle("POST /api/settings/own-transfers/apply", writeLimiter.middleware(rt.protected(a.applyOwnTransfers)))
+	rt.mux.Handle("POST /api/settings/test/{target}", newIPRateLimiter(12, time.Minute).middleware(rt.protected(a.testConnection)))
+	rt.mux.Handle("POST /api/restart", newIPRateLimiter(3, time.Minute).middleware(rt.protected(a.restart)))
+}
