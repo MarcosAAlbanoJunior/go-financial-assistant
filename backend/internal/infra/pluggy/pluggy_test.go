@@ -20,6 +20,12 @@ func tx(typ, category string, amount float64) transaction {
 	return transaction{ID: "t1", Date: "2026-09-30T00:00:00.000Z", Description: "Loja", DescriptionRaw: "LOJA SP", Amount: amount, Category: category, Type: typ, Status: "POSTED"}
 }
 
+func cardInvoice() transaction {
+	x := tx("DEBIT", "Credit card payment", -900)
+	x.Description, x.DescriptionRaw = "Pagamento de fatura", "PAGAMENTO DE FATURA"
+	return x
+}
+
 func TestToExternal(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -37,7 +43,7 @@ func TestToExternal(t *testing.T) {
 		{"outra renda", "BANK", tx("CREDIT", "Transfer - PIX", 100), true, domain.KindIncome, domain.CategoryOther, 100},
 		{"aplicação", "BANK", tx("DEBIT", "Fixed income", -500), true, domain.KindTransfer, domain.CategoryInvestment, 500},
 		{"resgate", "BANK", tx("CREDIT", "Fixed income", 500), true, domain.KindTransfer, domain.CategoryInvestment, 500},
-		{"fatura do cartão", "BANK", tx("DEBIT", "Credit card payment", -900), false, "", "", 0},
+		{"fatura do cartão", "BANK", cardInvoice(), false, "", "", 0},
 		{"entre contas próprias", "BANK", tx("DEBIT", "Same person transfer - PIX", -200), false, "", "", 0},
 		{"compra no cartão (valor positivo)", "CREDIT", tx("DEBIT", "Shopping", 120), true, domain.KindExpense, domain.CategoryShopping, 120},
 		{"pagamento recebido no cartão", "CREDIT", tx("CREDIT", "", -900), false, "", "", 0},
@@ -56,6 +62,35 @@ func TestToExternal(t *testing.T) {
 				t.Errorf("got kind=%s cat=%s amount=%v", got.Kind, got.Category, got.Amount)
 			}
 		})
+	}
+}
+
+// O Pluggy rotula todo boleto como "Credit card payment". Fatura de cartão continua ignorada; boleto de financiamento e Pix QR
+// Code com essa categoria são despesa.
+func TestToExternal_CardPaymentCategoryOnlyIgnoresRealInvoices(t *testing.T) {
+	mk := func(desc string) transaction {
+		x := tx("DEBIT", "Credit card payment", -100)
+		x.Description, x.DescriptionRaw = desc, desc
+		return x
+	}
+	for desc, want := range map[string]bool{
+		"Pagamento de boleto BANCO C6 S.A.":        true, // financiamento: conta como despesa
+		"Pagamento de Pix QR Code PAGALEVE":        true,
+		"Pagamento de boleto INT ITAU MC":          false, // fatura do Itaú Mastercard
+		"Pagamento de fatura Fatura Paga It":       false,
+		"PAGAMENTO CARTAO CREDITO BCE   01/09":     false,
+		"Pagamento de boleto BANCO SANTANDER VISA": false,
+	} {
+		_, got := toExternal("BANK", mk(desc))
+		if got != want {
+			t.Errorf("%q: virou lançamento=%v, quer %v", desc, got, want)
+		}
+	}
+	// Fora da categoria, a descrição sozinha nunca descarta.
+	other := tx("DEBIT", "Shopping", -100)
+	other.Description = "COMPRA FATURA DE ENERGIA"
+	if _, ok := toExternal("BANK", other); !ok {
+		t.Error("sem a categoria de cartão, nada é descartado pela descrição")
 	}
 }
 
