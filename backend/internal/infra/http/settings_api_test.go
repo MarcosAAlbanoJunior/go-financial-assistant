@@ -31,6 +31,17 @@ func (m *memSettings) SaveSetting(_ context.Context, r settings.Row) error {
 }
 func (m *memSettings) DeleteSetting(_ context.Context, k string) error { delete(m.rows, k); return nil }
 
+type memAudit struct{ entries []settings.AuditEntry }
+
+func (m *memAudit) RecordAudit(_ context.Context, e settings.AuditEntry) error {
+	e.At = time.Now()
+	m.entries = append([]settings.AuditEntry{e}, m.entries...)
+	return nil
+}
+func (m *memAudit) RecentAudit(_ context.Context, limit int) ([]settings.AuditEntry, error) {
+	return m.entries[:min(limit, len(m.entries))], nil
+}
+
 type fakeCleaner struct {
 	cands     []ports.TransferCandidate
 	cancelled []uuid.UUID
@@ -52,6 +63,8 @@ type settingsEnv struct {
 	cookie  string
 	restart atomic.Int32
 	deps    *SettingsDeps
+	audit   *memAudit
+	notices []string
 }
 
 func newSettingsAPI(t *testing.T, secretKey string) (*settingsEnv, *Server) {
@@ -65,7 +78,7 @@ func newSettingsAPI(t *testing.T, secretKey string) (*settingsEnv, *Server) {
 	svc := settings.NewService(store, cipher, logger)
 	svc.Load(context.Background()) //nolint:errcheck
 
-	e := &settingsEnv{store: store, svc: svc, cleaner: &fakeCleaner{}}
+	e := &settingsEnv{store: store, svc: svc, cleaner: &fakeCleaner{}, audit: &memAudit{}}
 	e.deps = &SettingsDeps{
 		Service: svc, Channel: "telegram", Cleaner: e.cleaner,
 		PluggyCheck: func(_ context.Context, id, secret string, items []string) ([]pluggy.ItemCheck, error) {
@@ -91,6 +104,8 @@ func newSettingsAPI(t *testing.T, secretKey string) (*settingsEnv, *Server) {
 			return nil
 		},
 		Restart: func() { e.restart.Add(1) },
+		Audit:   e.audit,
+		Notify:  func(_ context.Context, text string) { e.notices = append(e.notices, text) },
 	}
 	s := NewServer(0, logger)
 	s.SetSettings(e.deps)
@@ -104,7 +119,7 @@ const goodKey = "uma-chave-mestra-de-teste"
 
 func TestSettingsAPI_RequiresSession(t *testing.T) {
 	_, s := newSettingsAPI(t, goodKey)
-	for _, p := range [][2]string{{"GET", "/api/settings"}, {"PUT", "/api/settings"}, {"DELETE", "/api/settings/DIGEST_HOUR"},
+	for _, p := range [][2]string{{"GET", "/api/settings"}, {"PUT", "/api/settings"}, {"POST", "/api/settings/reset/DIGEST_HOUR"}, {"GET", "/api/settings/audit"},
 		{"POST", "/api/settings/own-transfers/apply"}, {"POST", "/api/settings/test/pluggy"}, {"POST", "/api/restart"}} {
 		if rec := do(s, p[0], p[1], "{}", jsonHdr); rec.Code != 401 {
 			t.Errorf("%s %s sem sessão = %d", p[0], p[1], rec.Code)
@@ -141,7 +156,7 @@ func TestSettingsAPI_PutValidationAndSecrets(t *testing.T) {
 
 	for _, body := range []string{
 		`{"values":{"DIGEST_HOUR":"30"}}`, `{"values":{"NAO_EXISTE":"x"}}`, `{"values":{}}`, `nao-json`,
-		`{"values":{"DIGEST_HOUR":"8","PLUGGY_ITEM_IDS":"lixo"}}`,
+		`{"values":{"DIGEST_HOUR":"8","PLUGGY_ITEM_IDS":"lixo"},"password":"` + testPassword + `"}`,
 	} {
 		if rec := do(s, "PUT", "/api/settings", body, jsonHdr, c); rec.Code != 400 {
 			t.Errorf("%s = %d, quer 400: %s", body, rec.Code, rec.Body)
@@ -151,7 +166,7 @@ func TestSettingsAPI_PutValidationAndSecrets(t *testing.T) {
 		t.Errorf("lote recusado não grava nada: %v", e.store.rows)
 	}
 
-	rec := do(s, "PUT", "/api/settings", `{"values":{"DIGEST_HOUR":"8","PLUGGY_CLIENT_SECRET":"abc123"}}`, jsonHdr, c)
+	rec := do(s, "PUT", "/api/settings", `{"values":{"DIGEST_HOUR":"8","PLUGGY_CLIENT_SECRET":"abc123"},"password":"`+testPassword+`"}`, jsonHdr, c)
 	if rec.Code != 200 || strings.Contains(rec.Body.String(), "abc123") {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
@@ -172,8 +187,8 @@ func TestSettingsAPI_PutCSRFAndSecretsNeedKey(t *testing.T) {
 	if rec := do(s, "PUT", "/api/settings", `{"values":{"DIGEST_HOUR":"8"}}`, map[string]string{"Content-Type": "application/json", "Origin": "https://evil.example"}, c); rec.Code != 403 {
 		t.Errorf("cross-origin = %d", rec.Code)
 	}
-	if rec := do(s, "DELETE", "/api/settings/DIGEST_HOUR", "", map[string]string{"Origin": "https://evil.example"}, c); rec.Code != 403 {
-		t.Errorf("delete cross-origin = %d", rec.Code)
+	if rec := do(s, "POST", "/api/settings/reset/DIGEST_HOUR", "{}", map[string]string{"Content-Type": "application/json", "Origin": "https://evil.example"}, c); rec.Code != 403 {
+		t.Errorf("reset cross-origin = %d", rec.Code)
 	}
 	if len(e.store.rows) != 0 {
 		t.Error("requisições recusadas não gravam")
@@ -181,7 +196,7 @@ func TestSettingsAPI_PutCSRFAndSecretsNeedKey(t *testing.T) {
 
 	_, s2 := newSettingsAPI(t, "")
 	c2 := login(t, s2)
-	rec := do(s2, "PUT", "/api/settings", `{"values":{"GEMINI_API_KEY":"abc"}}`, jsonHdr, c2)
+	rec := do(s2, "PUT", "/api/settings", `{"values":{"GEMINI_API_KEY":"abc"},"password":"`+testPassword+`"}`, jsonHdr, c2)
 	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "APP_SECRET_KEY") {
 		t.Errorf("sem chave mestra: %d %s", rec.Code, rec.Body)
 	}
@@ -194,15 +209,15 @@ func TestSettingsAPI_ResetAndRestartPending(t *testing.T) {
 	e, s := newSettingsAPI(t, goodKey)
 	c := login(t, s)
 	e.svc.Set(context.Background(), map[string]string{"DIGEST_HOUR": "3"}) //nolint:errcheck
-	rec := do(s, "DELETE", "/api/settings/DIGEST_HOUR", "", nil, c)
+	rec := do(s, "POST", "/api/settings/reset/DIGEST_HOUR", "{}", jsonHdr, c)
 	if rec.Code != 200 || e.svc.Int("DIGEST_HOUR") != 9 {
 		t.Errorf("reset: %d %s hora=%d", rec.Code, rec.Body, e.svc.Int("DIGEST_HOUR"))
 	}
-	if rec := do(s, "DELETE", "/api/settings/NAO_EXISTE", "", nil, c); rec.Code != 404 {
+	if rec := do(s, "POST", "/api/settings/reset/NAO_EXISTE", "{}", jsonHdr, c); rec.Code != 404 {
 		t.Errorf("chave desconhecida = %d", rec.Code)
 	}
 
-	rec = do(s, "PUT", "/api/settings", `{"values":{"TELEGRAM_CHAT_ID":"999"}}`, jsonHdr, c)
+	rec = do(s, "PUT", "/api/settings", `{"values":{"TELEGRAM_CHAT_ID":"999"},"password":"`+testPassword+`"}`, jsonHdr, c)
 	if !strings.Contains(rec.Body.String(), `"restartPending":true`) {
 		t.Errorf("chat id só vale após reiniciar: %s", rec.Body)
 	}
@@ -336,5 +351,105 @@ func TestCoachService_PaidFollowsFunc(t *testing.T) {
 	paid = true
 	if !c.enabled() {
 		t.Error("deveria liberar quando a configuração mudar")
+	}
+}
+
+const withPW = `,"password":"` + testPassword + `"}`
+
+// Mexer no que é sensível exige a senha do dashboard de novo; uma sessão roubada não basta.
+func TestSettingsAPI_SensitiveNeedsPassword(t *testing.T) {
+	e, s := newSettingsAPI(t, goodKey)
+	c := login(t, s)
+
+	for _, key := range []string{"PLUGGY_CLIENT_SECRET", "PLUGGY_ITEM_IDS", "TELEGRAM_CHAT_ID"} { // as tentativas erradas têm limite
+		val := "abc123"
+		if key == "PLUGGY_ITEM_IDS" {
+			val = "592c8fdb-a1b3-495c-b2d6-ec9027cf386d"
+		}
+		if key == "TELEGRAM_CHAT_ID" {
+			val = "123"
+		}
+		bodies := []string{`{"values":{"` + key + `":"` + val + `"}}`}
+		if key == "PLUGGY_CLIENT_SECRET" {
+			bodies = append(bodies, `{"values":{"`+key+`":"`+val+`"},"password":"errada"}`)
+		}
+		for _, body := range bodies {
+			rec := do(s, "PUT", "/api/settings", body, jsonHdr, c)
+			if rec.Code != 403 || !strings.Contains(rec.Body.String(), "senha incorreta") {
+				t.Errorf("%s: %d %s", key, rec.Code, rec.Body)
+			}
+		}
+	}
+	if len(e.store.rows) != 0 {
+		t.Fatalf("sem a senha nada é gravado: %v", e.store.rows)
+	}
+
+	// Configuração comum não pede senha, mesmo no mesmo lote só se nenhuma chave for sensível.
+	if rec := do(s, "PUT", "/api/settings", `{"values":{"DIGEST_HOUR":"8"}}`, jsonHdr, c); rec.Code != 200 {
+		t.Errorf("comum sem senha = %d", rec.Code)
+	}
+	if rec := do(s, "PUT", "/api/settings", `{"values":{"DIGEST_HOUR":"7","PLUGGY_CLIENT_SECRET":"x1"}}`, jsonHdr, c); rec.Code != 403 || e.svc.Int("DIGEST_HOUR") != 8 {
+		t.Errorf("uma chave sensível no lote exige a senha para o lote todo: %d", rec.Code)
+	}
+
+	rec := do(s, "PUT", "/api/settings", `{"values":{"PLUGGY_CLIENT_SECRET":"abc123"}`+withPW, jsonHdr, c)
+	if rec.Code != 200 || e.svc.Get("PLUGGY_CLIENT_SECRET") != "abc123" {
+		t.Fatalf("com a senha certa: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestSettingsAPI_ResetSensitiveNeedsPassword(t *testing.T) {
+	e, s := newSettingsAPI(t, goodKey)
+	c := login(t, s)
+	e.svc.Set(context.Background(), map[string]string{"PLUGGY_CLIENT_SECRET": "abc123"}) //nolint:errcheck
+
+	if rec := do(s, "POST", "/api/settings/reset/PLUGGY_CLIENT_SECRET", `{"password":"errada"}`, jsonHdr, c); rec.Code != 403 || e.svc.Get("PLUGGY_CLIENT_SECRET") == "" {
+		t.Errorf("restaurar segredo exige a senha: %d", rec.Code)
+	}
+	if rec := do(s, "POST", "/api/settings/reset/PLUGGY_CLIENT_SECRET", `{"password":"`+testPassword+`"}`, jsonHdr, c); rec.Code != 200 || e.svc.Get("PLUGGY_CLIENT_SECRET") != "" {
+		t.Errorf("com a senha: %d", rec.Code)
+	}
+	e.svc.Set(context.Background(), map[string]string{"DIGEST_HOUR": "3"}) //nolint:errcheck
+	if rec := do(s, "POST", "/api/settings/reset/DIGEST_HOUR", "{}", jsonHdr, c); rec.Code != 200 {
+		t.Errorf("restaurar o que é comum não pede senha: %d", rec.Code)
+	}
+}
+
+func TestSettingsAPI_AuditAndNotice(t *testing.T) {
+	e, s := newSettingsAPI(t, goodKey)
+	c := login(t, s)
+
+	do(s, "PUT", "/api/settings", `{"values":{"DIGEST_HOUR":"8"}}`, jsonHdr, c)
+	if len(e.notices) != 0 {
+		t.Errorf("mudança comum não avisa no chat: %v", e.notices)
+	}
+	do(s, "PUT", "/api/settings", `{"values":{"TELEGRAM_BOT_TOKEN":"tok-super-secreto"}`+withPW, jsonHdr, c)
+	if len(e.notices) != 1 || !strings.Contains(e.notices[0], "Token do bot") || strings.Contains(e.notices[0], "tok-super-secreto") {
+		t.Fatalf("aviso sobre o que mudou, sem o valor: %v", e.notices)
+	}
+
+	rec := do(s, "GET", "/api/settings/audit", "", nil, c)
+	body := rec.Body.String()
+	if rec.Code != 200 || !strings.Contains(body, `"key":"TELEGRAM_BOT_TOKEN"`) || !strings.Contains(body, `"sensitive":true`) || !strings.Contains(body, `"label":"Token do bot"`) {
+		t.Fatalf("histórico: %d %s", rec.Code, body)
+	}
+	if strings.Contains(body, "tok-super-secreto") {
+		t.Fatal("o histórico nunca guarda valores")
+	}
+}
+
+func TestSettingsAPI_WrongPasswordNoticeIsThrottledAndLimited(t *testing.T) {
+	e, s := newSettingsAPI(t, goodKey)
+	c := login(t, s)
+	bad := `{"values":{"PLUGGY_CLIENT_SECRET":"x"},"password":"errada"}`
+	var last int
+	for i := 0; i < 10; i++ {
+		last = do(s, "PUT", "/api/settings", bad, jsonHdr, c).Code
+	}
+	if len(e.notices) != 1 || !strings.Contains(e.notices[0], "errou a senha") {
+		t.Errorf("um aviso só por janela, got %d: %v", len(e.notices), e.notices)
+	}
+	if last != 429 {
+		t.Errorf("tentativas de senha têm limite, último = %d", last)
 	}
 }
