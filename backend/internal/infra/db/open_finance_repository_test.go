@@ -9,6 +9,7 @@ import (
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/settings"
 	"github.com/google/uuid"
 )
 
@@ -389,5 +390,105 @@ func TestRefreshExternal_MovesInstallmentDate(t *testing.T) {
 	pg.Pool.QueryRow(ctx, `SELECT due_date FROM payments WHERE external_id = 'of-test-parcela'`).Scan(&due) //nolint:errcheck
 	if due.Format("2006-01-02") != "2026-09-05" {
 		t.Errorf("só parcela é movida: %v", due)
+	}
+}
+
+func TestSettingsStore_RoundTrip(t *testing.T) {
+	_, pg := newTestRepo(t)
+	ctx := context.Background()
+	st := NewSettingsStore(pg)
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM settings WHERE key = 'DIGEST_HOUR'`) })
+
+	if err := st.SaveSetting(ctx, settings.Row{Key: "DIGEST_HOUR", Value: "7"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SaveSetting(ctx, settings.Row{Key: "DIGEST_HOUR", Value: "8", Secret: true}); err != nil { // atualiza no lugar
+		t.Fatal(err)
+	}
+	rows, err := st.LoadSettings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found int
+	for _, r := range rows {
+		if r.Key == "DIGEST_HOUR" {
+			found++
+			if r.Value != "8" || !r.Secret {
+				t.Errorf("linha: %+v", r)
+			}
+		}
+	}
+	if found != 1 {
+		t.Errorf("a chave não pode duplicar: %d", found)
+	}
+	if err := st.SaveSetting(ctx, settings.Row{Key: "chave minuscula", Value: "x"}); err == nil {
+		t.Error("o banco recusa chaves fora do padrão")
+	}
+	if err := st.DeleteSetting(ctx, "DIGEST_HOUR"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOwnTransferCandidatesAndCancel(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	acc, err := repo.UpsertAccount(ctx, ports.ExternalAccount{ID: "of-test-own-acc", ItemID: "of-test", Type: "BANK", Name: "Conta"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM accounts WHERE external_id = 'of-test-own-acc'`) })
+
+	mk := func(extID, desc string, kind domain.PurchaseKind) *domain.Purchase {
+		var p *domain.Purchase
+		var err error
+		if kind == domain.KindIncome {
+			p, err = domain.NewIncome(10, &desc, domain.CategoryOther, domain.PaymentMethodPix, domain.PurchaseTypeSingle, "raw")
+		} else {
+			p, err = domain.NewPurchase(10, &desc, domain.CategoryOther, domain.PaymentMethodPix, domain.PurchaseTypeSingle, "raw")
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		day := time.Date(1999, 3, 1, 0, 0, 0, 0, time.UTC)
+		pay := domain.NewPayment(p.ID, 10, domain.PaymentStatusPaid)
+		pay.DueDate, pay.PaidAt, pay.ExternalID, pay.AccountID = &day, &day, &extID, &acc
+		if err := repo.SaveExternal(ctx, p, pay); err != nil {
+			t.Fatal(err)
+		}
+		cleanup(t, pg, p)
+		return p
+	}
+	mk("of-own-1", "Pix enviado ZZ PESSOA TESTE", domain.KindExpense)
+	mk("of-own-2", "Pix recebido ZZ PESSOA TESTE", domain.KindIncome)
+	mk("of-own-3", "Compra débito PADARIA ZZ", domain.KindExpense) // não é transferência
+
+	cands, err := repo.OwnTransferCandidates(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []uuid.UUID
+	for _, c := range cands {
+		if strings.Contains(c.Description, "ZZ PESSOA TESTE") {
+			ids = append(ids, c.PaymentID)
+		}
+		if strings.Contains(c.Description, "PADARIA ZZ") {
+			t.Error("compra comum não é candidata")
+		}
+	}
+	if len(ids) != 2 {
+		t.Fatalf("esperava 2 candidatas, got %d", len(ids))
+	}
+	n, err := repo.CancelPayments(ctx, ids)
+	if err != nil || n != 2 {
+		t.Fatalf("cancelados %d, %v", n, err)
+	}
+	if again, _ := repo.CancelPayments(ctx, ids); again != 0 {
+		t.Errorf("cancelar de novo não muda nada: %d", again)
+	}
+	after, _ := repo.OwnTransferCandidates(ctx)
+	for _, c := range after {
+		if strings.Contains(c.Description, "ZZ PESSOA TESTE") {
+			t.Error("cancelada não é mais candidata")
+		}
 	}
 }

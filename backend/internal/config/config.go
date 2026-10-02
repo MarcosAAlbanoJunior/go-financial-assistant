@@ -237,7 +237,24 @@ func requireEnv(key string, errs *[]error) string {
 	return value
 }
 
+// overrides são os valores salvos na página de configurações: valem mais que o ambiente.
+var overrides map[string]string
+
+// SetOverrides define os valores salvos no dashboard, que Load usa antes do ambiente.
+func SetOverrides(values map[string]string) { overrides = values }
+
+// Bootstrap carrega o .env e devolve o que é preciso para abrir o banco e ler as configurações salvas.
+func Bootstrap() (databaseURL, secretKey string, err error) {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		return "", "", fmt.Errorf("erro ao carregar .env: %w", err)
+	}
+	return os.Getenv("DATABASE_URL"), os.Getenv("APP_SECRET_KEY"), nil
+}
+
 func getEnv(key, defaultValue string) string {
+	if value, ok := overrides[key]; ok {
+		return value
+	}
 	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
