@@ -5,8 +5,9 @@ import (
 	"regexp"
 	"slices"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 // review: matriz categoria x mês e sugestões de corte do mês, calculadas pelos detectores (sem IA).
@@ -80,7 +81,7 @@ func (a *api) setDismissal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
-	if !slices.Contains(usecase.ReviewKinds, body.Kind) {
+	if !slices.Contains(review.ReviewKinds, body.Kind) {
 		writeError(w, http.StatusBadRequest, "kind inválido")
 		return
 	}

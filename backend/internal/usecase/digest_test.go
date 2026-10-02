@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -41,14 +43,14 @@ func TestFormatDigest(t *testing.T) {
 	over := 930.0
 	noFit := false
 	surplus := 800.0
-	review := Review{Candidates: []Candidate{
-		{Kind: ReviewDuplicate, Label: "OFICINA (1/3)", Count: 2, Amount: 250},
-		{Kind: ReviewNew, Label: "Curso A", Amount: 120},
-		{Kind: ReviewNew, Label: "Curso B", Amount: 90},
-		{Kind: ReviewNew, Label: "Curso C", Amount: 80},
-		{Kind: ReviewNew, Label: "Curso D", Amount: 70}, // o quarto fica de fora
-		{Kind: ReviewDuplicate, Label: "Dispensada", Count: 2, Amount: 10, Dismissed: true},
-		{Kind: ReviewFixed, Label: "Streaming", Amount: 40, Recurring: true}, // fixa não é alerta
+	rv := review.Review{Candidates: []review.Candidate{
+		{Kind: review.ReviewDuplicate, Label: "OFICINA (1/3)", Count: 2, Amount: 250},
+		{Kind: review.ReviewNew, Label: "Curso A", Amount: 120},
+		{Kind: review.ReviewNew, Label: "Curso B", Amount: 90},
+		{Kind: review.ReviewNew, Label: "Curso C", Amount: 80},
+		{Kind: review.ReviewNew, Label: "Curso D", Amount: 70}, // o quarto fica de fora
+		{Kind: review.ReviewDuplicate, Label: "Dispensada", Count: 2, Amount: 10, Dismissed: true},
+		{Kind: review.ReviewFixed, Label: "Streaming", Amount: 40, Recurring: true}, // fixa não é alerta
 	}}
 	goals := []planning.GoalProgress{
 		{Goal: domain.Goal{Kind: domain.GoalCut, Name: "Comida"}, Current: 300, Target: 800, Projected: &over},
@@ -56,11 +58,11 @@ func TestFormatDigest(t *testing.T) {
 		{Goal: domain.Goal{Kind: domain.GoalCut, Name: "Calma"}, Current: 100, Target: 800},
 		{Goal: domain.Goal{Kind: domain.GoalSave, Name: "Viagem"}, PerMonth: 2000, Surplus: &surplus, Fits: &noFit},
 	}
-	savings := []DecisionResult{
-		{Decision: domain.Decision{Label: "Academia", Monthly: 99}, Status: SavingReturned, Returned: 99},
-		{Decision: domain.Decision{Label: "Streaming", Monthly: 40}, Status: SavingConfirmed, MonthsConfirmed: 3, Realized: 120},
+	savings := []review.DecisionResult{
+		{Decision: domain.Decision{Label: "Academia", Monthly: 99}, Status: review.SavingReturned, Returned: 99},
+		{Decision: domain.Decision{Label: "Streaming", Monthly: 40}, Status: review.SavingConfirmed, MonthsConfirmed: 3, Realized: 120},
 	}
-	text := FormatDigest(today, domain.MonthTotals{Income: 5000, Expense: 1433.63}, review, goals, savings)
+	text := FormatDigest(today, domain.MonthTotals{Income: 5000, Expense: 1433.63}, rv, goals, savings)
 
 	for _, want := range []string{
 		"Resumo semanal — 12/10/2026", "despesas R$ 1.433,63 · receitas R$ 5.000,00", "Economia realizada com o que você cancelou: R$ 120,00 (R$ 40,00 por mês).",
@@ -84,16 +86,16 @@ func TestFormatDigest(t *testing.T) {
 
 func TestFormatDigest_QuietWeekAndLimits(t *testing.T) {
 	today := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
-	quiet := FormatDigest(today, domain.MonthTotals{}, Review{}, nil, nil)
+	quiet := FormatDigest(today, domain.MonthTotals{}, review.Review{}, nil, nil)
 	if !strings.Contains(quiet, "Sem alertas esta semana.") || strings.Contains(quiet, "Economia realizada") {
 		t.Errorf("semana tranquila: %s", quiet)
 	}
 
-	var dups []Candidate
+	var dups []review.Candidate
 	for i := 0; i < 30; i++ {
-		dups = append(dups, Candidate{Kind: ReviewDuplicate, Label: strings.Repeat("x", 100), Count: 2, Amount: 10})
+		dups = append(dups, review.Candidate{Kind: review.ReviewDuplicate, Label: strings.Repeat("x", 100), Count: 2, Amount: 10})
 	}
-	long := FormatDigest(today, domain.MonthTotals{}, Review{Candidates: dups}, nil, nil)
+	long := FormatDigest(today, domain.MonthTotals{}, review.Review{Candidates: dups}, nil, nil)
 	if n := strings.Count(long, "•"); n != maxDigestAlerts || len([]rune(long)) > 4000 {
 		t.Errorf("limite de alertas e de tamanho (Telegram aceita 4096): %d alertas, %d caracteres", n, len([]rune(long)))
 	}

@@ -5,13 +5,14 @@ import (
 	"slices"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 // decisionKinds são os tipos que aceitam "cancelei": os que já provaram se repetir todo mês. Conta nova e
 // duplicata podem ser compras avulsas, e contar a sua ausência como economia seria enganoso.
-var decisionKinds = []string{usecase.ReviewFixed, usecase.ReviewAnt}
+var decisionKinds = []string{review.ReviewFixed, review.ReviewAnt}
 
 // savings: a economia já realizada pelas contas que a pessoa disse ter cancelado, conferida mês a mês.
 func (a *api) savings(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +39,7 @@ func (a *api) savings(w http.ResponseWriter, r *http.Request) {
 		d := res.Decision
 		out[i] = decision{d.Kind, d.Key, d.Label, d.Category, domain.Category(d.Category).Label(), formatMonth(d.Month), d.Monthly, res.Status, res.MonthsConfirmed, res.Realized, res.Returned}
 	}
-	realized, perMonth := usecase.SavingsTotals(results)
+	realized, perMonth := review.SavingsTotals(results)
 	writeJSON(w, http.StatusOK, map[string]any{"realized": realized, "perMonth": perMonth, "perYear": perMonth * 12, "decisions": out})
 }
 
@@ -84,7 +85,7 @@ func (a *api) setDecision(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, "decisão", err)
 		return
 	}
-	i := slices.IndexFunc(rev.Candidates, func(c usecase.Candidate) bool { return c.Kind == body.Kind && c.Key == body.Key })
+	i := slices.IndexFunc(rev.Candidates, func(c review.Candidate) bool { return c.Kind == body.Kind && c.Key == body.Key })
 	if i < 0 || rev.Candidates[i].Amount <= 0 {
 		writeError(w, http.StatusNotFound, "sugestão não encontrada neste mês")
 		return
