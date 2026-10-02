@@ -30,6 +30,8 @@ type fakeReader struct {
 	known          map[string]time.Time
 	ruleClass      ports.ExpenseClass
 	catMonths      []ports.CategoryMonth
+	catFrom        time.Time
+	payFrom        time.Time
 	payments       []ports.ExpensePayment
 	dismissed      []ports.Dismissal
 	setDismissed   ports.Dismissal
@@ -96,10 +98,11 @@ func (f *fakeReader) SetExpenseRule(_ context.Context, key string, class ports.E
 	return f.err
 }
 func (f *fakeReader) CategoryMonths(_ context.Context, from, to time.Time) ([]ports.CategoryMonth, error) {
-	f.from, f.to = from, to
+	f.catFrom = from
 	return f.catMonths, f.err
 }
-func (f *fakeReader) ExpensePayments(context.Context, time.Time, time.Time) ([]ports.ExpensePayment, error) {
+func (f *fakeReader) ExpensePayments(_ context.Context, from, _ time.Time) ([]ports.ExpensePayment, error) {
+	f.payFrom = from
 	return f.payments, f.err
 }
 func (f *fakeReader) Dismissals(context.Context) ([]ports.Dismissal, error) {
@@ -522,6 +525,84 @@ func TestAPI_SetExpenseRule(t *testing.T) {
 		}
 	}
 	if rec := do(s, "PUT", "/api/expense-rules", `{"key":"netflix","class":"FIXED"}`, json); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
+	}
+}
+
+func TestAPI_Review(t *testing.T) {
+	r := &fakeReader{
+		catMonths: []ports.CategoryMonth{
+			{Category: "FOOD", Month: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Total: 300},
+			{Category: "FOOD", Month: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), Total: 500},
+		},
+		payments: []ports.ExpensePayment{
+			{Key: "netflix", Label: "NETFLIX", Category: "ENTERTAINMENT", PaymentMethod: "CREDIT_CARD", Date: time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC), Amount: 44.9},
+			{Key: "netflix", Label: "NETFLIX", Category: "ENTERTAINMENT", PaymentMethod: "CREDIT_CARD", Date: time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC), Amount: 44.9},
+		},
+		dismissed: []ports.Dismissal{{Kind: "FIXED", Key: "netflix"}},
+	}
+	s := newTestAPI(t, r)
+	c := login(t, s)
+
+	rec := do(s, "GET", "/api/review?month=2026-11", "", nil, c)
+	body := rec.Body.String()
+	if rec.Code != 200 || r.catFrom.Format("2006-01") != "2026-06" || r.payFrom.Format("2006-01") != "2026-11" {
+		t.Fatalf("matriz de 6 meses e despesas só do mês pedido: %d %s catFrom=%v payFrom=%v", rec.Code, body, r.catFrom, r.payFrom)
+	}
+	for _, want := range []string{
+		`"months":["2026-06"`, `"categoryLabel":"Alimentação"`, `"values":[0,0,0,0,300,500]`,
+		`"kind":"INCREASE"`, `"baseline":300`, // +200 sobre a média do mês anterior
+		`"kind":"FIXED"`, `"dismissed":true`, `"annual":538.8`,
+		`"kind":"DUPLICATE"`, `"annual":null`, `"count":2`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("falta %s em %s", want, body)
+		}
+	}
+	if rec := do(s, "GET", "/api/review", "", nil, c); rec.Code != 400 {
+		t.Errorf("sem mês = %d", rec.Code)
+	}
+	if rec := do(s, "GET", "/api/review?month=2026-11", "", nil); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
+	}
+	r.err = errors.New("falha")
+	if rec := do(s, "GET", "/api/review?month=2026-11", "", nil, c); rec.Code != 500 || strings.Contains(rec.Body.String(), "falha") {
+		t.Errorf("erro interno não vaza detalhe: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAPI_SetDismissal(t *testing.T) {
+	r := &fakeReader{}
+	s := newTestAPI(t, r)
+	c := login(t, s)
+	json := map[string]string{"Content-Type": "application/json"}
+
+	if rec := do(s, "PUT", "/api/review-dismissals", `{"kind":"ANT","key":"padaria","dismissed":true}`, json, c); rec.Code != 200 || r.setDismissed != (ports.Dismissal{Kind: "ANT", Key: "padaria"}) || !r.setDismissedTo {
+		t.Errorf("dispensar: %d %+v %v", rec.Code, r.setDismissed, r.setDismissedTo)
+	}
+	if rec := do(s, "PUT", "/api/review-dismissals", `{"kind":"INCREASE","key":"FOOD","dismissed":false}`, json, c); rec.Code != 200 || r.setDismissedTo {
+		t.Errorf("restaurar (chave de categoria): %d %v", rec.Code, r.setDismissedTo)
+	}
+
+	for name, tc := range map[string]struct {
+		body string
+		hdr  map[string]string
+		want int
+	}{
+		"tipo inválido":    {`{"kind":"OUTRO","key":"padaria","dismissed":true}`, json, 400},
+		"chave com SQL":    {`{"kind":"ANT","key":"x'; drop table payments;--","dismissed":true}`, json, 400},
+		"chave vazia":      {`{"kind":"ANT","key":"","dismissed":true}`, json, 400},
+		"chave longa":      {`{"kind":"ANT","key":"` + strings.Repeat("a", 121) + `","dismissed":true}`, json, 400},
+		"sem dismissed":    {`{"kind":"ANT","key":"padaria"}`, json, 400},
+		"corpo inválido":   {`nao-json`, json, 400},
+		"form (CSRF)":      {`kind=ANT&key=padaria&dismissed=true`, map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, 403},
+		"origem diferente": {`{"kind":"ANT","key":"padaria","dismissed":true}`, map[string]string{"Content-Type": "application/json", "Origin": "https://evil.example"}, 403},
+	} {
+		if rec := do(s, "PUT", "/api/review-dismissals", tc.body, tc.hdr, c); rec.Code != tc.want {
+			t.Errorf("%s: %d, esperava %d", name, rec.Code, tc.want)
+		}
+	}
+	if rec := do(s, "PUT", "/api/review-dismissals", `{"kind":"ANT","key":"padaria","dismissed":true}`, json); rec.Code != 401 {
 		t.Errorf("sem sessão = %d", rec.Code)
 	}
 }
