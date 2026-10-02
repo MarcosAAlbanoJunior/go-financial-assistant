@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Budget, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Budget, CoachPreview, CoachResult, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -135,3 +135,18 @@ export const createGoal = (input: GoalInput) =>
   })
 
 export const deleteGoal = (id: string) => request(`/api/goals/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+/** Só lê: mostra o que o Coach enviaria, sem enviar nada. */
+export const useCoachPreview = (month: string) =>
+  useQuery({
+    queryKey: ['coach-preview', month],
+    queryFn: () => request<CoachPreview>(`/api/coach/preview?month=${month}`),
+  })
+
+/** Envia ao Gemini o contexto da prévia (o hash garante que é o que a pessoa viu). */
+export const analyzeCoach = (month: string, hash: string) =>
+  request<CoachResult>('/api/coach/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ month, hash }),
+  })

@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeftRight,
+  Bot,
   Calculator,
   ChartPie,
   GitCompareArrows,
@@ -45,6 +46,7 @@ const SECTIONS: { title?: string; items: Item[] }[] = [
     items: [
       { to: '/revisao', label: 'Revisão', Icon: ScanSearch },
       { to: '/metas', label: 'Metas', Icon: Target },
+      { to: '/coach', label: 'Coach', Icon: Bot },
       { to: '/projecao', label: 'Projeção', Icon: Calculator },
       { to: '/comparacoes', label: 'Comparações', Icon: GitCompareArrows },
     ],
