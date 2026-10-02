@@ -249,7 +249,6 @@ export interface CoachPreview {
   bytes: number
   /** Identifica o contexto exibido: a análise só envia se ele ainda for o mesmo. */
   hash: string
-  callsLeft: number
   context: CoachContext
 }
 
@@ -276,5 +275,4 @@ export interface CoachResult {
   actions: CoachAction[]
   goals: { goalId: string; name: string; comment: string }[]
   questions: string[]
-  callsLeft: number
 }
