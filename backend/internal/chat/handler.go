@@ -38,7 +38,8 @@ type Handler struct {
 	owner          string
 	logger         *slog.Logger
 
-	syncer Syncer // nil quando o Open Finance não está configurado
+	syncer   Syncer   // nil quando o Open Finance não está configurado
+	digester Digester // nil sem o resumo semanal
 
 	mu      sync.Mutex
 	pending *pendingImportSession
@@ -72,6 +73,11 @@ func (h *Handler) Handle(ctx context.Context, msg Message) (*usecase.ExpenseOutp
 
 	if isSyncCommand(msg.Text) {
 		h.handleSync(ctx)
+		return nil, nil
+	}
+
+	if isDigestCommand(msg.Text) {
+		h.handleDigest(ctx)
 		return nil, nil
 	}
 

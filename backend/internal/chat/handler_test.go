@@ -294,3 +294,56 @@ func TestHandle_SyncCommand_Errors(t *testing.T) {
 		t.Errorf("deve avisar da falha sem expor detalhes: %q", last)
 	}
 }
+
+type mockDigester struct {
+	text string
+	err  error
+	n    int
+}
+
+func (m *mockDigester) WeeklyDigest(context.Context, time.Time) (string, error) {
+	m.n++
+	return m.text, m.err
+}
+
+func TestHandle_DigestCommand(t *testing.T) {
+	for _, cmd := range []string{"/resumo", "Resumo semanal", "  /RESUMO "} {
+		a := &mockAnalyzer{}
+		h, msgr := newTestHandler(a, &mockExporter{})
+		d := &mockDigester{text: "Resumo semanal — 12/10/2026"}
+		h.SetDigester(d)
+		if out, err := h.Handle(context.Background(), Message{Text: cmd}); out != nil || err != nil {
+			t.Fatalf("%q: esperava (nil, nil), got %v, %v", cmd, out, err)
+		}
+		if d.n != 1 || a.textSeen != "" || msgr.texts[len(msgr.texts)-1] != d.text {
+			t.Errorf("%q: deveria responder o resumo sem passar pelo Gemini (resumos=%d, texto=%q, respostas=%v)", cmd, d.n, a.textSeen, msgr.texts)
+		}
+	}
+}
+
+func TestHandle_DigestCommand_NotAvailableAndErrors(t *testing.T) {
+	h, msgr := newTestHandler(&mockAnalyzer{}, &mockExporter{})
+	h.Handle(context.Background(), Message{Text: "/resumo"})
+	if len(msgr.texts) != 1 || !strings.Contains(msgr.texts[0], "não está disponível") {
+		t.Errorf("sem resumo configurado: %v", msgr.texts)
+	}
+
+	h, msgr = newTestHandler(&mockAnalyzer{}, &mockExporter{})
+	h.SetDigester(&mockDigester{err: errors.New("banco: senha errada")})
+	h.Handle(context.Background(), Message{Text: "/resumo"})
+	if last := msgr.texts[len(msgr.texts)-1]; !strings.Contains(last, "Não consegui") || strings.Contains(last, "senha") {
+		t.Errorf("erro sem detalhes internos: %q", last)
+	}
+}
+
+// "resumo do mês" continua sendo uma pergunta ao assistente, não o comando.
+func TestHandle_SummaryQuestionStillGoesToAssistant(t *testing.T) {
+	a := &mockAnalyzer{}
+	h, _ := newTestHandler(a, &mockExporter{})
+	d := &mockDigester{}
+	h.SetDigester(d)
+	h.Handle(context.Background(), Message{Text: "resumo do mês"})
+	if d.n != 0 || a.textSeen != "resumo do mês" {
+		t.Errorf("resumos=%d texto=%q", d.n, a.textSeen)
+	}
+}

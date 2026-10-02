@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 )
 
 func setEnv(t *testing.T, vars map[string]string) {
@@ -386,6 +387,44 @@ func TestLoad_CoachSettings(t *testing.T) {
 			}
 			if err == nil && (cfg.GeminiPaidPlan != tc.want || cfg.CoachModel != tc.model) {
 				t.Errorf("cfg = %v %q", cfg.GeminiPaidPlan, cfg.CoachModel)
+			}
+		})
+	}
+}
+
+func TestLoad_DigestSettings(t *testing.T) {
+	for name, tc := range map[string]struct {
+		env     map[string]string
+		wantErr bool
+		check   func(*Config) bool
+	}{
+		"padrões": {map[string]string{}, false, func(c *Config) bool {
+			return c.DigestEnabled && c.DigestWeekday == time.Monday && c.DigestHour == 9 && c.DigestLocation.String() == "America/Sao_Paulo"
+		}},
+		"personalizado": {map[string]string{"DIGEST_ENABLED": "false", "DIGEST_WEEKDAY": " Friday ", "DIGEST_HOUR": "18", "DIGEST_TIMEZONE": "UTC"}, false, func(c *Config) bool {
+			return !c.DigestEnabled && c.DigestWeekday == time.Friday && c.DigestHour == 18 && c.DigestLocation.String() == "UTC"
+		}},
+		"valores vazios usam o padrão": {map[string]string{"DIGEST_ENABLED": "", "DIGEST_WEEKDAY": "", "DIGEST_HOUR": "", "DIGEST_TIMEZONE": ""}, false, func(c *Config) bool {
+			return c.DigestEnabled && c.DigestWeekday == time.Monday && c.DigestHour == 9
+		}},
+		"dia inválido":     {map[string]string{"DIGEST_WEEKDAY": "segundona"}, true, nil},
+		"hora inválida":    {map[string]string{"DIGEST_HOUR": "24"}, true, nil},
+		"hora não número":  {map[string]string{"DIGEST_HOUR": "nove"}, true, nil},
+		"fuso inválido":    {map[string]string{"DIGEST_TIMEZONE": "Marte/Olimpo"}, true, nil},
+		"enabled inválido": {map[string]string{"DIGEST_ENABLED": "talvez"}, true, nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			env := validEnv()
+			for k, v := range tc.env {
+				env[k] = v
+			}
+			setEnv(t, env)
+			cfg, err := Load()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if err == nil && !tc.check(cfg) {
+				t.Errorf("cfg = %+v", cfg)
 			}
 		})
 	}
