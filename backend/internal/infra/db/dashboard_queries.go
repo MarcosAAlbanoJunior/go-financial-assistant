@@ -689,3 +689,54 @@ func (r *PostgresPurchaseRepository) DeleteCoachAnalysis(ctx context.Context, id
 	}
 	return tag.RowsAffected() > 0, nil
 }
+
+func (r *PostgresPurchaseRepository) Decisions(ctx context.Context) ([]ports.Decision, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT kind, key, label, category, decided_month, monthly FROM review_decisions ORDER BY decided_month, key`)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao ler decisões: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ports.Decision
+	for rows.Next() {
+		var d ports.Decision
+		if err := rows.Scan(&d.Kind, &d.Key, &d.Label, &d.Category, &d.Month, &d.Monthly); err != nil {
+			return nil, fmt.Errorf("erro ao escanear decisão: %w", err)
+		}
+		result = append(result, d)
+	}
+	return result, rows.Err()
+}
+
+func (r *PostgresPurchaseRepository) SetDecision(ctx context.Context, d ports.Decision) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("erro ao gravar decisão: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO review_decisions (kind, key, label, category, decided_month, monthly) VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (kind, key) DO UPDATE SET label = EXCLUDED.label, category = EXCLUDED.category,
+		    decided_month = EXCLUDED.decided_month, monthly = EXCLUDED.monthly, decided_at = NOW()
+	`, d.Kind, d.Key, d.Label, d.Category, d.Month, d.Monthly); err != nil {
+		return fmt.Errorf("erro ao gravar decisão: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO review_dismissals (kind, key) VALUES ($1, $2) ON CONFLICT DO NOTHING`, d.Kind, d.Key); err != nil {
+		return fmt.Errorf("erro ao dispensar sugestão decidida: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *PostgresPurchaseRepository) DeleteDecision(ctx context.Context, kind, key string) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("erro ao desfazer decisão: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	for _, q := range []string{`DELETE FROM review_decisions WHERE kind = $1 AND key = $2`, `DELETE FROM review_dismissals WHERE kind = $1 AND key = $2`} {
+		if _, err := tx.Exec(ctx, q, kind, key); err != nil {
+			return fmt.Errorf("erro ao desfazer decisão: %w", err)
+		}
+	}
+	return tx.Commit(ctx)
+}
