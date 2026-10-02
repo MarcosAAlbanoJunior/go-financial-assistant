@@ -13,8 +13,9 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
-// decisionKinds são os tipos de sugestão que aceitam "cancelei" (as que se repetem todo mês).
-var decisionKinds = []string{usecase.ReviewFixed, usecase.ReviewAnt, usecase.ReviewNew}
+// decisionKinds são os tipos que aceitam "cancelei": os que já provaram se repetir todo mês. Conta nova e
+// duplicata podem ser compras avulsas, e contar a sua ausência como economia seria enganoso.
+var decisionKinds = []string{usecase.ReviewFixed, usecase.ReviewAnt}
 
 // buildSavings confere as decisões "cancelei" contra o que foi cobrado desde então.
 func (a *api) buildSavings(ctx context.Context) ([]usecase.DecisionResult, error) {
@@ -78,7 +79,7 @@ func (a *api) setDecision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !slices.Contains(decisionKinds, body.Kind) {
-		writeError(w, http.StatusBadRequest, "kind deve ser FIXED, ANT ou NEW")
+		writeError(w, http.StatusBadRequest, "kind deve ser FIXED ou ANT")
 		return
 	}
 	if !dismissalKeyRE.MatchString(body.Key) {
