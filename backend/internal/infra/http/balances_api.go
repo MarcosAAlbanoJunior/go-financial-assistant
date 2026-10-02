@@ -3,7 +3,6 @@ package httpserver
 import (
 	"context"
 	"errors"
-	"mime"
 	"net/http"
 	"time"
 
@@ -134,10 +133,6 @@ func (a *api) institutionLogo(w http.ResponseWriter, r *http.Request) {
 
 // syncNow dispara a mesma sincronização do /sync do chat. É a única escrita sem corpo da API: exige JSON e mesma origem.
 func (a *api) syncNow(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	if a.syncer == nil || a.settings != nil && !a.settings.Service.Sync().Configured() {
 		writeError(w, http.StatusServiceUnavailable, "o Open Finance não está configurado")
 		return
@@ -168,5 +163,5 @@ func (a *api) registerBalances(rt routes) {
 	rt.mux.Handle("GET /api/balances", rt.protected(a.balances))
 	rt.mux.Handle("GET /api/institutions/{id}/logo", rt.protected(a.institutionLogo))
 	// Cada sincronização consulta o Pluggy: limite apertado por IP, além de uma por vez (409).
-	rt.mux.Handle("POST /api/sync", newIPRateLimiter(3, time.Minute).middleware(rt.protected(a.syncNow)))
+	rt.mux.Handle("POST /api/sync", newIPRateLimiter(3, time.Minute).middleware(rt.protected(jsonOnly(a.syncNow))))
 }
