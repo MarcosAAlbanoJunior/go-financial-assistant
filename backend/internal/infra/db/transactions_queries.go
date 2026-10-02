@@ -44,7 +44,7 @@ func transactionWhere(f domain.TransactionFilter) (string, []any) {
 	return strings.Join(where, " AND "), args
 }
 
-func (r *PostgresPurchaseRepository) Transactions(ctx context.Context, f domain.TransactionFilter) ([]domain.Transaction, int, error) {
+func (r *TransactionsRepo) Transactions(ctx context.Context, f domain.TransactionFilter) ([]domain.Transaction, int, error) {
 	where, args := transactionWhere(f)
 	args = append(args, f.Limit, f.Offset)
 
@@ -85,7 +85,7 @@ func (r *PostgresPurchaseRepository) Transactions(ctx context.Context, f domain.
 	return result, total, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) TransactionGroups(ctx context.Context, f domain.TransactionFilter, by domain.GroupBy) ([]domain.TransactionGroup, error) {
+func (r *TransactionsRepo) TransactionGroups(ctx context.Context, f domain.TransactionFilter, by domain.GroupBy) ([]domain.TransactionGroup, error) {
 	// A chave do grupo vem de fragmentos fixos, nunca do cliente.
 	var key, order string
 	switch by {

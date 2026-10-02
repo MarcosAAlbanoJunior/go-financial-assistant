@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (r *PostgresPurchaseRepository) Goals(ctx context.Context) ([]domain.Goal, error) {
+func (r *GoalsRepo) Goals(ctx context.Context) ([]domain.Goal, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id, kind, name, COALESCE(target_amount, 0), COALESCE(target_date, '0001-01-01'), COALESCE(category, ''),
 		       COALESCE(cut_percent, 0), COALESCE(baseline, 0), COALESCE(reserve_months, 0), created_at
@@ -34,7 +34,7 @@ func (r *PostgresPurchaseRepository) Goals(ctx context.Context) ([]domain.Goal, 
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) CreateGoal(ctx context.Context, g domain.Goal) error {
+func (r *GoalsRepo) CreateGoal(ctx context.Context, g domain.Goal) error {
 	// Só os campos do tipo da meta são gravados; os demais ficam nulos.
 	var amount, baseline *float64
 	var date *time.Time
@@ -58,7 +58,7 @@ func (r *PostgresPurchaseRepository) CreateGoal(ctx context.Context, g domain.Go
 	return nil
 }
 
-func (r *PostgresPurchaseRepository) DeleteGoal(ctx context.Context, id uuid.UUID) (bool, error) {
+func (r *GoalsRepo) DeleteGoal(ctx context.Context, id uuid.UUID) (bool, error) {
 	tag, err := r.db.Pool.Exec(ctx, `DELETE FROM goals WHERE id = $1`, id)
 	if err != nil {
 		return false, fmt.Errorf("erro ao apagar meta: %w", err)

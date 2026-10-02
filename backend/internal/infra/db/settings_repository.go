@@ -48,7 +48,7 @@ func (s *SettingsStore) DeleteSetting(ctx context.Context, key string) error {
 
 // OwnTransferCandidates lista os lançamentos do banco que parecem transferência (Pix, TED, DOC) e ainda contam;
 // quem chama decide, pelo nome, quais são entre contas da própria pessoa.
-func (r *PostgresPurchaseRepository) OwnTransferCandidates(ctx context.Context) ([]domain.TransferCandidate, error) {
+func (r *LedgerRepo) OwnTransferCandidates(ctx context.Context) ([]domain.TransferCandidate, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT pay.id, p.description, p.kind, pay.amount
 		FROM payments pay
@@ -67,7 +67,7 @@ func (r *PostgresPurchaseRepository) OwnTransferCandidates(ctx context.Context) 
 }
 
 // CancelPayments marca os pagamentos como cancelados (deixam de contar em tudo).
-func (r *PostgresPurchaseRepository) CancelPayments(ctx context.Context, ids []uuid.UUID) (int64, error) {
+func (r *LedgerRepo) CancelPayments(ctx context.Context, ids []uuid.UUID) (int64, error) {
 	tag, err := r.db.Pool.Exec(ctx, `UPDATE payments SET status = 'CANCELLED' WHERE id = ANY($1) AND status <> 'CANCELLED'`, ids)
 	if err != nil {
 		return 0, fmt.Errorf("erro ao cancelar lançamentos: %w", err)
@@ -76,7 +76,7 @@ func (r *PostgresPurchaseRepository) CancelPayments(ctx context.Context, ids []u
 }
 
 // NewTransferCleaner devolve quem acha e cancela transferências entre contas da própria pessoa.
-func NewTransferCleaner(db *DB) ports.TransferCleaner { return &PostgresPurchaseRepository{db: db} }
+func NewTransferCleaner(db *DB) ports.TransferCleaner { return &LedgerRepo{db: db} }
 
 func (s *SettingsStore) RecordAudit(ctx context.Context, e settings.AuditEntry) error {
 	_, err := s.db.Pool.Exec(ctx, `INSERT INTO settings_audit (action, key, sensitive, ip) VALUES ($1, $2, $3, $4)`, e.Action, e.Key, e.Sensitive, e.IP)

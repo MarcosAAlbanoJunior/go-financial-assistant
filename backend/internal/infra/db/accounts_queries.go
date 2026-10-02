@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *PostgresPurchaseRepository) Accounts(ctx context.Context) ([]domain.Account, error) {
+func (r *AccountsRepo) Accounts(ctx context.Context) ([]domain.Account, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id, item_id, institution_id, type, name, last4, balance, credit_limit, available_credit_limit,
 			brand, close_date, due_date, minimum_payment, auto_invested_balance, updated_at
@@ -32,7 +32,7 @@ func (r *PostgresPurchaseRepository) Accounts(ctx context.Context) ([]domain.Acc
 	return result, nil
 }
 
-func (r *PostgresPurchaseRepository) Institutions(ctx context.Context) ([]domain.Institution, error) {
+func (r *AccountsRepo) Institutions(ctx context.Context) ([]domain.Institution, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id, item_id, name, COALESCE(color, ''), logo IS NOT NULL FROM institutions ORDER BY name
 	`)
@@ -50,7 +50,7 @@ func (r *PostgresPurchaseRepository) Institutions(ctx context.Context) ([]domain
 	return result, nil
 }
 
-func (r *PostgresPurchaseRepository) InstitutionLogo(ctx context.Context, id uuid.UUID) ([]byte, string, bool, error) {
+func (r *AccountsRepo) InstitutionLogo(ctx context.Context, id uuid.UUID) ([]byte, string, bool, error) {
 	var (
 		data []byte
 		mime *string
