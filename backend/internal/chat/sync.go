@@ -26,6 +26,10 @@ func (h *Handler) handleSync(ctx context.Context) {
 
 	h.sendText(ctx, "🔄 Sincronizando com o Open Finance, aguarde...")
 	result, err := h.syncer.Sync(ctx)
+	if errors.Is(err, usecase.ErrNotConfigured) {
+		h.sendText(ctx, "ℹ️ O Open Finance não está configurado. Veja a página Configurações do dashboard ou a seção Open Finance no README.")
+		return
+	}
 	if errors.Is(err, usecase.ErrSyncInProgress) {
 		h.sendText(ctx, "⏳ Já existe uma sincronização em andamento. Tente em instantes.")
 		return

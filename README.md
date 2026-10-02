@@ -147,7 +147,7 @@ COMPOSE_PROFILES=whatsapp
 
 Sem isso, `docker compose up` não sobe a Evolution API e o app ficará aguardando por ela. Além disso, as portas do Postgres e do Redis passaram a escutar apenas em `127.0.0.1`.
 
-**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach), a `013` (decisões "cancelei" da Revisão) a `014` (regras de categoria) e a `015` (bancos, logos e dados dos cartões; depois, rode uma sincronização):
+**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach), a `013` (decisões "cancelei" da Revisão) a `014` (regras de categoria), a `016` (configurações salvas no dashboard) e a `015` (bancos, logos e dados dos cartões; depois, rode uma sincronização):
 
 ```bash
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/010_create_review_dismissals.sql
@@ -156,6 +156,7 @@ docker compose exec -T postgres psql -U finassist -d finassist < backend/migrati
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/013_create_review_decisions.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/014_create_category_rules.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/015_create_institutions.sql
+docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/016_create_settings.sql
 ```
 
 ### 5. Open Finance (opcional)
@@ -211,6 +212,7 @@ O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `fronten
 1. Defina `DASHBOARD_PASSWORD` no `.env` (mínimo de 12 caracteres).
 2. `docker compose up -d --build` e abra **http://localhost:8080** (mude a porta com `WEB_PORT`).
 3. Entre com a senha. As telas são:
+   - **Configurações**: edite no navegador o que antes só existia no `.env`: resumo semanal (liga/desliga, dia, hora, fuso), sincronização (intervalo, dias para trás), seus nomes (`OWN_NAMES`), credenciais e bancos do Pluggy, chave e modelo do Gemini, e o Telegram ou o WhatsApp do canal ativo. O valor salvo aqui vale mais que o `.env`; "Voltar ao valor do ambiente" apaga o salvo. Cada campo mostra de onde vem o valor e se só vale depois de reiniciar (há um botão para isso; o Docker sobe o app de novo). Resumo, sincronização, nomes, Pluggy e o plano pago do Coach valem na hora; chaves do Gemini, Telegram e WhatsApp pedem reinício. **Segredos** (tokens e chaves) só podem ser salvos se `APP_SECRET_KEY` estiver definida no ambiente: eles ficam cifrados (AES-256-GCM) no banco, nunca voltam para a tela (só "Configurado") e cada um tem "Testar conexão". Ao salvar `OWN_NAMES`, o app procura Pix/TED antigos com o seu nome e pergunta se deve desconsiderá-los. Porta, banco, senha do dashboard, canal e backup continuam só no ambiente. Exige a migration `016`.
    - **Painel** (página inicial): total em conta com a participação de cada banco, e, por banco (logo ou monograma e cor de marca), a conta corrente e cada cartão **separado**: fatura, limite usado, disponível e vencimento, com ícone e texto para atenção (limite ≥ 70%, ≥ 90% ou vencimento em até 3 dias) e "desatualizado" (mais de 36 h). "Faturas em aberto" aparece à parte, sem subtrair do total, e o aplicado automaticamente do Itaú fica fora dele. "Ocultar valores" (só no navegador) e "Sincronizar" (mesma sincronização do `/sync`). Exige a migration `015`. O logo vem do conector do Pluggy, é baixado só por https, sem rede interna, até 256 KB, e servido pelo próprio app (o CSP não muda); falhando, usa o monograma. Os logos não são versionados.
    - **Visão geral**: receitas, despesas, saldo do mês, "em conta" e investimentos, com a variação sobre o mês anterior, e o histórico de 12 meses.
    - **Gastos**: despesas do mês por categoria, forma de pagamento e conta/cartão.

@@ -23,6 +23,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/logo"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/pluggy"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/telegram"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/settings"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -30,15 +31,11 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	cfg, err := config.Load()
+	// O banco abre primeiro: as configurações salvas no dashboard valem mais que o ambiente.
+	databaseURL, secretKey, err := config.Bootstrap()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
-	}
-
-	// A imagem roda em UTC: sem isto, horários e "hoje" nas mensagens e nos vencimentos saem 3 h adiantados.
-	if cfg.DigestLocation != nil {
-		time.Local = cfg.DigestLocation
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(),
@@ -46,12 +43,56 @@ func main() {
 	)
 	defer cancel()
 
-	postgresDB, err := db.NewPostgres(ctx, cfg.DatabaseURL)
+	postgresDB, err := db.NewPostgres(ctx, databaseURL)
 	if err != nil {
 		slog.Error("failed to connect to postgres", "error", err)
 		os.Exit(1)
 	}
 	defer postgresDB.Close()
+
+	cipher, err := settings.NewCipher(secretKey)
+	if err != nil {
+		slog.Error("APP_SECRET_KEY inválida", "error", err)
+		os.Exit(1)
+	}
+	settingsStore := db.NewSettingsStore(postgresDB)
+	if overrides, err := settings.LoadOverrides(ctx, settingsStore, cipher, logger); err != nil {
+		slog.Warn("configurações salvas no dashboard não carregadas (a migration 016 foi aplicada?)", "error", err)
+	} else {
+		config.SetOverrides(overrides)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		// Uma configuração salva no dashboard que deixou o app inválido nunca pode impedi-lo de subir (e de ser corrigida).
+		slog.Error("configuração salva no dashboard inválida; usando só o ambiente", "error", err)
+		config.SetOverrides(nil)
+		if cfg, err = config.Load(); err != nil {
+			slog.Error("failed to load config", "error", err)
+			os.Exit(1)
+		}
+	}
+
+	settingsSvc := settings.NewService(settingsStore, cipher, logger)
+	if err := settingsSvc.Load(ctx); err != nil {
+		slog.Warn("configurações do dashboard indisponíveis", "error", err)
+	}
+	// onChange devolve um canal que acorda quem lê a configuração quando ela muda.
+	onChange := func() <-chan struct{} {
+		ch := make(chan struct{}, 1)
+		settingsSvc.OnChange(func() {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		})
+		return ch
+	}
+
+	// A imagem roda em UTC: sem isto, horários e "hoje" nas mensagens e nos vencimentos saem 3 h adiantados.
+	if cfg.DigestLocation != nil {
+		time.Local = cfg.DigestLocation
+	}
 
 	geminiClient, err := gemini.NewClient(ctx, cfg.GeminiAPIKey)
 	if err != nil {
@@ -69,25 +110,31 @@ func main() {
 		slog.Error("erro ao gerar despesas recorrentes no startup", "error", err)
 	}
 
-	// syncer fica nil (interface vazia) sem Open Finance; o chat avisa que não está configurado.
-	var syncer chat.Syncer
-	if cfg.OpenFinanceEnabled() {
-		pluggyClient := pluggy.NewClient(cfg.PluggyClientID, cfg.PluggyClientSecret)
-		pluggyClient.SetOwnNames(cfg.OwnNames)
-		sync := usecase.NewSyncOpenFinance(purchaseRepo, pluggyClient,
-			cfg.PluggyItemIDs, cfg.OpenFinanceLookbackDays, logger)
-		sync.SetLogoFetcher(logo.New())
-		syncer = sync
-		go runOpenFinanceSync(ctx, sync, cfg.OpenFinanceSyncInterval)
-		slog.Info("Open Finance ativo", "items", len(cfg.PluggyItemIDs), "interval", cfg.OpenFinanceSyncInterval.String())
-	}
+	// O Open Finance se liga e desliga com o app rodando: sem credenciais a sincronização apenas espera (ErrNotConfigured).
+	pluggyClient := pluggy.NewClient(cfg.PluggyClientID, cfg.PluggyClientSecret)
+	syncUC := usecase.NewSyncOpenFinance(purchaseRepo, pluggyClient, nil, cfg.OpenFinanceLookbackDays, logger)
+	syncUC.SetLogoFetcher(logo.New())
+	var syncer chat.Syncer = syncUC
+	go runOpenFinanceSync(ctx, syncUC, pluggyClient, settingsSvc, onChange())
 
 	dashboardReader := db.NewDashboardReader(postgresDB)
 	insights := usecase.NewInsights(dashboardReader)
 	server := httpserver.NewServer(cfg.Port, logger)
-	geminiClient.CoachModel = cfg.CoachModel
+	geminiClient.SetCoachModel(settingsSvc.Get("COACH_GEMINI_MODEL"))
+	settingsSvc.OnChange(func() { geminiClient.SetCoachModel(settingsSvc.Get("COACH_GEMINI_MODEL")) })
 	server.SetCoach(geminiClient, cfg.GeminiPaidPlan)
 	server.SetSyncer(syncer)
+	server.SetSettings(&httpserver.SettingsDeps{
+		Service: settingsSvc,
+		Channel: cfg.Channel,
+		Cleaner: db.NewTransferCleaner(postgresDB),
+		PluggyCheck: func(ctx context.Context, id, secret string, items []string) ([]pluggy.ItemCheck, error) {
+			return pluggy.NewClient(id, secret).Check(ctx, items)
+		},
+		TelegramPing: func(ctx context.Context, token string) (string, error) { return telegram.NewClient(token).GetMe(ctx) },
+		GeminiPing:   gemini.Ping,
+		Restart:      cancel, // o Docker (restart: unless-stopped) sobe o app de novo com as configurações novas
+	})
 	if cfg.DashboardPassword != "" {
 		if err := server.MountAPI(cfg.DashboardPassword, dashboardReader); err != nil {
 			slog.Error("failed to mount dashboard API", "error", err)
@@ -105,8 +152,9 @@ func main() {
 		tg := telegram.NewClient(cfg.TelegramBotToken)
 		username, err := tg.GetMe(ctx)
 		if err != nil {
-			slog.Error("falha ao validar TELEGRAM_BOT_TOKEN", "error", err)
-			os.Exit(1)
+			// O dashboard continua no ar para o token poder ser corrigido na página de configurações.
+			slog.Error("falha ao validar TELEGRAM_BOT_TOKEN: o canal fica desligado, corrija o token e reinicie", "error", err)
+			break
 		}
 		slog.Info("canal Telegram ativo", "bot", username)
 
@@ -129,11 +177,11 @@ func main() {
 		}, evolutionClient, analyzeExpense, exportCSV, syncer)
 	}
 
-	if cfg.DigestEnabled {
-		go usecase.NewDigestJob(insights, messenger, owner, logger, cfg.DigestWeekday, cfg.DigestHour, cfg.DigestLocation).Run(ctx)
+	var monthlyReport *usecase.MonthlyReport
+	if messenger != nil {
+		go usecase.NewDigestJob(insights, messenger, owner, logger, settingsSvc.Digest, onChange()).Run(ctx)
+		monthlyReport = usecase.NewMonthlyReport(exportCSV, messenger, owner, logger)
 	}
-
-	monthlyReport := usecase.NewMonthlyReport(exportCSV, messenger, owner, logger)
 
 	go func() {
 		for {
@@ -146,7 +194,7 @@ func main() {
 				if err := analyzeExpense.GenerateRecurringExpenses(ctx); err != nil {
 					slog.Error("erro ao gerar despesas recorrentes", "error", err)
 				}
-				if time.Now().UTC().Day() == 1 {
+				if monthlyReport != nil && time.Now().UTC().Day() == 1 {
 					if err := monthlyReport.Send(ctx); err != nil {
 						slog.Error("erro ao enviar relatório mensal", "error", err)
 					}
@@ -201,22 +249,48 @@ func connectWhatsApp(ctx context.Context, evolutionClient *evolution.Client, cfg
 	}
 }
 
-// runOpenFinanceSync sincroniza na subida e depois a cada interval, até o contexto acabar.
-func runOpenFinanceSync(ctx context.Context, sync *usecase.SyncOpenFinance, interval time.Duration) {
-	ticker := time.NewTicker(interval)
+// runOpenFinanceSync sincroniza quando o intervalo vence, relendo a configuração a cada minuto e quando ela muda: credenciais,
+// bancos, janela de datas e nomes próprios valem sem reiniciar. Sem credenciais ou bancos, apenas espera.
+func runOpenFinanceSync(ctx context.Context, sync *usecase.SyncOpenFinance, client *pluggy.Client, svc *settings.Service, changed <-chan struct{}) {
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
+	var (
+		last      time.Time
+		lastCreds string
+		announced bool
+	)
 	for {
-		result, err := sync.Sync(ctx)
-		if err != nil {
-			slog.Error("erro ao sincronizar Open Finance", "error", err)
+		s := svc.Sync()
+		client.SetOwnNames(svc.List("OWN_NAMES"))
+		if creds := s.ClientID + "\x00" + s.ClientSecret; creds != lastCreds {
+			client.SetCredentials(s.ClientID, s.ClientSecret)
+			lastCreds = creds
 		}
-		slog.Info("sincronização do Open Finance concluída",
-			"inserted", result.Inserted, "reconciled", result.Reconciled, "existing", result.Existing)
+		sync.SetConfig(s.ItemIDs, s.LookbackDays)
+
+		if s.Configured() {
+			if !announced {
+				slog.Info("Open Finance ativo", "items", len(s.ItemIDs), "interval", s.Interval.String())
+				announced = true
+			}
+			if last.IsZero() || time.Since(last) >= s.Interval {
+				result, err := sync.Sync(ctx)
+				last = time.Now()
+				if err != nil {
+					slog.Error("erro ao sincronizar Open Finance", "error", err)
+				}
+				slog.Info("sincronização do Open Finance concluída",
+					"inserted", result.Inserted, "reconciled", result.Reconciled, "existing", result.Existing)
+			}
+		} else {
+			announced = false
+		}
 
 		select {
 		case <-ctx.Done():
 			return
+		case <-changed:
 		case <-ticker.C:
 		}
 	}

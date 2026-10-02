@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 const (
@@ -30,7 +32,7 @@ type Client struct {
 	clientSecret string
 	baseURL      string
 	http         *http.Client
-	ownNames     []string // normalizados; ver SetOwnNames
+	own          *domain.OwnTransferMatcher
 
 	mu        sync.Mutex
 	apiKey    string
@@ -43,6 +45,7 @@ func NewClient(clientID, clientSecret string) *Client {
 		clientSecret: clientSecret,
 		baseURL:      apiBase,
 		http:         &http.Client{Timeout: 30 * time.Second},
+		own:          domain.NewOwnTransferMatcher(nil),
 	}
 }
 
