@@ -9,6 +9,9 @@ import (
 // cutBaselineMonths é quantos meses anteriores (com gasto na categoria) formam a média de uma meta de redução.
 const cutBaselineMonths = 3
 
+// minPaceDay é o dia do mês a partir do qual o ritmo de gasto diz alguma coisa (antes disso, uma compra só distorce).
+const minPaceDay = 7
+
 // maxCutHistory limita os meses mostrados no acompanhamento de uma meta de redução.
 const maxCutHistory = 12
 
@@ -36,7 +39,11 @@ type GoalProgress struct {
 	Coverage float64 // quantos meses de despesas fixas o patrimônio cobre
 
 	// CUT
-	History []CutMonth // do mês da criação até o atual
+	History []CutMonth // do mês da criação até o atual (o último, ainda aberto)
+	// Projected é quanto o mês fecha se o ritmo de gasto continuar; nil nos primeiros dias do mês.
+	Projected   *float64
+	DayOfMonth  int
+	DaysInMonth int
 }
 
 // CutBaseline é a média mensal da categoria nos até 3 meses anteriores a now (primeiro dia do mês) em que
@@ -57,9 +64,10 @@ func CutBaseline(cats []ports.CategoryMonth, category string, now time.Time) (fl
 }
 
 // BuildGoalProgress mede uma meta contra o patrimônio (saldo das contas correntes + investimentos), a
-// projeção e os gastos por categoria. now é o primeiro dia do mês atual.
-func BuildGoalProgress(g ports.Goal, wealth float64, p Projection, cats []ports.CategoryMonth, now time.Time) GoalProgress {
-	gp := GoalProgress{Goal: g}
+// projeção e os gastos por categoria. today é o dia de hoje.
+func BuildGoalProgress(g ports.Goal, wealth float64, p Projection, cats []ports.CategoryMonth, today time.Time) GoalProgress {
+	now := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, time.UTC)
+	gp := GoalProgress{Goal: g, DayOfMonth: today.Day(), DaysInMonth: now.AddDate(0, 1, -1).Day()}
 	switch g.Kind {
 	case ports.GoalSave:
 		gp.Current, gp.Target = wealth, g.TargetAmount
@@ -93,6 +101,10 @@ func BuildGoalProgress(g ports.Goal, wealth float64, p Projection, cats []ports.
 			gp.History = append(gp.History, CutMonth{Month: m, Total: totals[m], Hit: totals[m] <= gp.Target})
 		}
 		gp.Current = totals[now]
+		if gp.DayOfMonth >= minPaceDay {
+			projected := gp.Current * float64(gp.DaysInMonth) / float64(gp.DayOfMonth)
+			gp.Projected = &projected
+		}
 	}
 	return gp
 }

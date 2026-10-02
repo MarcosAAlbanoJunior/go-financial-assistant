@@ -724,6 +724,7 @@ func TestAPI_Goals(t *testing.T) {
 		`"targetDate":"2027-01"`, `"monthsLeft":3`, `"perMonth":1000`, `"target":6000`,
 		`"categoryLabel":"Alimentação"`, `"target":640`, `"current":550`, `"hit":true`, // 20% abaixo de 800
 		`"reserveMonths":6`,
+		`"dayOfMonth":15`, `"daysInMonth":31`, `"projected":1136.6`, // 550 em 15 dias de 31: fecha em ~1.136
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("falta %s em %s", want, body)
