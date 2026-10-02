@@ -2,11 +2,15 @@ import {
   Car,
   CircleEllipsis,
   Clapperboard,
+  GraduationCap,
   HeartPulse,
+  House,
   ShoppingBag,
   ShoppingCart,
   TrendingUp,
+  Users,
   Utensils,
+  Zap,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
@@ -28,6 +32,10 @@ const VISUALS: Record<string, CategoryVisual> = {
   SHOPPING: { color: 'var(--cat-shopping)', Icon: ShoppingBag },
   INVESTMENT: { color: 'var(--cat-investment)', Icon: TrendingUp },
   SALARY: { color: 'var(--cat-salary)', Icon: Wallet },
+  HOUSING: { color: 'var(--cat-housing)', Icon: House },
+  BILLS: { color: 'var(--cat-bills)', Icon: Zap },
+  EDUCATION: { color: 'var(--cat-education)', Icon: GraduationCap },
+  PEOPLE: { color: 'var(--cat-people)', Icon: Users },
   OTHER: { color: 'var(--cat-other)', Icon: CircleEllipsis },
 }
 

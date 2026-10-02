@@ -13,6 +13,10 @@ func TestCategoryLabel(t *testing.T) {
 		{CategoryEntertainment, "Lazer"},
 		{CategoryShopping, "Compras"},
 		{CategoryMarket, "Mercado"},
+		{CategoryHousing, "Moradia"},
+		{CategoryBills, "Contas"},
+		{CategoryEducation, "Educação"},
+		{CategoryPeople, "Pessoas"},
 		{CategoryOther, "Outros"},
 		{Category("UNKNOWN"), "Outros"},
 	}
