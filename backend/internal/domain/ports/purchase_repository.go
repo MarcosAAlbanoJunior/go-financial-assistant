@@ -28,7 +28,8 @@ type PaymentDetail struct {
 	CreatedAt         time.Time
 }
 
-type PurchaseRepository interface {
+// LedgerStore guarda e consulta os lançamentos (compras e pagamentos).
+type LedgerStore interface {
 	Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error
 	FindActiveRecurring(ctx context.Context) ([]domain.Purchase, error)
 	FindByDescription(ctx context.Context, description string) ([]domain.Purchase, error)
@@ -40,8 +41,10 @@ type PurchaseRepository interface {
 	FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error)
 	FindTransferNetByMonth(ctx context.Context, month time.Time) (applied float64, redeemed float64, err error)
 	ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error)
+}
 
-	// Open Finance
+// ExternalStore guarda o que vem do Open Finance: contas, instituições, investimentos e as transações sincronizadas.
+type ExternalStore interface {
 	// UpsertAccount cria ou atualiza a conta e devolve seu ID interno.
 	UpsertAccount(ctx context.Context, account ExternalAccount) (uuid.UUID, error)
 	// UpsertInstitution cria ou atualiza a instituição do item e devolve seu ID interno. needsLogo
@@ -60,4 +63,10 @@ type PurchaseRepository interface {
 	// ReconcileExternal liga a transação a um lançamento manual equivalente ainda não conciliado.
 	ReconcileExternal(ctx context.Context, tx ExternalTransaction, accountID uuid.UUID) (bool, error)
 	SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error
+}
+
+// PurchaseRepository é o armazenamento completo dos lançamentos; quem usa só uma parte deve pedir LedgerStore ou ExternalStore.
+type PurchaseRepository interface {
+	LedgerStore
+	ExternalStore
 }

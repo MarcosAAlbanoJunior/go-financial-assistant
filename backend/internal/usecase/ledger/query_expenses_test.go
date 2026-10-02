@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"context"
@@ -14,7 +14,7 @@ func TestProcessQuery_CurrentMonth(t *testing.T) {
 	expectedMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	var capturedMonth time.Time
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 			capturedMonth = month
 			return []ports.PaymentSummary{
@@ -56,7 +56,7 @@ func TestProcessQuery_CurrentMonth(t *testing.T) {
 
 func TestProcessQuery_SpecificMonthYear(t *testing.T) {
 	var capturedMonth time.Time
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 			capturedMonth = month
 			return []ports.PaymentSummary{
@@ -91,7 +91,7 @@ func TestProcessQuery_SpecificMonthYear(t *testing.T) {
 }
 
 func TestProcessQuery_EmptyResult(t *testing.T) {
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentSummary, error) {
 			return nil, nil
 		},
@@ -122,7 +122,7 @@ func TestProcessQuery_EmptyResult(t *testing.T) {
 }
 
 func TestProcessQuery_RepoError(t *testing.T) {
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentSummary, error) {
 			return nil, errors.New("db error")
 		},
@@ -145,7 +145,7 @@ func TestProcessQuery_NoQueryInfo_UsesCurrentMonth(t *testing.T) {
 	expected := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	var capturedMonth time.Time
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentsByMonthFn: func(_ context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 			capturedMonth = month
 			return nil, nil
@@ -165,7 +165,7 @@ func TestProcessQuery_NoQueryInfo_UsesCurrentMonth(t *testing.T) {
 }
 
 func TestProcessQuery_WithIncomeAndTransfers(t *testing.T) {
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentSummary, error) {
 			return []ports.PaymentSummary{{Category: "FOOD", Total: 1000.00}}, nil
 		},
@@ -212,7 +212,7 @@ func TestProcessQuery_WithIncomeAndTransfers(t *testing.T) {
 }
 
 func TestProcessQuery_EmptyWithTransfers_NotEmpty(t *testing.T) {
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentSummary, error) {
 			return nil, nil
 		},

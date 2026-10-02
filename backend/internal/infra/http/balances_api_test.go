@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
 )
 
@@ -120,12 +121,12 @@ func TestAPI_InstitutionLogo(t *testing.T) {
 }
 
 type fakeSyncer struct {
-	res   usecase.SyncResult
+	res   openfinance.SyncResult
 	err   error
 	calls int
 }
 
-func (f *fakeSyncer) Sync(context.Context) (usecase.SyncResult, error) {
+func (f *fakeSyncer) Sync(context.Context) (openfinance.SyncResult, error) {
 	f.calls++
 	return f.res, f.err
 }
@@ -143,7 +144,7 @@ func newSyncAPI(t *testing.T, syncer *fakeSyncer) *Server {
 }
 
 func TestAPI_SyncNow(t *testing.T) {
-	f := &fakeSyncer{res: usecase.SyncResult{Inserted: 2, Existing: 5}}
+	f := &fakeSyncer{res: openfinance.SyncResult{Inserted: 2, Existing: 5}}
 	s := newSyncAPI(t, f)
 	c := login(t, s)
 
@@ -165,12 +166,12 @@ func TestAPI_SyncNow(t *testing.T) {
 }
 
 func TestAPI_SyncNowStates(t *testing.T) {
-	s := newSyncAPI(t, &fakeSyncer{err: usecase.ErrSyncInProgress})
+	s := newSyncAPI(t, &fakeSyncer{err: openfinance.ErrSyncInProgress})
 	if rec := do(s, "POST", "/api/sync", "{}", jsonHdr, login(t, s)); rec.Code != 409 {
 		t.Errorf("em andamento = %d", rec.Code)
 	}
 
-	s = newSyncAPI(t, &fakeSyncer{res: usecase.SyncResult{Inserted: 1}, err: errors.New("item x: pluggy falhou com detalhe interno")})
+	s = newSyncAPI(t, &fakeSyncer{res: openfinance.SyncResult{Inserted: 1}, err: errors.New("item x: pluggy falhou com detalhe interno")})
 	rec := do(s, "POST", "/api/sync", "{}", jsonHdr, login(t, s))
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"partial":true`) || strings.Contains(rec.Body.String(), "detalhe interno") {
 		t.Errorf("falha parcial: %d %s", rec.Code, rec.Body)

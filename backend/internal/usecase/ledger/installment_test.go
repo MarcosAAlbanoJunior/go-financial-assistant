@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func TestExecuteText_Installment_Success(t *testing.T) {
 	var savedPurchase *domain.Purchase
 	var savedPayments []domain.Payment
 
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, p *domain.Purchase, pmts []domain.Payment) error {
 			savedPurchase = p
 			savedPayments = pmts
@@ -114,7 +114,7 @@ func TestExecuteText_Installment_RepoError(t *testing.T) {
 		Installments: &ports.InstallmentInfo{Total: 6, AmountPerInstallment: 100},
 	}
 
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, _ *domain.Purchase, _ []domain.Payment) error {
 			return errors.New("db error")
 		},
@@ -141,7 +141,7 @@ func TestExecuteText_Installment_InstallmentAmountCalculated_WhenZero(t *testing
 	}
 
 	var savedPurchase *domain.Purchase
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, p *domain.Purchase, _ []domain.Payment) error {
 			savedPurchase = p
 			return nil
@@ -176,7 +176,7 @@ func TestExecuteText_Installment_PaymentsHaveDueDates(t *testing.T) {
 	}
 
 	var savedPayments []domain.Payment
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, _ *domain.Purchase, pmts []domain.Payment) error {
 			savedPayments = pmts
 			return nil

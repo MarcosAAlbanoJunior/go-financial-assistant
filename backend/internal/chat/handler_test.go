@@ -9,38 +9,40 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
 )
 
 type mockAnalyzer struct {
-	textFn   func(usecase.TextInput) (*usecase.ExpenseOutput, error)
-	imageFn  func(usecase.ImageInput) (*usecase.ExpenseOutput, error)
-	statFn   func() (*usecase.StatementOutput, error)
-	saved    []usecase.PendingTransaction
+	textFn   func(ledger.TextInput) (*ledger.ExpenseOutput, error)
+	imageFn  func(ledger.ImageInput) (*ledger.ExpenseOutput, error)
+	statFn   func() (*ledger.StatementOutput, error)
+	saved    []ledger.PendingTransaction
 	saveErr  error
 	textSeen string
 }
 
-func (m *mockAnalyzer) ExecuteText(_ context.Context, in usecase.TextInput) (*usecase.ExpenseOutput, error) {
+func (m *mockAnalyzer) ExecuteText(_ context.Context, in ledger.TextInput) (*ledger.ExpenseOutput, error) {
 	m.textSeen = in.Text
 	if m.textFn != nil {
 		return m.textFn(in)
 	}
-	return &usecase.ExpenseOutput{Amount: 50, Description: "Almoço", Category: "FOOD", Payment: "PIX"}, nil
+	return &ledger.ExpenseOutput{Amount: 50, Description: "Almoço", Category: "FOOD", Payment: "PIX"}, nil
 }
 
-func (m *mockAnalyzer) ExecuteImage(_ context.Context, in usecase.ImageInput) (*usecase.ExpenseOutput, error) {
+func (m *mockAnalyzer) ExecuteImage(_ context.Context, in ledger.ImageInput) (*ledger.ExpenseOutput, error) {
 	return m.imageFn(in)
 }
 
-func (m *mockAnalyzer) ExecuteDocument(context.Context, usecase.DocumentInput) (*usecase.StatementOutput, error) {
+func (m *mockAnalyzer) ExecuteDocument(context.Context, ledger.DocumentInput) (*ledger.StatementOutput, error) {
 	if m.statFn != nil {
 		return m.statFn()
 	}
-	return &usecase.StatementOutput{}, nil
+	return &ledger.StatementOutput{}, nil
 }
 
-func (m *mockAnalyzer) SavePendingTransaction(_ context.Context, tx usecase.PendingTransaction) error {
+func (m *mockAnalyzer) SavePendingTransaction(_ context.Context, tx ledger.PendingTransaction) error {
 	m.saved = append(m.saved, tx)
 	return m.saveErr
 }
@@ -69,7 +71,7 @@ type mockExporter struct {
 	got  time.Time
 }
 
-func (m *mockExporter) Execute(_ context.Context, month time.Time) ([]byte, string, *usecase.ExportSummary, error) {
+func (m *mockExporter) Execute(_ context.Context, month time.Time) ([]byte, string, *ledger.ExportSummary, error) {
 	m.got = month
 	return m.data, "gastos.csv", nil, m.err
 }
@@ -112,10 +114,10 @@ func TestHandle_EmptyMessage_NotifiesAndReturnsError(t *testing.T) {
 }
 
 func TestHandle_Image(t *testing.T) {
-	var got usecase.ImageInput
-	a := &mockAnalyzer{imageFn: func(in usecase.ImageInput) (*usecase.ExpenseOutput, error) {
+	var got ledger.ImageInput
+	a := &mockAnalyzer{imageFn: func(in ledger.ImageInput) (*ledger.ExpenseOutput, error) {
 		got = in
-		return &usecase.ExpenseOutput{Amount: 10}, nil
+		return &ledger.ExpenseOutput{Amount: 10}, nil
 	}}
 	h, _ := newTestHandler(a, &mockExporter{})
 
@@ -138,8 +140,8 @@ func TestHandle_Image_LoadError(t *testing.T) {
 }
 
 func exportAnalyzer(month time.Time) *mockAnalyzer {
-	return &mockAnalyzer{textFn: func(usecase.TextInput) (*usecase.ExpenseOutput, error) {
-		return &usecase.ExpenseOutput{Type: "EXPORT_CSV", ExportMonthTime: month}, nil
+	return &mockAnalyzer{textFn: func(ledger.TextInput) (*ledger.ExpenseOutput, error) {
+		return &ledger.ExpenseOutput{Type: "EXPORT_CSV", ExportMonthTime: month}, nil
 	}}
 }
 
@@ -183,13 +185,13 @@ func TestHandle_Export_ExporterError(t *testing.T) {
 	}
 }
 
-func pendingStatement(n int) func() (*usecase.StatementOutput, error) {
-	return func() (*usecase.StatementOutput, error) {
-		items := make([]usecase.PendingTransaction, n)
+func pendingStatement(n int) func() (*ledger.StatementOutput, error) {
+	return func() (*ledger.StatementOutput, error) {
+		items := make([]ledger.PendingTransaction, n)
 		for i := range items {
-			items[i] = usecase.PendingTransaction{Description: "Tx", Amount: float64(i + 1), Date: time.Now()}
+			items[i] = ledger.PendingTransaction{Description: "Tx", Amount: float64(i + 1), Date: time.Now()}
 		}
-		return &usecase.StatementOutput{Pending: items}, nil
+		return &ledger.StatementOutput{Pending: items}, nil
 	}
 }
 
@@ -242,18 +244,21 @@ func TestHandle_Document_LoadError(t *testing.T) {
 }
 
 type mockSyncer struct {
-	res usecase.SyncResult
+	res openfinance.SyncResult
 	err error
 	n   int
 }
 
-func (m *mockSyncer) Sync(context.Context) (usecase.SyncResult, error) { m.n++; return m.res, m.err }
+func (m *mockSyncer) Sync(context.Context) (openfinance.SyncResult, error) {
+	m.n++
+	return m.res, m.err
+}
 
 func TestHandle_SyncCommand(t *testing.T) {
 	for _, cmd := range []string{"/sync", "Sincronizar", "  sincronizar "} {
 		a := &mockAnalyzer{}
 		h, msgr := newTestHandler(a, &mockExporter{})
-		syncer := &mockSyncer{res: usecase.SyncResult{Inserted: 3, Reconciled: 1, Existing: 7}}
+		syncer := &mockSyncer{res: openfinance.SyncResult{Inserted: 3, Reconciled: 1, Existing: 7}}
 		h.SetSyncer(syncer)
 
 		if out, err := h.Handle(context.Background(), Message{Text: cmd}); out != nil || err != nil {
@@ -280,7 +285,7 @@ func TestHandle_SyncCommand_NotConfigured(t *testing.T) {
 
 func TestHandle_SyncCommand_Errors(t *testing.T) {
 	h, msgr := newTestHandler(&mockAnalyzer{}, &mockExporter{})
-	h.SetSyncer(&mockSyncer{err: usecase.ErrSyncInProgress})
+	h.SetSyncer(&mockSyncer{err: openfinance.ErrSyncInProgress})
 	h.Handle(context.Background(), Message{Text: "/sync"})
 	if last := msgr.texts[len(msgr.texts)-1]; !strings.Contains(last, "em andamento") {
 		t.Errorf("got %q", last)
