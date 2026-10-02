@@ -18,6 +18,13 @@ type fakeCoach struct {
 	err     error
 	calls   int
 	payload []byte
+	cats    []ports.CategorySuggestion
+}
+
+func (f *fakeCoach) Categorize(_ context.Context, payload []byte) ([]ports.CategorySuggestion, error) {
+	f.calls++
+	f.payload = payload
+	return f.cats, f.err
 }
 
 func (f *fakeCoach) Advise(_ context.Context, payload []byte) (ports.CoachAdvice, error) {
