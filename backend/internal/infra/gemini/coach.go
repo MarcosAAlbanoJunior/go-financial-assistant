@@ -89,10 +89,7 @@ type coachResponse struct {
 // Advise envia o contexto (já sanitizado) em uma única chamada e devolve a resposta decodificada. Quem
 // chama valida o conteúdo: o JSON pode vir sintaticamente correto e ainda assim com valores inesperados.
 func (c *Client) Advise(ctx context.Context, contextJSON []byte) (ports.CoachAdvice, error) {
-	model := c.CoachModel
-	if model == "" {
-		model = defaultCoachModel
-	}
+	model := c.coachModelName()
 	temperature := float32(coachTemperature)
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{Parts: []*genai.Part{{Text: coachPrompt}}},
@@ -159,10 +156,7 @@ func categorizeSchema(categories []string) *genai.Schema {
 
 // Categorize pede as categorias de uma lista de contas em uma única chamada.
 func (c *Client) Categorize(ctx context.Context, contextJSON []byte) ([]ports.CategorySuggestion, error) {
-	model := c.CoachModel
-	if model == "" {
-		model = defaultCoachModel
-	}
+	model := c.coachModelName()
 	temperature := float32(0)
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{Parts: []*genai.Part{{Text: categorizePrompt}}},

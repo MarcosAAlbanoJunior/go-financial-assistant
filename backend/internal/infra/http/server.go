@@ -34,6 +34,9 @@ type Server struct {
 
 	// syncer é opcional (nil sem Open Finance); alimenta o botão de sincronizar do painel.
 	syncer chat.Syncer
+
+	// settings liga a página de configurações (nil = desligada).
+	settings *SettingsDeps
 }
 
 // SetSyncer liga a sincronização do Open Finance à API do dashboard (chame antes de MountAPI).

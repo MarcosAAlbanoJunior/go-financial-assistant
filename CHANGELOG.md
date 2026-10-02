@@ -5,6 +5,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- Página **Configurações** no dashboard (migration `016_create_settings.sql`; em bancos existentes: `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/016_create_settings.sql`). Edita resumo semanal, sincronização, nomes próprios, credenciais e bancos do Pluggy, Gemini (chave, modelo, plano pago) e o canal ativo (Telegram ou WhatsApp). Precedência: valor salvo > ambiente > padrão. Resumo, sincronização, nomes, Pluggy e plano pago valem sem reiniciar; o resto pede reinício (botão na página). Segredos exigem `APP_SECRET_KEY`: cifrados em AES-256-GCM, presos ao nome da chave, nunca devolvidos pela API, com teste de conexão. Salvar `OWN_NAMES` procura Pix/TED antigos com o seu nome e pergunta antes de desconsiderá-los. Um valor salvo que invalide o app não impede a subida (cai para o ambiente), e um token do Telegram errado deixa só o canal desligado, com o dashboard no ar para corrigir.
+- O Open Finance agora liga e desliga com o app rodando: sem credenciais a sincronização espera, e `/sync` e o botão Sincronizar avisam que não está configurado.
 - `OWN_NAMES`: seus nomes como aparecem nos Pix e transferências. Pix, TED e DOC com o seu próprio nome são entre contas suas e deixam de entrar como gasto ou renda (ficavam em despesas e na renda da projeção). Vale para as próximas sincronizações; o que já foi gravado precisa ser cancelado à mão (veja o README).
 - Aviso de **mês em andamento** na Visão geral, Comparações, Revisão, Orçamento e Coach; na Visão geral a variação contra o mês anterior some enquanto o mês não fecha.
 

@@ -43,7 +43,8 @@ type api struct {
 	now      func() time.Time
 	coach    *coachService
 	insights *usecase.Insights
-	syncer   chat.Syncer // nil sem Open Finance
+	syncer   chat.Syncer   // nil sem Open Finance
+	settings *SettingsDeps // nil sem a página de configurações
 }
 
 // MountAPI registra a API do dashboard. Tudo, exceto o login, exige sessão.
@@ -56,7 +57,7 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	if err != nil {
 		return err
 	}
-	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: usecase.NewInsights(reader), syncer: s.syncer}
+	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: usecase.NewInsights(reader), syncer: s.syncer, settings: s.settings}
 
 	// Login com limite apertado contra tentativa de força bruta; o restante, mais folgado.
 	loginLimiter := newIPRateLimiter(5, time.Minute)
@@ -99,6 +100,16 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	s.mux.Handle("GET /api/balances", protected(a.balances))
 	s.mux.Handle("GET /api/institutions/{id}/logo", protected(a.institutionLogo))
 	// Cada sincronização consulta o Pluggy: limite apertado por IP, além de uma por vez (409).
+	if s.settings != nil {
+		a.coach.paidFn = func() bool { return s.settings.Service.Bool("GEMINI_PAID_PLAN") }
+		writeLimiter := newIPRateLimiter(30, time.Minute)
+		s.mux.Handle("GET /api/settings", protected(a.getSettings))
+		s.mux.Handle("PUT /api/settings", writeLimiter.middleware(protected(a.putSettings)))
+		s.mux.Handle("DELETE /api/settings/{key}", writeLimiter.middleware(protected(a.resetSetting)))
+		s.mux.Handle("POST /api/settings/own-transfers/apply", writeLimiter.middleware(protected(a.applyOwnTransfers)))
+		s.mux.Handle("POST /api/settings/test/{target}", newIPRateLimiter(12, time.Minute).middleware(protected(a.testConnection)))
+		s.mux.Handle("POST /api/restart", newIPRateLimiter(3, time.Minute).middleware(protected(a.restart)))
+	}
 	s.mux.Handle("POST /api/sync", newIPRateLimiter(3, time.Minute).middleware(protected(a.syncNow)))
 	return nil
 }

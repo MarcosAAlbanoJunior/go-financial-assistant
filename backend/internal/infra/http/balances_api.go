@@ -138,7 +138,7 @@ func (a *api) syncNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "requisição não permitida")
 		return
 	}
-	if a.syncer == nil {
+	if a.syncer == nil || a.settings != nil && !a.settings.Service.Sync().Configured() {
 		writeError(w, http.StatusServiceUnavailable, "o Open Finance não está configurado")
 		return
 	}
@@ -146,6 +146,10 @@ func (a *api) syncNow(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	result, err := a.syncer.Sync(ctx)
+	if errors.Is(err, usecase.ErrNotConfigured) {
+		writeError(w, http.StatusServiceUnavailable, "o Open Finance não está configurado")
+		return
+	}
 	if errors.Is(err, usecase.ErrSyncInProgress) {
 		writeError(w, http.StatusConflict, "já existe uma sincronização em andamento")
 		return

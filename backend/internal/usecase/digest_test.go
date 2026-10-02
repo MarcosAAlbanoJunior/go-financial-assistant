@@ -1,7 +1,11 @@
 package usecase
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -123,5 +127,33 @@ func TestNextDigestTime(t *testing.T) {
 	}
 	if got := NextDigestTime(utc, time.Monday, 9, sp); got.Weekday() != time.Monday || got.Hour() != 9 || !got.After(utc) {
 		t.Errorf("sempre na segunda às 9h locais, no futuro: %v", got)
+	}
+}
+
+// Desligado, o job só espera; ao ligar pela configuração (changed), passa a agendar, e sai com o contexto.
+func TestDigestJob_FollowsScheduleChanges(t *testing.T) {
+	var enabled atomic.Bool
+	changed := make(chan struct{}, 1)
+	job := NewDigestJob(nil, nil, "", slog.New(slog.NewTextHandler(io.Discard, nil)),
+		func() (bool, time.Weekday, int, *time.Location) { return enabled.Load(), time.Monday, 9, time.UTC }, changed)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { job.Run(ctx); close(done) }()
+
+	time.Sleep(30 * time.Millisecond)
+	enabled.Store(true)
+	changed <- struct{}{} // acorda; agora espera até a próxima segunda às 9h
+	time.Sleep(30 * time.Millisecond)
+	select {
+	case <-done:
+		t.Fatal("o job não deveria ter terminado")
+	default:
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("o job deveria terminar com o contexto")
 	}
 }
