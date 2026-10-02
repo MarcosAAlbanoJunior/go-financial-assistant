@@ -6,15 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
-func group(key, label string, n int, total float64) ports.UncategorizedGroup {
-	return ports.UncategorizedGroup{Key: key, Label: label, Count: n, Total: total, Last: time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)}
+func group(key, label string, n int, total float64) domain.UncategorizedGroup {
+	return domain.UncategorizedGroup{Key: key, Label: label, Count: n, Total: total, Last: time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)}
 }
 
 func TestBuildCategorizeContext(t *testing.T) {
-	groups := []ports.UncategorizedGroup{
+	groups := []domain.UncategorizedGroup{
 		group("pix enviado fulano", "Pix enviado Fulano de Tal", 10, 5000), // pessoa: nunca vai
 		group("padaria do ze", "PADARIA DO ZE 123456", 8, 400),
 		group("transferencia ciclana", "Transferência enviada Ciclana", 2, 300),
@@ -37,7 +38,7 @@ func TestBuildCategorizeContext(t *testing.T) {
 }
 
 func TestBuildCategorizeContext_Limit(t *testing.T) {
-	var groups []ports.UncategorizedGroup
+	var groups []domain.UncategorizedGroup
 	for i := 0; i < 80; i++ {
 		groups = append(groups, group("loja "+strings.Repeat("a", i%5), "Loja", 1, 10))
 	}
@@ -48,7 +49,7 @@ func TestBuildCategorizeContext_Limit(t *testing.T) {
 }
 
 func TestValidateCategories(t *testing.T) {
-	kept := []ports.UncategorizedGroup{group("a", "A", 1, 1), group("b", "B", 1, 1), group("c", "C", 1, 1)}
+	kept := []domain.UncategorizedGroup{group("a", "A", 1, 1), group("b", "B", 1, 1), group("c", "C", 1, 1)}
 	raw := []ports.CategorySuggestion{
 		{ID: "c1", Category: "FOOD"},
 		{ID: "c1", Category: "MARKET"},  // repetida: vale a primeira

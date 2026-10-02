@@ -3,7 +3,7 @@ package usecase
 import (
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 // Situação de uma decisão "cancelei".
@@ -18,7 +18,7 @@ const stillCharged = 0.5
 
 // DecisionResult confere uma decisão contra o que foi cobrado depois dela.
 type DecisionResult struct {
-	Decision        ports.Decision
+	Decision        domain.Decision
 	Status          string
 	MonthsConfirmed int     // meses fechados depois da decisão sem a cobrança
 	Realized        float64 // economia acumulada: custo mensal x MonthsConfirmed
@@ -27,7 +27,7 @@ type DecisionResult struct {
 
 // BuildSavings confere cada decisão mês a mês, do mês seguinte ao da decisão até hoje. now é o primeiro dia
 // do mês atual: o mês em andamento só serve para flagrar a volta da cobrança, não conta como mês confirmado.
-func BuildSavings(decisions []ports.Decision, rows []ports.ExpenseKeyMonth, now time.Time) []DecisionResult {
+func BuildSavings(decisions []domain.Decision, rows []domain.ExpenseKeyMonth, now time.Time) []DecisionResult {
 	charged := map[string]map[time.Time]float64{}
 	for _, r := range rows {
 		if charged[r.Key] == nil {

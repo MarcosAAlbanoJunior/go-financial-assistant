@@ -12,7 +12,6 @@ import (
 	"unicode"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
 const (
@@ -100,8 +99,8 @@ func (i *Insights) Balances(ctx context.Context, now time.Time) (BalancesView, e
 
 // BuildBalances agrupa as contas por instituição (ou, sem instituição, por conexão), calcula
 // totais, participação, uso do limite e vencimento, e marca o que está desatualizado.
-func BuildBalances(accounts []ports.Account, institutions []ports.Institution, now time.Time) BalancesView {
-	known := make(map[string]ports.Institution, len(institutions))
+func BuildBalances(accounts []domain.Account, institutions []domain.Institution, now time.Time) BalancesView {
+	known := make(map[string]domain.Institution, len(institutions))
 	for _, in := range institutions {
 		known[in.ID.String()] = in
 	}
@@ -110,7 +109,7 @@ func BuildBalances(accounts []ports.Account, institutions []ports.Institution, n
 	var order []string
 	for _, a := range accounts {
 		key := "item-" + shortHash(a.ItemID)
-		var meta *ports.Institution
+		var meta *domain.Institution
 		if a.InstitutionID != nil {
 			if in, ok := known[a.InstitutionID.String()]; ok {
 				key, meta = in.ID.String(), &in
@@ -200,7 +199,7 @@ func BuildBalances(accounts []ports.Account, institutions []ports.Institution, n
 
 // autoInvested devolve o aplicado automaticamente só quando ele diz algo além do saldo. Alguns bancos (Itaú e Santander
 // pelo Meu Pluggy) informam o saldo inteiro da conta nesse campo: mostrar seria dizer que o dinheiro está fora da conta.
-func autoInvested(a ports.Account) *float64 {
+func autoInvested(a domain.Account) *float64 {
 	if a.AutoInvested == nil || *a.AutoInvested <= 0 || math.Abs(*a.AutoInvested-a.Balance) < 0.005 {
 		return nil
 	}
@@ -230,7 +229,7 @@ func knownBrand(accountName string) (name, color string) {
 	return accountName, ""
 }
 
-func buildCard(a ports.Account, now time.Time) BalanceCard {
+func buildCard(a domain.Account, now time.Time) BalanceCard {
 	c := BalanceCard{
 		ID: a.ID.String(), Name: a.Name, Brand: a.Brand, Last4: a.Last4, Invoice: a.Balance,
 		Limit: a.CreditLimit, Available: a.AvailableCreditLimit, CloseDate: a.CloseDate, DueDate: a.DueDate,

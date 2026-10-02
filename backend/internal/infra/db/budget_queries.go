@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
-func (r *PostgresPurchaseRepository) ExpenseKeyMonths(ctx context.Context, from, to time.Time) ([]ports.ExpenseKeyMonth, error) {
+func (r *PostgresPurchaseRepository) ExpenseKeyMonths(ctx context.Context, from, to time.Time) ([]domain.ExpenseKeyMonth, error) {
 	query := `
 		SELECT ` + expenseKey + ` AS key,
 		       (ARRAY_AGG(` + cleanDescription + ` ORDER BY pay.created_at DESC))[1] AS label,
@@ -33,9 +33,9 @@ func (r *PostgresPurchaseRepository) ExpenseKeyMonths(ctx context.Context, from,
 	}
 	defer rows.Close()
 
-	var result []ports.ExpenseKeyMonth
+	var result []domain.ExpenseKeyMonth
 	for rows.Next() {
-		var k ports.ExpenseKeyMonth
+		var k domain.ExpenseKeyMonth
 		if err := rows.Scan(&k.Key, &k.Label, &k.Category, &k.Month, &k.Total, &k.Count, &k.Day, &k.AllPaid, &k.Installment, &k.Recurring); err != nil {
 			return nil, fmt.Errorf("erro ao escanear despesas por conta: %w", err)
 		}
@@ -44,25 +44,25 @@ func (r *PostgresPurchaseRepository) ExpenseKeyMonths(ctx context.Context, from,
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) ExpenseRules(ctx context.Context) (map[string]ports.ExpenseClass, error) {
+func (r *PostgresPurchaseRepository) ExpenseRules(ctx context.Context) (map[string]domain.ExpenseClass, error) {
 	rows, err := r.db.Pool.Query(ctx, `SELECT key, class FROM expense_rules`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao ler regras de despesas: %w", err)
 	}
 	defer rows.Close()
 
-	rules := map[string]ports.ExpenseClass{}
+	rules := map[string]domain.ExpenseClass{}
 	for rows.Next() {
 		var key, class string
 		if err := rows.Scan(&key, &class); err != nil {
 			return nil, fmt.Errorf("erro ao escanear regra de despesa: %w", err)
 		}
-		rules[key] = ports.ExpenseClass(class)
+		rules[key] = domain.ExpenseClass(class)
 	}
 	return rules, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) SetExpenseRule(ctx context.Context, key string, class ports.ExpenseClass) error {
+func (r *PostgresPurchaseRepository) SetExpenseRule(ctx context.Context, key string, class domain.ExpenseClass) error {
 	var err error
 	if class == "" {
 		_, err = r.db.Pool.Exec(ctx, `DELETE FROM expense_rules WHERE key = $1`, key)
@@ -105,7 +105,7 @@ func (r *PostgresPurchaseRepository) KnownInstallments(ctx context.Context, from
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) IncomePayments(ctx context.Context, from, to time.Time) ([]ports.IncomePayment, error) {
+func (r *PostgresPurchaseRepository) IncomePayments(ctx context.Context, from, to time.Time) ([]domain.IncomePayment, error) {
 	query := `
 		SELECT CASE WHEN p.category = 'SALARY' THEN 'salario' ELSE ` + expenseKey + ` END AS key,
 		       CASE WHEN p.category = 'SALARY' THEN 'Salário' ELSE p.description END, ` + paymentMonth + ` AS month, pay.amount
@@ -122,9 +122,9 @@ func (r *PostgresPurchaseRepository) IncomePayments(ctx context.Context, from, t
 	}
 	defer rows.Close()
 
-	var result []ports.IncomePayment
+	var result []domain.IncomePayment
 	for rows.Next() {
-		var i ports.IncomePayment
+		var i domain.IncomePayment
 		if err := rows.Scan(&i.Key, &i.Label, &i.Month, &i.Amount); err != nil {
 			return nil, fmt.Errorf("erro ao escanear entrada de renda: %w", err)
 		}

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
 )
@@ -22,8 +22,8 @@ func balancesFixture() (*fakeReader, uuid.UUID) {
 	limit, avail := 1000.0, 220.0
 	due := time.Now().AddDate(0, 0, 2)
 	return &fakeReader{
-		institutions: []ports.Institution{{ID: inst, ItemID: "SEGREDO-ITEM-ID", Name: "Itaú", Color: "ec7000", HasLogo: true}},
-		accounts: []ports.Account{
+		institutions: []domain.Institution{{ID: inst, ItemID: "SEGREDO-ITEM-ID", Name: "Itaú", Color: "ec7000", HasLogo: true}},
+		accounts: []domain.Account{
 			{ID: uuid.New(), ItemID: "SEGREDO-ITEM-ID", InstitutionID: &inst, Type: "BANK", Name: "Itaú", Last4: "5678", Balance: 4345.67, UpdatedAt: time.Now()},
 			{ID: uuid.New(), ItemID: "SEGREDO-ITEM-ID", InstitutionID: &inst, Type: "CREDIT", Name: "Click", Last4: "3456", Balance: 940,
 				CreditLimit: &limit, AvailableCreditLimit: &avail, DueDate: &due, Brand: "MASTERCARD", UpdatedAt: time.Now()},

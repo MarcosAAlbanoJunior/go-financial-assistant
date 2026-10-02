@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -42,21 +43,11 @@ type Coach interface {
 	Categorize(ctx context.Context, contextJSON []byte) ([]CategorySuggestion, error)
 }
 
-// CoachAnalysis é uma análise guardada. Advice é o JSON da análise (formato definido pelo usecase) e Answers,
-// as respostas da pessoa às perguntas, por chave.
-type CoachAnalysis struct {
-	ID        uuid.UUID
-	Month     time.Time
-	CreatedAt time.Time
-	Advice    []byte
-	Answers   map[string]string
-}
-
 // CoachStore guarda o histórico do Coach.
 type CoachStore interface {
-	SaveCoachAnalysis(ctx context.Context, a CoachAnalysis) error
+	SaveCoachAnalysis(ctx context.Context, a domain.CoachAnalysis) error
 	// CoachAnalyses devolve da mais nova para a mais antiga; month nil lê de todos os meses.
-	CoachAnalyses(ctx context.Context, month *time.Time, limit int) ([]CoachAnalysis, error)
+	CoachAnalyses(ctx context.Context, month *time.Time, limit int) ([]domain.CoachAnalysis, error)
 	// SetCoachAnswer grava a resposta de uma pergunta; answer vazio apaga. false se a análise não existe.
 	SetCoachAnswer(ctx context.Context, id uuid.UUID, key, answer string) (bool, error)
 	// DeleteCoachAnalysis apaga a análise; false se ela não existe.

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/google/uuid"
 )
 
-func (r *PostgresPurchaseRepository) SaveCoachAnalysis(ctx context.Context, a ports.CoachAnalysis) error {
+func (r *PostgresPurchaseRepository) SaveCoachAnalysis(ctx context.Context, a domain.CoachAnalysis) error {
 	answers, err := json.Marshal(a.Answers)
 	if err != nil {
 		return fmt.Errorf("erro ao serializar respostas do coach: %w", err)
@@ -24,7 +24,7 @@ func (r *PostgresPurchaseRepository) SaveCoachAnalysis(ctx context.Context, a po
 	return nil
 }
 
-func (r *PostgresPurchaseRepository) CoachAnalyses(ctx context.Context, month *time.Time, limit int) ([]ports.CoachAnalysis, error) {
+func (r *PostgresPurchaseRepository) CoachAnalyses(ctx context.Context, month *time.Time, limit int) ([]domain.CoachAnalysis, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id, month, created_at, advice, answers FROM coach_analyses
 		WHERE $1::date IS NULL OR month = $1::date
@@ -35,9 +35,9 @@ func (r *PostgresPurchaseRepository) CoachAnalyses(ctx context.Context, month *t
 	}
 	defer rows.Close()
 
-	var result []ports.CoachAnalysis
+	var result []domain.CoachAnalysis
 	for rows.Next() {
-		var a ports.CoachAnalysis
+		var a domain.CoachAnalysis
 		var answers []byte
 		if err := rows.Scan(&a.ID, &a.Month, &a.CreatedAt, &a.Advice, &answers); err != nil {
 			return nil, fmt.Errorf("erro ao escanear análise do coach: %w", err)

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 // transactionWhere monta a cláusula WHERE (e os argumentos) do filtro, compartilhada pela lista e
 // pelos grupos. Só texto fixo entra no SQL; os valores vão sempre como parâmetros.
-func transactionWhere(f ports.TransactionFilter) (string, []any) {
+func transactionWhere(f domain.TransactionFilter) (string, []any) {
 	var (
 		where []string
 		args  []any
@@ -44,7 +44,7 @@ func transactionWhere(f ports.TransactionFilter) (string, []any) {
 	return strings.Join(where, " AND "), args
 }
 
-func (r *PostgresPurchaseRepository) Transactions(ctx context.Context, f ports.TransactionFilter) ([]ports.Transaction, int, error) {
+func (r *PostgresPurchaseRepository) Transactions(ctx context.Context, f domain.TransactionFilter) ([]domain.Transaction, int, error) {
 	where, args := transactionWhere(f)
 	args = append(args, f.Limit, f.Offset)
 
@@ -70,11 +70,11 @@ func (r *PostgresPurchaseRepository) Transactions(ctx context.Context, f ports.T
 	defer rows.Close()
 
 	var (
-		result []ports.Transaction
+		result []domain.Transaction
 		total  int
 	)
 	for rows.Next() {
-		var t ports.Transaction
+		var t domain.Transaction
 		if err := rows.Scan(&t.ID, &t.Date, &t.Description, &t.Category, &t.PaymentMethod, &t.Kind,
 			&t.TransferDirection, &t.Type, &t.Status, &t.Amount, &t.InstallmentNumber,
 			&t.AccountID, &t.AccountName, &t.FromOpenFinance, &total); err != nil {
@@ -85,13 +85,13 @@ func (r *PostgresPurchaseRepository) Transactions(ctx context.Context, f ports.T
 	return result, total, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) TransactionGroups(ctx context.Context, f ports.TransactionFilter, by ports.GroupBy) ([]ports.TransactionGroup, error) {
+func (r *PostgresPurchaseRepository) TransactionGroups(ctx context.Context, f domain.TransactionFilter, by domain.GroupBy) ([]domain.TransactionGroup, error) {
 	// A chave do grupo vem de fragmentos fixos, nunca do cliente.
 	var key, order string
 	switch by {
-	case ports.GroupByCategory:
+	case domain.GroupByCategory:
 		key, order = "p.category", "expense DESC, income DESC, transfer DESC, key"
-	case ports.GroupByDay:
+	case domain.GroupByDay:
 		key, order = "TO_CHAR("+txDate+", 'YYYY-MM-DD')", "key DESC"
 	default:
 		return nil, fmt.Errorf("agrupamento inválido: %q", by)
@@ -116,9 +116,9 @@ func (r *PostgresPurchaseRepository) TransactionGroups(ctx context.Context, f po
 	}
 	defer rows.Close()
 
-	var result []ports.TransactionGroup
+	var result []domain.TransactionGroup
 	for rows.Next() {
-		var g ports.TransactionGroup
+		var g domain.TransactionGroup
 		if err := rows.Scan(&g.Key, &g.Count, &g.Expense, &g.Income, &g.Transfer); err != nil {
 			return nil, fmt.Errorf("erro ao escanear grupo: %w", err)
 		}

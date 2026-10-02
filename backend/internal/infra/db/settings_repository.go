@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/settings"
 	"github.com/google/uuid"
@@ -47,7 +48,7 @@ func (s *SettingsStore) DeleteSetting(ctx context.Context, key string) error {
 
 // OwnTransferCandidates lista os lançamentos do banco que parecem transferência (Pix, TED, DOC) e ainda contam;
 // quem chama decide, pelo nome, quais são entre contas da própria pessoa.
-func (r *PostgresPurchaseRepository) OwnTransferCandidates(ctx context.Context) ([]ports.TransferCandidate, error) {
+func (r *PostgresPurchaseRepository) OwnTransferCandidates(ctx context.Context) ([]domain.TransferCandidate, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT pay.id, p.description, p.kind, pay.amount
 		FROM payments pay
@@ -58,8 +59,8 @@ func (r *PostgresPurchaseRepository) OwnTransferCandidates(ctx context.Context) 
 	if err != nil {
 		return nil, fmt.Errorf("erro ao procurar transferências: %w", err)
 	}
-	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (ports.TransferCandidate, error) {
-		var c ports.TransferCandidate
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.TransferCandidate, error) {
+		var c domain.TransferCandidate
 		err := row.Scan(&c.PaymentID, &c.Description, &c.Kind, &c.Amount)
 		return c, err
 	})

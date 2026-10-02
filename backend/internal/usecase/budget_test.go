@@ -4,20 +4,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 func month(y int, m time.Month) time.Time { return time.Date(y, m, 1, 0, 0, 0, 0, time.UTC) }
 
 // monthsOf cria uma linha por mês, a partir de abril, com os totais dados.
-func monthsOf(key string, totals ...float64) []ports.ExpenseKeyMonth {
+func monthsOf(key string, totals ...float64) []domain.ExpenseKeyMonth {
 	return monthsFrom(key, time.April, totals...)
 }
 
-func monthsFrom(key string, start time.Month, totals ...float64) []ports.ExpenseKeyMonth {
-	var rows []ports.ExpenseKeyMonth
+func monthsFrom(key string, start time.Month, totals ...float64) []domain.ExpenseKeyMonth {
+	var rows []domain.ExpenseKeyMonth
 	for i, t := range totals {
-		rows = append(rows, ports.ExpenseKeyMonth{Key: key, Label: key, Month: month(2026, start+time.Month(i)), Total: t, Count: 1, Day: 10, AllPaid: true})
+		rows = append(rows, domain.ExpenseKeyMonth{Key: key, Label: key, Month: month(2026, start+time.Month(i)), Total: t, Count: 1, Day: 10, AllPaid: true})
 	}
 	return rows
 }
@@ -34,13 +34,13 @@ func classOf(t *testing.T, b Budget, key string) BudgetItem {
 }
 
 func TestBuildBudget_ClassifiesByRule(t *testing.T) {
-	var rows []ports.ExpenseKeyMonth
+	var rows []domain.ExpenseKeyMonth
 	rows = append(rows, monthsOf("netflix", 44.9, 44.9, 44.9, 44.9, 44.9, 44.9)...) // fixa: todo mês, mesmo valor
 	rows = append(rows, monthsOf("luz", 180, 210, 195, 205, 190, 200)...)           // fixa: valor varia dentro de 30%
 	rows = append(rows, monthsOf("mercado", 400, 900, 150, 700, 300, 800)...)       // valor muito diferente: variável
 	rows = append(rows,
-		ports.ExpenseKeyMonth{Key: "academia", Label: "academia", Month: month(2026, time.August), Total: 100, Count: 1, Day: 5},
-		ports.ExpenseKeyMonth{Key: "academia", Label: "academia", Month: month(2026, time.September), Total: 100, Count: 1, Day: 5}) // só 2 meses: ainda não dá para dizer
+		domain.ExpenseKeyMonth{Key: "academia", Label: "academia", Month: month(2026, time.August), Total: 100, Count: 1, Day: 5},
+		domain.ExpenseKeyMonth{Key: "academia", Label: "academia", Month: month(2026, time.September), Total: 100, Count: 1, Day: 5}) // só 2 meses: ainda não dá para dizer
 	rows = append(rows, monthsOf("seguro", 12, 12, 12, 12, 12, 12)...)
 	for i := range rows {
 		if rows[i].Key == "seguro" {
@@ -54,9 +54,9 @@ func TestBuildBudget_ClassifiesByRule(t *testing.T) {
 	}
 
 	b := BuildBudget(rows, nil, month(2026, time.April), month(2026, time.September))
-	want := map[string]ports.ExpenseClass{
-		"netflix": ports.ClassFixed, "luz": ports.ClassFixed, "mercado": ports.ClassVariable,
-		"academia": ports.ClassVariable, "seguro": ports.ClassInstallment, "lanche": ports.ClassVariable,
+	want := map[string]domain.ExpenseClass{
+		"netflix": domain.ClassFixed, "luz": domain.ClassFixed, "mercado": domain.ClassVariable,
+		"academia": domain.ClassVariable, "seguro": domain.ClassInstallment, "lanche": domain.ClassVariable,
 	}
 	for key, class := range want {
 		if got := classOf(t, b, key); got.Class != class || got.Manual {
@@ -72,7 +72,7 @@ func TestBuildBudget_FewMonthsOfHistory(t *testing.T) {
 	// Só 2 meses de dados: uma conta que aparece nos dois com valor parecido já é candidata a fixa.
 	rows := append(monthsOf("wellhub", 100, 100), monthsOf("mercado", 400, 900)...)
 	b := BuildBudget(rows, nil, month(2026, time.April), month(2026, time.May))
-	if classOf(t, b, "wellhub").Class != ports.ClassFixed || classOf(t, b, "mercado").Class != ports.ClassVariable {
+	if classOf(t, b, "wellhub").Class != domain.ClassFixed || classOf(t, b, "mercado").Class != domain.ClassVariable {
 		t.Errorf("com 2 meses: %+v", b.Items)
 	}
 
@@ -80,32 +80,32 @@ func TestBuildBudget_FewMonthsOfHistory(t *testing.T) {
 	rows = append(monthsOf("wellhub", 100, 100), monthsOf("birigui", 296, 228)...)
 	rows = append(rows, monthsOf("netflix", 44.9, 45.9)...)
 	b = BuildBudget(rows, nil, month(2026, time.April), month(2026, time.May))
-	if classOf(t, b, "birigui").Class != ports.ClassVariable || classOf(t, b, "netflix").Class != ports.ClassFixed {
+	if classOf(t, b, "birigui").Class != domain.ClassVariable || classOf(t, b, "netflix").Class != domain.ClassFixed {
 		t.Errorf("2 meses exigem valor quase igual: %+v", b.Items)
 	}
 
 	// Um mês só: não há como saber o que se repete.
 	one := BuildBudget(monthsOf("wellhub", 100), nil, month(2026, time.April), month(2026, time.April))
-	if classOf(t, one, "wellhub").Class != ports.ClassVariable {
+	if classOf(t, one, "wellhub").Class != domain.ClassVariable {
 		t.Errorf("com 1 mês tudo é variável: %+v", one.Items)
 	}
 
 	// Com 3 meses de dados, aparecer em 2 não basta.
 	rows = append(monthsFrom("wellhub", time.May, 100, 100), monthsOf("mercado", 10, 20, 30)...)
-	if classOf(t, BuildBudget(rows, nil, month(2026, time.April), month(2026, time.June)), "wellhub").Class != ports.ClassVariable {
+	if classOf(t, BuildBudget(rows, nil, month(2026, time.April), month(2026, time.June)), "wellhub").Class != domain.ClassVariable {
 		t.Error("com 3 meses de dados, 2 aparições não é conta fixa")
 	}
 }
 
 func TestBuildBudget_ManualRuleBeatsDetection(t *testing.T) {
 	rows := append(monthsOf("netflix", 45, 45, 45, 45), monthsOf("mercado", 400, 900, 150, 700)...)
-	rules := map[string]ports.ExpenseClass{"netflix": ports.ClassVariable, "mercado": ports.ClassFixed}
+	rules := map[string]domain.ExpenseClass{"netflix": domain.ClassVariable, "mercado": domain.ClassFixed}
 
 	b := BuildBudget(rows, rules, month(2026, time.April), month(2026, time.July))
-	if n := classOf(t, b, "netflix"); n.Class != ports.ClassVariable || !n.Manual {
+	if n := classOf(t, b, "netflix"); n.Class != domain.ClassVariable || !n.Manual {
 		t.Errorf("manual variável: %+v", n)
 	}
-	if m := classOf(t, b, "mercado"); m.Class != ports.ClassFixed || !m.Manual {
+	if m := classOf(t, b, "mercado"); m.Class != domain.ClassFixed || !m.Manual {
 		t.Errorf("manual fixa: %+v", m)
 	}
 }
@@ -114,7 +114,7 @@ func TestBuildBudget_RecurringIsFixedAndParcelBeatsDetection(t *testing.T) {
 	rows := monthsOf("aluguel", 1500)
 	rows[0].Recurring = true // cadastrada como recorrente: fixa desde o primeiro mês
 	b := BuildBudget(rows, nil, month(2026, time.April), month(2026, time.April))
-	if got := classOf(t, b, "aluguel"); got.Class != ports.ClassFixed {
+	if got := classOf(t, b, "aluguel"); got.Class != domain.ClassFixed {
 		t.Errorf("recorrente: %+v", got)
 	}
 
@@ -122,14 +122,14 @@ func TestBuildBudget_RecurringIsFixedAndParcelBeatsDetection(t *testing.T) {
 	for i := range p {
 		p[i].Installment = true
 	}
-	if got := classOf(t, BuildBudget(p, nil, month(2026, time.April), month(2026, time.July)), "tv"); got.Class != ports.ClassInstallment {
+	if got := classOf(t, BuildBudget(p, nil, month(2026, time.April), month(2026, time.July)), "tv"); got.Class != domain.ClassInstallment {
 		t.Errorf("parcelada vence a detecção de fixa: %+v", got)
 	}
 }
 
 func TestBuildBudget_SeriesSumsPerMonthAndFillsGaps(t *testing.T) {
 	rows := append(monthsOf("netflix", 45, 45, 45), monthsOf("mercado", 100, 200, 300)...)
-	rows = append(rows, ports.ExpenseKeyMonth{Key: "tv", Month: month(2026, time.May), Total: 70, Count: 1, Installment: true})
+	rows = append(rows, domain.ExpenseKeyMonth{Key: "tv", Month: month(2026, time.May), Total: 70, Count: 1, Installment: true})
 
 	b := BuildBudget(rows, nil, month(2026, time.March), month(2026, time.June))
 	if len(b.Series) != 4 {

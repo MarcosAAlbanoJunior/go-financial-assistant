@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *PostgresPurchaseRepository) UncategorizedExpenses(ctx context.Context, limit int) ([]ports.UncategorizedGroup, error) {
+func (r *PostgresPurchaseRepository) UncategorizedExpenses(ctx context.Context, limit int) ([]domain.UncategorizedGroup, error) {
 	query := `
 		WITH g AS (
 			SELECT ` + expenseKey + ` AS key,
@@ -30,9 +30,9 @@ func (r *PostgresPurchaseRepository) UncategorizedExpenses(ctx context.Context, 
 	}
 	defer rows.Close()
 
-	var result []ports.UncategorizedGroup
+	var result []domain.UncategorizedGroup
 	for rows.Next() {
-		var g ports.UncategorizedGroup
+		var g domain.UncategorizedGroup
 		if err := rows.Scan(&g.Key, &g.Label, &g.Count, &g.Total, &g.Last); err != nil {
 			return nil, fmt.Errorf("erro ao escanear despesa em Outros: %w", err)
 		}
