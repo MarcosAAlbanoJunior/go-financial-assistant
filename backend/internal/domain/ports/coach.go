@@ -29,9 +29,17 @@ type CoachAdvice struct {
 	Questions []string // perguntas gerais
 }
 
+// CategorySuggestion é a categoria que a IA sugere para uma conta (ID é o enviado no contexto).
+type CategorySuggestion struct {
+	ID       string
+	Category string
+}
+
 // Coach interpreta o contexto financeiro (JSON já sanitizado) e devolve sugestões e perguntas.
 type Coach interface {
 	Advise(ctx context.Context, contextJSON []byte) (CoachAdvice, error)
+	// Categorize sugere categorias para contas (JSON já sanitizado). Quem chama valida a resposta.
+	Categorize(ctx context.Context, contextJSON []byte) ([]CategorySuggestion, error)
 }
 
 // CoachAnalysis é uma análise guardada. Advice é o JSON da análise (formato definido pelo usecase) e Answers,

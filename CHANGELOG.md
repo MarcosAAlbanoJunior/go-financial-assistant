@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- API de **classificação de "Outros"**: `GET /api/categorize` lista as contas que ficaram em Outros, `PUT /api/categorize/rules` classifica uma conta (retroativo e nas próximas sincronizações) e `POST /api/categorize/suggest` pede sugestões à IA só para comércio e serviços (nunca Pix), com as mesmas travas do Coach (plano pago, prévia com hash, uma por vez). A IA só sugere; só vale o que você aplicar.
 - Regras de categoria por conta: classificar uma conta reclassifica as despesas que estavam em "Outros" e vale também para as próximas sincronizações; "manter em Outros" tira a conta da lista. Migration `014_create_category_rules.sql`.
 - **Novas categorias**: Moradia, Contas, Educação e Pessoas (cada uma com cor e ícone próprios), para que aluguel, contas de casa, mensalidades e repasses não fiquem todos em "Outros". Valem nas telas, nos filtros, nas metas de redução e para o assistente do chat (cursos e universidades saíram de Lazer).
 - **Economia realizada**: ao marcar uma conta fixa ou de gasto formiga como "cancelei", o app confere nos meses seguintes se a cobrança sumiu e soma o que você deixou de gastar (custo mensal x meses sem a cobrança). Se a cobrança voltar, avisa; o mês em andamento só serve para flagrar a volta. API: `GET /api/savings` e `PUT /api/savings/decisions`. O Coach recebe as decisões (com a situação calculada pelo app) e não pergunta de novo sobre elas.
