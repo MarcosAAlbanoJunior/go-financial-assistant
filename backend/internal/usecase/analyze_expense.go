@@ -21,11 +21,15 @@ type AnalyzeExpense struct {
 	repo     ports.PurchaseRepository
 	analyzer ports.AIAnalyzer
 	logger   *slog.Logger
+	clock    domain.Clock
 }
 
 func NewAnalyzeExpense(repo ports.PurchaseRepository, analyzer ports.AIAnalyzer, logger *slog.Logger) *AnalyzeExpense {
-	return &AnalyzeExpense{repo: repo, analyzer: analyzer, logger: logger}
+	return &AnalyzeExpense{repo: repo, analyzer: analyzer, logger: logger, clock: domain.SystemClock{}}
 }
+
+// SetClock troca o relógio (testes).
+func (uc *AnalyzeExpense) SetClock(c domain.Clock) { uc.clock = c }
 
 type TextInput struct {
 	Text string
@@ -161,7 +165,7 @@ func (uc *AnalyzeExpense) GenerateRecurringExpenses(ctx context.Context) error {
 		return fmt.Errorf("erro ao buscar despesas recorrentes: %w", err)
 	}
 
-	now := time.Now().UTC()
+	now := uc.clock.Now().UTC()
 	firstOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	for i := range actives {
