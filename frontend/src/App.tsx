@@ -3,6 +3,7 @@ import { RequireAuth } from './components/RequireAuth'
 import Login from './pages/Login'
 import Accounts from './pages/Accounts'
 import Budget from './pages/Budget'
+import Coach from './pages/Coach'
 import Compare from './pages/Compare'
 import Goals from './pages/Goals'
 import Investments from './pages/Investments'
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/orcamento" element={<Budget />} />
         <Route path="/revisao" element={<Review />} />
         <Route path="/metas" element={<Goals />} />
+        <Route path="/coach" element={<Coach />} />
         <Route path="/gastos" element={<Spending />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
