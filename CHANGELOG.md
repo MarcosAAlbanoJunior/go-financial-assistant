@@ -9,6 +9,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Aviso de **mês em andamento** na Visão geral, Comparações, Revisão, Orçamento e Coach; na Visão geral a variação contra o mês anterior some enquanto o mês não fecha.
 
 ### Corrigido
+- Compras parceladas no cartão: cada parcela passa a ser datada no mês da fatura em que cai (`billForecastDate` do Pluggy), mantendo o dia da compra. Antes as 12 parcelas caíam todas no mês da compra (a Ótica somava R$ 1.717 só em junho e os meses seguintes ficavam sem a parcela), o que distorcia gastos por mês, Revisão, Orçamento e Projeção. A sincronização corrige as parcelas já gravadas quando as reconhece de novo; para as mais antigas que `SYNC_LOOKBACK_DAYS`, rode uma sincronização com um valor maior (ex.: 365) uma vez.
 - Projeção: todo salário vira uma fonte só (a descrição mudava de mês a mês e o salário caía em "Outras entradas").
 - Compras no débito do Itaú ("DEBITO VISA ELECTRON BRASIL 20/09 NETFLIX...") agora são reconhecidas pelo comércio, e o nome mostrado não traz o prefixo.
 - Painel: aplicado automático igual ao saldo não aparece mais; o app usa o fuso de `DIGEST_TIMEZONE`.

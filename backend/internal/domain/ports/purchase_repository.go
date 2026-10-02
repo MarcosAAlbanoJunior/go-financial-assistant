@@ -51,7 +51,8 @@ type PurchaseRepository interface {
 	SaveInstitutionLogo(ctx context.Context, id uuid.UUID, data []byte, mime string) error
 	// RefreshExternal informa se a transação já foi sincronizada. Se sim, vincula a conta de
 	// origem (quando ainda não tinha, pois foi sincronizada antes da tabela de contas) e promove
-	// a categoria de um lançamento que estava em OTHER (regras novas de classificação).
+	// a categoria de um lançamento que estava em OTHER (regras novas de classificação). Parcelas de cartão
+	// também têm a data corrigida para o mês da fatura (sincronizadas antes dessa correção estavam na data da compra).
 	RefreshExternal(ctx context.Context, tx ExternalTransaction, accountID uuid.UUID) (bool, error)
 	// SaveInvestments grava as posições do item e o saldo de hoje; posições do item que não
 	// vieram na lista (resgatadas) ficam inativas com saldo zero a partir de hoje.
