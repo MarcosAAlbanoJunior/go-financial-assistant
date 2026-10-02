@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { deltaPercent, formatMonthShort, formatPercent } from '../lib/format'
 
 interface Props {
@@ -5,17 +6,26 @@ interface Props {
   value: string
   note?: string
   /** Comparação com o mês anterior; omitida quando o cartão não tem série (ex.: saldo em conta). */
+  /** Torna o cartão um link (ex.: "Em conta" leva ao Painel). */
+  to?: string
   compare?: { current: number; previous: number; previousMonth: string; upIsGood: boolean }
 }
 
-export function StatTile({ label, value, note, compare }: Props) {
-  return (
-    <div className="card">
+export function StatTile({ label, value, note, to, compare }: Props) {
+  const body = (
+    <>
       <p className="tile-label">{label}</p>
       <p className="tile-value">{value}</p>
       {note && <p className="tile-note">{note}</p>}
       {compare && <Delta {...compare} />}
-    </div>
+    </>
+  )
+  return to ? (
+    <Link to={to} className="card tile-link">
+      {body}
+    </Link>
+  ) : (
+    <div className="card">{body}</div>
   )
 }
 

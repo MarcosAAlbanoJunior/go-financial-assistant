@@ -32,7 +32,12 @@ interface Item {
 
 // O menu é agrupado por assunto; a ordem dentro de cada grupo vai do mais usado ao menos usado.
 const SECTIONS: { title?: string; items: Item[] }[] = [
-  { items: [{ to: '/', label: 'Visão geral', Icon: LayoutDashboard }] },
+  {
+    items: [
+      { to: '/', label: 'Painel', Icon: Landmark },
+      { to: '/visao-geral', label: 'Visão geral', Icon: LayoutDashboard },
+    ],
+  },
   {
     title: 'Dia a dia',
     items: [
@@ -40,7 +45,6 @@ const SECTIONS: { title?: string; items: Item[] }[] = [
       { to: '/gastos', label: 'Gastos', Icon: ChartPie },
       { to: '/classificar', label: 'Classificar', Icon: Tags },
       { to: '/orcamento', label: 'Orçamento', Icon: Scale },
-      { to: '/contas', label: 'Contas e cartões', Icon: Landmark },
     ],
   },
   {
