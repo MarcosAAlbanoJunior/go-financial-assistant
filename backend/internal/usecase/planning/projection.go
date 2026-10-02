@@ -1,9 +1,10 @@
-package usecase
+package planning
 
 import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -47,6 +48,11 @@ type Projection struct {
 }
 
 var installmentRE = regexp.MustCompile(`(?i)(?:\(\s*(\d+)\s*/\s*(\d+)\s*\)|parc[a-z.]*\s*(\d+)\s*/\s*(\d+))`)
+
+// StripInstallment tira do nome a marcação de parcela ("(2/12)", "Parc 011/012").
+func StripInstallment(label string) string {
+	return strings.TrimSpace(installmentRE.ReplaceAllString(label, ""))
+}
 
 // parseInstallment lê "n/m" de "(2/12)" ou "Parc 011/012": a parcela atual e o total.
 func parseInstallment(label string) (current, total int, ok bool) {

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
@@ -46,7 +48,7 @@ func sampleReview() Review {
 }
 
 func TestBuildCoachContext(t *testing.T) {
-	goals := []GoalProgress{{Goal: domain.Goal{Kind: domain.GoalSave, Name: "Viagem"}, Current: 100, Target: 1000}}
+	goals := []planning.GoalProgress{{Goal: domain.Goal{Kind: domain.GoalSave, Name: "Viagem"}, Current: 100, Target: 1000}}
 	c := BuildCoachContext(sampleReview(), "2026-09", domain.MonthTotals{Income: 5000, Expense: 3000}, goals, nil, nil)
 
 	if len(c.Suggestions) != 3 || c.Suggestions[0].ID != "s1" || c.Suggestions[2].ID != "s3" {
@@ -78,9 +80,9 @@ func TestBuildCoachContext_LimitsSizeAndCount(t *testing.T) {
 	for _, cat := range []string{"FOOD", "MARKET", "TRANSPORT", "HEALTH", "ENTERTAINMENT", "SHOPPING", "INVESTMENT", "SALARY", "OTHER"} {
 		rev.Matrix = append(rev.Matrix, ReviewRow{Category: cat, Values: make([]float64, ReviewMatrixMonths)})
 	}
-	var goals []GoalProgress
+	var goals []planning.GoalProgress
 	for i := 0; i < 20; i++ {
-		goals = append(goals, GoalProgress{Goal: domain.Goal{Kind: domain.GoalCut, Name: strings.Repeat("m", 60)}})
+		goals = append(goals, planning.GoalProgress{Goal: domain.Goal{Kind: domain.GoalCut, Name: strings.Repeat("m", 60)}})
 	}
 	c := BuildCoachContext(rev, "2026-09", domain.MonthTotals{}, goals, nil, nil)
 	raw, _ := json.Marshal(c)
@@ -159,7 +161,7 @@ func TestNewCoachRecordAndQuestionKeys(t *testing.T) {
 		{Kind: ReviewFixed, Key: "streaming", Label: "STREAMING", Category: "ENTERTAINMENT", Saving: 40, Recurring: true, Amount: 40},
 		{Kind: ReviewDuplicate, Key: "oficina", Label: "Oficina", Category: "OTHER", Saving: 100, Amount: 100},
 	}
-	goals := []GoalProgress{{Goal: domain.Goal{Name: "Reserva"}}}
+	goals := []planning.GoalProgress{{Goal: domain.Goal{Name: "Reserva"}}}
 	adv := ports.CoachAdvice{
 		Summary:   "Resumo.",
 		Actions:   []ports.CoachAction{{SuggestionID: "s1", Priority: 1, Comment: "Rever.", Question: "Ainda usa?"}, {SuggestionID: "s2", Priority: 2, Comment: "Conferir."}},

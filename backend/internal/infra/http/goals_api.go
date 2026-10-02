@@ -9,8 +9,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
 )
 
@@ -177,7 +178,7 @@ func (a *api) fillCutGoal(ctx context.Context, g *domain.Goal, in goalInput, now
 	if err != nil {
 		return err
 	}
-	baseline, ok := usecase.CutBaseline(cats, in.Category, now)
+	baseline, ok := planning.CutBaseline(cats, in.Category, now)
 	if !ok {
 		return &apiError{http.StatusUnprocessableEntity, "a categoria não tem gastos nos meses anteriores para servir de base"}
 	}

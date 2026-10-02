@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
@@ -56,7 +58,7 @@ func (i *Insights) WeeklyDigest(ctx context.Context, today time.Time) (string, e
 }
 
 // FormatDigest escreve o resumo em texto simples (sem Markdown, já que nomes de contas vêm do banco).
-func FormatDigest(today time.Time, totals domain.MonthTotals, review Review, goals []GoalProgress, savings []DecisionResult) string {
+func FormatDigest(today time.Time, totals domain.MonthTotals, review Review, goals []planning.GoalProgress, savings []DecisionResult) string {
 	var alerts []string
 	add := func(format string, args ...any) { alerts = append(alerts, "• "+fmt.Sprintf(format, args...)) }
 
@@ -114,7 +116,7 @@ func FormatDigest(today time.Time, totals domain.MonthTotals, review Review, goa
 
 // cleanDigestLabel tira a marcação de parcela do fim e limita o tamanho do nome.
 func cleanDigestLabel(label string) string {
-	label = strings.TrimSpace(installmentRE.ReplaceAllString(label, ""))
+	label = planning.StripInstallment(label)
 	if r := []rune(label); len(r) > 60 {
 		label = string(r[:60])
 	}

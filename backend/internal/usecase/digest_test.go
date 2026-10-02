@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
@@ -48,7 +50,7 @@ func TestFormatDigest(t *testing.T) {
 		{Kind: ReviewDuplicate, Label: "Dispensada", Count: 2, Amount: 10, Dismissed: true},
 		{Kind: ReviewFixed, Label: "Streaming", Amount: 40, Recurring: true}, // fixa não é alerta
 	}}
-	goals := []GoalProgress{
+	goals := []planning.GoalProgress{
 		{Goal: domain.Goal{Kind: domain.GoalCut, Name: "Comida"}, Current: 300, Target: 800, Projected: &over},
 		{Goal: domain.Goal{Kind: domain.GoalCut, Name: "Lazer"}, Current: 900, Target: 800},
 		{Goal: domain.Goal{Kind: domain.GoalCut, Name: "Calma"}, Current: 100, Target: 800},
