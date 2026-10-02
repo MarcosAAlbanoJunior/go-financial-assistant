@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"context"
 	"encoding/json"
 	"mime"
 	"net/http"
@@ -17,24 +16,9 @@ import (
 // duplicata podem ser compras avulsas, e contar a sua ausência como economia seria enganoso.
 var decisionKinds = []string{usecase.ReviewFixed, usecase.ReviewAnt}
 
-// buildSavings confere as decisões "cancelei" contra o que foi cobrado desde então.
-func (a *api) buildSavings(ctx context.Context) ([]usecase.DecisionResult, error) {
-	decisions, err := a.reader.Decisions(ctx)
-	if err != nil || len(decisions) == 0 {
-		return nil, err
-	}
-	from := slices.MinFunc(decisions, func(x, y ports.Decision) int { return x.Month.Compare(y.Month) }).Month
-	now := a.monthStart()
-	rows, err := a.reader.ExpenseKeyMonths(ctx, from, now)
-	if err != nil {
-		return nil, err
-	}
-	return usecase.BuildSavings(decisions, rows, now), nil
-}
-
 // savings: a economia já realizada pelas contas que a pessoa disse ter cancelado, conferida mês a mês.
 func (a *api) savings(w http.ResponseWriter, r *http.Request) {
-	results, err := a.buildSavings(r.Context())
+	results, err := a.insights.Savings(r.Context(), a.monthStart())
 	if err != nil {
 		a.fail(w, "economia realizada", err)
 		return
@@ -99,7 +83,7 @@ func (a *api) setDecision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "month deve ser um mês até o atual (AAAA-MM)")
 		return
 	}
-	rev, err := a.buildReview(r.Context(), month)
+	rev, err := a.insights.Review(r.Context(), month)
 	if err != nil {
 		a.fail(w, "decisão", err)
 		return
