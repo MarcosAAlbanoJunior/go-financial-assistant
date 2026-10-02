@@ -516,3 +516,8 @@ table.tx td { vertical-align: top; }
 .set-dialog p { margin: 8px 0; }
 .set-examples { margin: 8px 0; padding-left: 20px; font-size: 0.875rem; color: var(--text-secondary); overflow-wrap: anywhere; }
 @media (max-width: 640px) { .set-field input[type='text'], .set-field input[type='number'], .set-field input[type='password'], .set-field select { min-height: 44px; } }
+
+.set-audit { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; font-size: 0.875rem; }
+.set-audit li { display: grid; grid-template-columns: 9.5rem 1fr auto; gap: 8px; align-items: baseline; }
+.set-audit time { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .set-audit li { grid-template-columns: 1fr; gap: 0; } }

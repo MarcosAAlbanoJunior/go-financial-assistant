@@ -99,6 +99,16 @@ func init() {
 	}
 }
 
+// sensitiveKeys, além dos segredos, são o que redireciona dados ou abre acesso: trocar o Item ID, o ID autorizado no
+// Telegram ou o endereço da Evolution API entregaria os dados (ou o controle do bot) a outra pessoa.
+var sensitiveKeys = map[string]bool{
+	"PLUGGY_CLIENT_ID": true, "PLUGGY_ITEM_IDS": true, "TELEGRAM_CHAT_ID": true,
+	"EVOLUTION_API_URL": true, "EVOLUTION_INSTANCE": true, "OWNER_PHONE": true, "ALLOWED_NUMBERS": true,
+}
+
+// Sensitive diz se mudar (ou restaurar) a configuração exige confirmar a senha do dashboard.
+func (d Def) Sensitive() bool { return d.Kind == KindSecret || sensitiveKeys[d.Key] }
+
 // Lookup devolve a definição da chave.
 func Lookup(key string) (Def, bool) {
 	for _, d := range Defs {
