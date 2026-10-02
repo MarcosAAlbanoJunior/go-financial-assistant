@@ -50,6 +50,10 @@ const (
 	CategoryMarket        Category = "MARKET"
 	CategoryInvestment    Category = "INVESTMENT"
 	CategorySalary        Category = "SALARY"
+	CategoryHousing       Category = "HOUSING"
+	CategoryBills         Category = "BILLS"
+	CategoryEducation     Category = "EDUCATION"
+	CategoryPeople        Category = "PEOPLE"
 	CategoryOther         Category = "OTHER"
 )
 

@@ -18,6 +18,14 @@ func (c Category) Label() string {
 		return "Investimento"
 	case CategorySalary:
 		return "Salário/Renda"
+	case CategoryHousing:
+		return "Moradia"
+	case CategoryBills:
+		return "Contas"
+	case CategoryEducation:
+		return "Educação"
+	case CategoryPeople:
+		return "Pessoas"
 	default:
 		return "Outros"
 	}

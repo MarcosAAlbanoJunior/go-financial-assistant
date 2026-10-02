@@ -250,6 +250,10 @@ func TestParseCategory(t *testing.T) {
 		{ptr("HEALTH"), domain.CategoryHealth},
 		{ptr("ENTERTAINMENT"), domain.CategoryEntertainment},
 		{ptr("SHOPPING"), domain.CategoryShopping},
+		{ptr("HOUSING"), domain.CategoryHousing},
+		{ptr("bills"), domain.CategoryBills},
+		{ptr("EDUCATION"), domain.CategoryEducation},
+		{ptr("PEOPLE"), domain.CategoryPeople},
 		{ptr("UNKNOWN"), domain.CategoryOther},
 	}
 	for _, c := range cases {
