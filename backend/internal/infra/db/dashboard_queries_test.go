@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -441,5 +442,67 @@ func TestBudget_IncomePayments(t *testing.T) {
 	}
 	if mine[0].Amount != 9000 || mine[0].Month.Month() != time.March || mine[2].Month.Month() != time.April {
 		t.Errorf("ordenado por mês e valor, com o valor de cada pagamento: %+v", mine)
+	}
+}
+
+func TestReview_CategoryMonthsPaymentsAndDismissals(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM review_dismissals WHERE key LIKE 'zzteste%'`) })
+
+	jan, feb := time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(1999, 2, 1, 0, 0, 0, 0, time.UTC)
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "ZZTeste Lanche 01", amount: 10, date: jan.AddDate(0, 0, 2)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "ZZTeste Lanche 02", amount: 15, date: feb.AddDate(0, 0, 3)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "ZZTeste Lanche 03", amount: 15, date: feb.AddDate(0, 0, 1)})
+	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryTransport, desc: "ZZTeste cancelada", amount: 99, date: feb, status: domain.PaymentStatusCancelled})
+	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "ZZTeste renda", amount: 500, date: feb})
+
+	months, err := repo.CategoryMonths(ctx, jan, feb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]float64{}
+	for _, m := range months {
+		got[m.Category+m.Month.Format("-01")] = m.Total
+	}
+	if got["FOOD-01"] != 10 || got["FOOD-02"] != 30 || got["TRANSPORT-02"] != 0 || got["SALARY-02"] != 0 {
+		t.Errorf("despesa por categoria e mês (sem renda nem cancelada): %v", got)
+	}
+
+	pays, err := repo.ExpensePayments(ctx, feb, feb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mine []ports.ExpensePayment
+	for _, p := range pays {
+		if p.Key == "zzteste lanche" {
+			mine = append(mine, p)
+		}
+	}
+	if len(mine) != 2 || mine[0].Amount != 15 || !mine[0].Date.Before(mine[1].Date) || mine[0].Category != "FOOD" || mine[0].PaymentMethod != "PIX" {
+		t.Errorf("despesas individuais de fevereiro, em ordem de data: %+v", mine)
+	}
+
+	d := ports.Dismissal{Kind: "ANT", Key: "zzteste lanche"}
+	for range 2 { // dispensar duas vezes não falha nem duplica
+		if err := repo.SetDismissal(ctx, d, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all, _ := repo.Dismissals(ctx)
+	found := 0
+	for _, x := range all {
+		if x == d {
+			found++
+		}
+	}
+	if found != 1 {
+		t.Errorf("sugestão dispensada: %+v", all)
+	}
+	if err := repo.SetDismissal(ctx, d, false); err != nil {
+		t.Fatal(err)
+	}
+	if all, _ = repo.Dismissals(ctx); slices.Contains(all, d) {
+		t.Errorf("restaurar apaga a dispensa: %+v", all)
 	}
 }

@@ -144,6 +144,12 @@ COMPOSE_PROFILES=whatsapp
 
 Sem isso, `docker compose up` não sobe a Evolution API e o app ficará aguardando por ela. Além disso, as portas do Postgres e do Redis passaram a escutar apenas em `127.0.0.1`.
 
+**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão):
+
+```bash
+docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/010_create_review_dismissals.sql
+```
+
 ### 5. Open Finance (opcional)
 
 Em vez de registrar tudo à mão, você pode conectar seus bancos pelo **Open Finance** usando o [Meu Pluggy](https://meu.pluggy.ai) (gratuito para uso pessoal, até 5 conexões do mesmo titular). O assistente passa a importar sozinho suas transações; o registro manual **continua funcionando** e é o caminho para dinheiro vivo ou para quem prefere não conectar o banco.
