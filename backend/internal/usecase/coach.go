@@ -111,9 +111,20 @@ func CoachLabel(label string) string {
 	return label
 }
 
-// BuildCoachContext monta o que vai para a IA a partir dos resultados dos detectores e das metas. As
-// sugestões dispensadas ficam de fora (é assim que a pessoa tira um item do envio) e só as
-// MaxCoachSuggestions de maior impacto seguem.
+// CoachCandidates são as sugestões que vão para a IA, na ordem dos IDs "s1", "s2"...: as dispensadas ficam
+// de fora (é assim que a pessoa tira um item do envio) e só as MaxCoachSuggestions de maior impacto seguem.
+func CoachCandidates(rev Review) []Candidate {
+	var out []Candidate
+	for _, c := range rev.Candidates {
+		if !c.Dismissed && len(out) < MaxCoachSuggestions {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// BuildCoachContext monta o que vai para a IA a partir dos resultados dos detectores e das metas (os IDs "m1",
+// "m2"... seguem a ordem de goals).
 func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals []GoalProgress) CoachContext {
 	c := CoachContext{Month: month, Income: totals.Income, Expense: totals.Expense,
 		Months: []string{}, Categories: []CoachCategory{}, Suggestions: []CoachSuggestion{}, Goals: []CoachGoal{}}
@@ -123,15 +134,9 @@ func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals
 	for _, r := range rev.Matrix {
 		c.Categories = append(c.Categories, CoachCategory{Name: domain.Category(r.Category).Label(), Values: r.Values})
 	}
-	for _, cand := range rev.Candidates {
-		if cand.Dismissed {
-			continue
-		}
-		if len(c.Suggestions) == MaxCoachSuggestions {
-			break
-		}
+	for i, cand := range CoachCandidates(rev) {
 		s := CoachSuggestion{
-			ID: "s" + strconv.Itoa(len(c.Suggestions)+1), Kind: coachKindNames[cand.Kind], Category: domain.Category(cand.Category).Label(),
+			ID: "s" + strconv.Itoa(i+1), Kind: coachKindNames[cand.Kind], Category: domain.Category(cand.Category).Label(),
 			Amount: cand.Amount, SavingMonth: cand.Saving, Months: cand.Months, Count: cand.Count,
 		}
 		if cand.Kind == ReviewIncrease {
@@ -151,7 +156,8 @@ func BuildCoachContext(rev Review, month string, totals ports.MonthTotals, goals
 	return c
 }
 
-var errEmptyAdvice = errors.New("a IA não devolveu nenhum conteúdo válido")
+// ErrEmptyAdvice indica que nada da resposta da IA passou na validação.
+var ErrEmptyAdvice = errors.New("a IA não devolveu nenhum conteúdo válido")
 
 // cleanAdviceText aceita o texto da IA só se for curto e sem números: valores vêm do código, então um
 // número escrito pela IA seria inventado. Devolve "" quando o texto não serve.
@@ -201,7 +207,7 @@ func ValidateAdvice(raw ports.CoachAdvice, c CoachContext) (ports.CoachAdvice, e
 	}
 
 	if out.Summary == "" && len(out.Actions) == 0 && len(out.Goals) == 0 && len(out.Questions) == 0 {
-		return ports.CoachAdvice{}, errEmptyAdvice
+		return ports.CoachAdvice{}, ErrEmptyAdvice
 	}
 	return out, nil
 }
