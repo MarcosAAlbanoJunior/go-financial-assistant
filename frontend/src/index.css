@@ -337,3 +337,15 @@ table.tx td { vertical-align: top; }
   .sidebar { position: sticky; top: 0; height: 100vh; transform: none; box-shadow: none; }
   .mobilebar, .scrim, .side-close { display: none; }
 }
+
+/* Sincronização global (menu lateral e barra do celular) */
+.mobilebar-end { margin-left: auto; }
+.sync-control { display: grid; gap: 8px; padding: 0 10px 12px; }
+.sync-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; width: 100%; }
+.sync-status { font-size: 0.75rem; color: var(--text-muted); display: grid; gap: 4px; }
+.sync-status p { margin: 0; }
+.sync-status a { color: var(--accent); }
+.sync-warn { color: var(--text-primary); font-weight: 600; }
+.sync-spin { animation: sync-spin 1s linear infinite; }
+@keyframes sync-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sync-spin { animation: none; } }

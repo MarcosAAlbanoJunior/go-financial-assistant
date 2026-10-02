@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { postJSON, request } from '../../shared/api/request'
+import { request } from '../../shared/api/request'
 
 export type Level = 'ok' | 'warning' | 'critical'
 
@@ -54,16 +54,5 @@ export interface Balances {
   institutions: BalanceInstitution[]
 }
 
-export interface SyncResult {
-  inserted: number
-  reconciled: number
-  existing: number
-  positions: number
-  /** Algum item falhou; o que deu certo foi atualizado. */
-  partial: boolean
-}
-
 export const useBalances = () => useQuery({ queryKey: ['balances'], queryFn: () => request<Balances>('/api/balances') })
 
-/** Dispara a sincronização do Open Finance (a mesma do /sync do chat). */
-export const syncNow = () => postJSON<SyncResult>('/api/sync')
