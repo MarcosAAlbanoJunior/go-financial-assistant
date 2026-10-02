@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/insights"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
@@ -19,7 +21,6 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/gemini"
 	httpserver "github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/http"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/settings"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 // app reúne as peças compartilhadas entre as etapas de montagem.
@@ -38,7 +39,7 @@ type app struct {
 	ledger         ports.PurchaseRepository
 	analyzeExpense *ledger.AnalyzeExpense
 	exportCSV      *ledger.ExportCSV
-	insights       *usecase.Insights
+	insights       *insights.Insights
 	syncer         *openfinance.SyncOpenFinance
 	server         *httpserver.Server
 	settingsDeps   *httpserver.SettingsDeps
@@ -93,7 +94,7 @@ func (a *app) buildServices() error {
 	a.ledger = db.NewPurchaseRepository(a.db)
 	a.analyzeExpense = ledger.NewAnalyzeExpense(a.ledger, a.gemini, a.logger)
 	a.exportCSV = ledger.NewExportCSV(a.ledger)
-	a.insights = usecase.NewInsights(db.NewDashboardReader(a.db))
+	a.insights = insights.NewInsights(db.NewDashboardReader(a.db))
 
 	if err := a.analyzeExpense.GenerateRecurringExpenses(a.ctx); err != nil {
 		a.logger.Error("erro ao gerar despesas recorrentes no startup", "error", err)

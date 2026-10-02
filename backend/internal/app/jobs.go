@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/insights"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 // startJobs liga o que roda em segundo plano: aviso de segurança das configurações, resumo semanal e a rotina diária.
@@ -21,7 +22,7 @@ func (a *app) startJobs(messenger ports.Messenger, owner string) {
 				a.logger.Error("erro ao enviar aviso de segurança", "error", err)
 			}
 		}
-		go usecase.NewDigestJob(a.insights, messenger, owner, a.logger, a.settings.Digest, a.onChange()).Run(a.ctx)
+		go insights.NewDigestJob(a.insights, messenger, owner, a.logger, a.settings.Digest, a.onChange()).Run(a.ctx)
 		monthlyReport = ledger.NewMonthlyReport(a.exportCSV, messenger, owner, a.logger)
 	}
 	go a.runDaily(monthlyReport)

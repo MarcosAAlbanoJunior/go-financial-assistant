@@ -9,8 +9,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/coach"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 const maxUncategorized = 60
@@ -22,15 +23,15 @@ var ruleCategories = []domain.Category{
 }
 
 // categorizeAI monta o que iria à IA (contas de comércio e serviços, nunca Pix) e o hash que a pessoa confere.
-func (a *api) categorizeAI(ctx context.Context) (usecase.CategorizeContext, []byte, string, []domain.UncategorizedGroup, error) {
+func (a *api) categorizeAI(ctx context.Context) (coach.CategorizeContext, []byte, string, []domain.UncategorizedGroup, error) {
 	groups, err := a.reader.UncategorizedExpenses(ctx, maxUncategorized)
 	if err != nil {
-		return usecase.CategorizeContext{}, nil, "", nil, err
+		return coach.CategorizeContext{}, nil, "", nil, err
 	}
-	c, kept := usecase.BuildCategorizeContext(groups)
+	c, kept := coach.BuildCategorizeContext(groups)
 	payload, err := json.Marshal(c)
 	if err != nil {
-		return usecase.CategorizeContext{}, nil, "", nil, err
+		return coach.CategorizeContext{}, nil, "", nil, err
 	}
 	sum := sha256.Sum256(payload)
 	return c, payload, hex.EncodeToString(sum[:]), kept, nil
@@ -58,7 +59,7 @@ func (a *api) categorize(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]group, len(groups))
 	for i, g := range groups {
-		out[i] = group{g.Key, g.Label, g.Count, g.Total, formatMonth(g.Last), usecase.IsPersonTransfer(g.Label)}
+		out[i] = group{g.Key, g.Label, g.Count, g.Total, formatMonth(g.Last), coach.IsPersonTransfer(g.Label)}
 	}
 	type option struct {
 		Value string `json:"value"`
@@ -132,7 +133,7 @@ func (a *api) suggestCategories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(kept) == 0 {
-		writeJSON(w, http.StatusOK, map[string]any{"suggestions": []usecase.CategoryChoice{}})
+		writeJSON(w, http.StatusOK, map[string]any{"suggestions": []coach.CategoryChoice{}})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), coachTimeout)
@@ -146,7 +147,7 @@ func (a *api) suggestCategories(w http.ResponseWriter, r *http.Request) {
 		Key      string `json:"key"`
 		Category string `json:"category"`
 	}
-	choices := usecase.ValidateCategories(raw, kept)
+	choices := coach.ValidateCategories(raw, kept)
 	out := make([]suggestion, len(choices))
 	for i, c := range choices {
 		out[i] = suggestion{c.Key, c.Category}

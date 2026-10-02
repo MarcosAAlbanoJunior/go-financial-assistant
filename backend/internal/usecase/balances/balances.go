@@ -1,7 +1,6 @@
-package usecase
+package balances
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/format"
 )
 
 const (
@@ -82,19 +82,6 @@ type BalancesView struct {
 	TotalInAccount *float64  // nil sem conta corrente sincronizada
 	OpenInvoices   float64   // soma dos saldos devedores dos cartões, à parte do total em conta
 	Institutions   []InstitutionBalance
-}
-
-// Balances monta os saldos por banco no instante now.
-func (i *Insights) Balances(ctx context.Context, now time.Time) (BalancesView, error) {
-	accounts, err := i.reader.Accounts(ctx)
-	if err != nil {
-		return BalancesView{}, err
-	}
-	institutions, err := i.reader.Institutions(ctx)
-	if err != nil {
-		return BalancesView{}, err
-	}
-	return BuildBalances(accounts, institutions, now), nil
 }
 
 // BuildBalances agrupa as contas por instituição (ou, sem instituição, por conexão), calcula
@@ -310,15 +297,6 @@ func cardTitle(name, institution string) string {
 	return name
 }
 
-// BalancesText é o comando /saldos: o mesmo cálculo do painel, em texto.
-func (i *Insights) BalancesText(ctx context.Context, now time.Time) (string, error) {
-	view, err := i.Balances(ctx, now)
-	if err != nil {
-		return "", err
-	}
-	return FormatBalances(view, now), nil
-}
-
 const maxBalancesRunes = 3600 // folga sob o limite de 4096 caracteres do Telegram
 
 // FormatBalances escreve os saldos em texto, com *negrito* no padrão do bot. Nomes vêm do banco:
@@ -332,12 +310,12 @@ func FormatBalances(v BalancesView, now time.Time) string {
 	var head strings.Builder
 	fmt.Fprintf(&head, "💰 *Seus saldos* · %s\n", now.Format("02/01 15:04"))
 	if v.TotalInAccount != nil {
-		fmt.Fprintf(&head, "\n*Em conta: %s*\n", FormatBRL(*v.TotalInAccount))
+		fmt.Fprintf(&head, "\n*Em conta: %s*\n", format.FormatBRL(*v.TotalInAccount))
 		for _, in := range v.Institutions {
 			if !in.HasBank {
 				continue
 			}
-			line := fmt.Sprintf("🏦 %s  %s", clean(in.Name), FormatBRL(in.Total))
+			line := fmt.Sprintf("🏦 %s  %s", clean(in.Name), format.FormatBRL(in.Total))
 			switch {
 			case in.Total < 0:
 				line += " ⚠️ negativo"
@@ -350,7 +328,7 @@ func FormatBalances(v BalancesView, now time.Time) string {
 			head.WriteString(line + "\n")
 			for _, a := range in.Accounts {
 				if a.AutoInvested != nil && *a.AutoInvested > 0 {
-					fmt.Fprintf(&head, "   Aplicado automaticamente: %s (fora do total)\n", FormatBRL(*a.AutoInvested))
+					fmt.Fprintf(&head, "   Aplicado automaticamente: %s (fora do total)\n", format.FormatBRL(*a.AutoInvested))
 				}
 			}
 		}
@@ -365,7 +343,7 @@ func FormatBalances(v BalancesView, now time.Time) string {
 
 	var foot strings.Builder
 	if v.OpenInvoices > 0 {
-		fmt.Fprintf(&foot, "\nSaldo devedor dos cartões, à parte: %s\n", FormatBRL(v.OpenInvoices))
+		fmt.Fprintf(&foot, "\nSaldo devedor dos cartões, à parte: %s\n", format.FormatBRL(v.OpenInvoices))
 	}
 	fmt.Fprintf(&foot, "🕘 Atualizado há %s · /sync para atualizar", ageText(now.Sub(v.AsOf)))
 
@@ -394,7 +372,7 @@ func formatCardText(in InstitutionBalance, c BalanceCard, clean func(string) str
 		title += " ·· " + c.Last4
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "• %s\n  Saldo devedor %s", title, FormatBRL(c.Invoice))
+	fmt.Fprintf(&b, "• %s\n  Saldo devedor %s", title, format.FormatBRL(c.Invoice))
 	if c.DaysToDue != nil && *c.DaysToDue >= 0 && c.Invoice > 0 {
 		switch c.DueLevel {
 		case LevelWarning:
@@ -415,7 +393,7 @@ func formatCardText(in InstitutionBalance, c BalanceCard, clean func(string) str
 		b.WriteString(" ⚠️ atenção")
 	}
 	if c.Available != nil {
-		fmt.Fprintf(&b, " · disponível %s", FormatBRL(*c.Available))
+		fmt.Fprintf(&b, " · disponível %s", format.FormatBRL(*c.Available))
 	}
 	return b.String()
 }

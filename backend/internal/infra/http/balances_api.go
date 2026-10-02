@@ -6,9 +6,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/balances"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
 )
 
@@ -24,21 +25,21 @@ type balanceAccountJSON struct {
 }
 
 type balanceCardJSON struct {
-	ID             string        `json:"id"`
-	Name           string        `json:"name"`
-	Brand          string        `json:"brand"`
-	Last4          string        `json:"last4"`
-	Invoice        float64       `json:"invoice"`
-	Limit          *float64      `json:"limit"`
-	Available      *float64      `json:"available"`
-	Used           *float64      `json:"used"`
-	UsedRatio      *float64      `json:"usedRatio"`
-	UsageLevel     usecase.Level `json:"usageLevel"`
-	CloseDate      *string       `json:"closeDate"`
-	DueDate        *string       `json:"dueDate"`
-	DaysToDue      *int          `json:"daysToDue"`
-	DueLevel       usecase.Level `json:"dueLevel"`
-	MinimumPayment *float64      `json:"minimumPayment"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Brand          string         `json:"brand"`
+	Last4          string         `json:"last4"`
+	Invoice        float64        `json:"invoice"`
+	Limit          *float64       `json:"limit"`
+	Available      *float64       `json:"available"`
+	Used           *float64       `json:"used"`
+	UsedRatio      *float64       `json:"usedRatio"`
+	UsageLevel     balances.Level `json:"usageLevel"`
+	CloseDate      *string        `json:"closeDate"`
+	DueDate        *string        `json:"dueDate"`
+	DaysToDue      *int           `json:"daysToDue"`
+	DueLevel       balances.Level `json:"dueLevel"`
+	MinimumPayment *float64       `json:"minimumPayment"`
 }
 
 type institutionJSON struct {
