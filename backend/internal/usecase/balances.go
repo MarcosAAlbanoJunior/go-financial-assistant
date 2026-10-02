@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
@@ -137,7 +138,7 @@ func BuildBalances(accounts []ports.Account, institutions []ports.Institution, n
 				g.Name, g.Color = knownBrand(a.Name)
 			}
 		}
-		if a.Type == "BANK" {
+		if a.Type == domain.AccountBank {
 			g.HasBank = true
 			g.Total += a.Balance
 			g.Accounts = append(g.Accounts, BalanceAccount{ID: a.ID.String(), Name: a.Name, Last4: a.Last4, Balance: a.Balance, AutoInvested: autoInvested(a)})
