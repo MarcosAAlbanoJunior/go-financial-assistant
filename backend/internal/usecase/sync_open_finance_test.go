@@ -356,3 +356,14 @@ func TestSync_InstitutionErrorIsNotFatal(t *testing.T) {
 		t.Fatalf("err=%v institution=%v", err, got)
 	}
 }
+
+func TestSync_NotConfiguredUntilItemsAreSet(t *testing.T) {
+	s := newSync(&mockPurchaseRepo{}, &mockProvider{}) // sem itens
+	if _, err := s.Sync(context.Background()); !errors.Is(err, ErrNotConfigured) {
+		t.Fatalf("esperava ErrNotConfigured, got %v", err)
+	}
+	s.SetConfig([]string{"item"}, 30)
+	if _, err := s.Sync(context.Background()); err != nil {
+		t.Fatalf("com bancos configurados deveria sincronizar: %v", err)
+	}
+}

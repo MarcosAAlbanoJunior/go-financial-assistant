@@ -135,6 +135,20 @@ type PortfolioMonth struct {
 	Estimated bool
 }
 
+// TransferCandidate é um lançamento do banco que parece Pix, TED ou DOC.
+type TransferCandidate struct {
+	PaymentID   uuid.UUID
+	Description string
+	Kind        string // EXPENSE ou INCOME
+	Amount      float64
+}
+
+// TransferCleaner acha e cancela transferências entre contas da própria pessoa já gravadas.
+type TransferCleaner interface {
+	OwnTransferCandidates(ctx context.Context) ([]TransferCandidate, error)
+	CancelPayments(ctx context.Context, ids []uuid.UUID) (int64, error)
+}
+
 // DashboardReader reúne as consultas de leitura do dashboard. As agregações são feitas
 // no banco; um mês é identificado pelo seu primeiro dia.
 type DashboardReader interface {
