@@ -36,6 +36,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	// A imagem roda em UTC: sem isto, horários e "hoje" nas mensagens e nos vencimentos saem 3 h adiantados.
+	if cfg.DigestLocation != nil {
+		time.Local = cfg.DigestLocation
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM,
 	)

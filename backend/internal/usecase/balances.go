@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -139,7 +140,7 @@ func BuildBalances(accounts []ports.Account, institutions []ports.Institution, n
 		if a.Type == "BANK" {
 			g.HasBank = true
 			g.Total += a.Balance
-			g.Accounts = append(g.Accounts, BalanceAccount{ID: a.ID.String(), Name: a.Name, Last4: a.Last4, Balance: a.Balance, AutoInvested: a.AutoInvested})
+			g.Accounts = append(g.Accounts, BalanceAccount{ID: a.ID.String(), Name: a.Name, Last4: a.Last4, Balance: a.Balance, AutoInvested: autoInvested(a)})
 		} else {
 			g.Cards = append(g.Cards, buildCard(a, now))
 		}
@@ -152,7 +153,7 @@ func BuildBalances(accounts []ports.Account, institutions []ports.Institution, n
 		g := groups[key]
 		g.Stale = now.Sub(g.UpdatedAt) > StaleAfter
 		for n := range g.Accounts {
-			if strings.EqualFold(g.Accounts[n].Name, g.Name) || g.Accounts[n].Name == "" {
+			if brand, _ := knownBrand(g.Accounts[n].Name); strings.EqualFold(g.Accounts[n].Name, g.Name) || brand == g.Name || g.Accounts[n].Name == "" {
 				g.Accounts[n].Name = "Conta corrente"
 			}
 		}
@@ -194,6 +195,15 @@ func BuildBalances(accounts []ports.Account, institutions []ports.Institution, n
 		return strings.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name))
 	})
 	return view
+}
+
+// autoInvested devolve o aplicado automaticamente só quando ele diz algo além do saldo. Alguns bancos (Itaú e Santander
+// pelo Meu Pluggy) informam o saldo inteiro da conta nesse campo: mostrar seria dizer que o dinheiro está fora da conta.
+func autoInvested(a ports.Account) *float64 {
+	if a.AutoInvested == nil || *a.AutoInvested <= 0 || math.Abs(*a.AutoInvested-a.Balance) < 0.005 {
+		return nil
+	}
+	return a.AutoInvested
 }
 
 // isAggregator: no Meu Pluggy todas as conexões trazem o mesmo conector, com o nome e o logo do próprio Pluggy.
