@@ -9,23 +9,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
 const (
-	accountTypeCredit = "CREDIT"
-	transactionsPath  = "/v2/transactions"
+	transactionsPath = "/v2/transactions"
 )
 
 var ErrNoAccounts = errors.New("item sem contas: confira o itemId e se a conexão está autorizada no Meu Pluggy")
 
 // account lê só o que o app guarda; taxNumber, owner e o número completo são ignorados de propósito.
 type account struct {
-	ID         string  `json:"id"`
-	Type       string  `json:"type"` // BANK ou CREDIT
-	Name       string  `json:"name"`
-	Number     string  `json:"number"` // BANK: "0001/12345-0"; CREDIT: "xxxx8670"
-	Balance    float64 `json:"balance"`
+	ID         string             `json:"id"`
+	Type       domain.AccountType `json:"type"`
+	Name       string             `json:"name"`
+	Number     string             `json:"number"` // BANK: "0001/12345-0"; CREDIT: "xxxx8670"
+	Balance    float64            `json:"balance"`
 	CreditData *struct {
 		CreditLimit          *float64 `json:"creditLimit"`
 		AvailableCreditLimit *float64 `json:"availableCreditLimit"`

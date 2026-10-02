@@ -74,7 +74,7 @@ func containsAny(s string, keywords []string) bool {
 // toExternal converte a transação do Pluggy para o vocabulário do app. Devolve false
 // quando ela não deve virar lançamento. O sentido (entrada/saída) vem do campo "type",
 // não do sinal do valor, porque o sinal é invertido nos cartões de crédito.
-func toExternal(accountType string, t transaction) (ports.ExternalTransaction, bool) {
+func toExternal(accountType domain.AccountType, t transaction) (ports.ExternalTransaction, bool) {
 	date, err := time.Parse(time.RFC3339, t.Date)
 	amount := math.Abs(t.Amount)
 	if err != nil || amount == 0 || t.ID == "" {
@@ -83,7 +83,7 @@ func toExternal(accountType string, t transaction) (ports.ExternalTransaction, b
 	date = date.UTC().Truncate(24 * time.Hour)
 
 	category := strings.ToLower(t.Category)
-	isCard := accountType == accountTypeCredit
+	isCard := accountType == domain.AccountCredit
 	inflow := t.Type == "CREDIT"
 
 	// Em cartão, crédito é pagamento de fatura ou estorno: não é renda.

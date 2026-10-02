@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -92,7 +93,7 @@ type Account struct {
 	ID                   uuid.UUID
 	ItemID               string     // conexão de origem; nunca sai da API
 	InstitutionID        *uuid.UUID // nil em contas anteriores às instituições, até a próxima sincronização
-	Type                 string
+	Type                 domain.AccountType
 	Name                 string
 	Last4                string
 	Balance              float64
