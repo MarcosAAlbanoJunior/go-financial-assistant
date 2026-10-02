@@ -31,7 +31,13 @@ type Server struct {
 	// coach é opcional; coachPaid é a declaração de que a chave do Gemini é de um projeto com faturamento.
 	coach     ports.Coach
 	coachPaid bool
+
+	// syncer é opcional (nil sem Open Finance); alimenta o botão de sincronizar do painel.
+	syncer chat.Syncer
 }
+
+// SetSyncer liga a sincronização do Open Finance à API do dashboard (chame antes de MountAPI).
+func (s *Server) SetSyncer(syncer chat.Syncer) { s.syncer = syncer }
 
 // SetCoach liga o Coach com IA da API do dashboard. Sem plano pago declarado, ele fica bloqueado.
 func (s *Server) SetCoach(coach ports.Coach, paidPlan bool) {

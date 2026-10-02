@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
+	"github.com/google/uuid"
 )
 
 // ExternalTransaction é uma transação vinda do Open Finance já normalizada para o
@@ -35,9 +36,32 @@ type ExternalAccount struct {
 	Balance              float64
 	CreditLimit          *float64 // só cartões
 	AvailableCreditLimit *float64 // só cartões
+
+	// Opcionais: dependem do que o banco informa.
+	Brand          string     // bandeira do cartão
+	CloseDate      *time.Time // fechamento da fatura
+	DueDate        *time.Time // vencimento da fatura
+	MinimumPayment *float64   // pagamento mínimo da fatura
+	AutoInvested   *float64   // saldo aplicado automaticamente (conta corrente)
+	InstitutionID  *uuid.UUID // preenchido na sincronização, depois de salvar a instituição
+}
+
+// ExternalInstitution é o banco da conexão (conector do Pluggy). Color é hexadecimal de 6
+// dígitos sem "#", já validado pelo adapter; vazio quando o conector não informa.
+type ExternalInstitution struct {
+	Name     string
+	Color    string
+	ImageURL string
+}
+
+// LogoFetcher baixa o logo de uma instituição de forma segura (só https, sem rede interna,
+// com limite de tamanho e de tipo). O erro nunca deve derrubar a sincronização.
+type LogoFetcher interface {
+	Fetch(ctx context.Context, imageURL string) (data []byte, mime string, err error)
 }
 
 type ItemData struct {
+	Institution  *ExternalInstitution // nil quando o conector não pôde ser lido
 	Accounts     []ExternalAccount
 	Transactions []ExternalTransaction
 }
