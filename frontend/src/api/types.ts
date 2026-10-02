@@ -320,3 +320,22 @@ export interface Savings {
   perYear: number
   decisions: SavingDecision[]
 }
+
+export interface UncategorizedGroup {
+  /** Descrição normalizada: identifica a conta. */
+  key: string
+  label: string
+  count: number
+  total: number
+  /** Último lançamento (AAAA-MM). */
+  last: string
+  /** Pix, TED ou transferência: só a pessoa sabe do que se trata, e nunca vai à IA. */
+  transfer: boolean
+}
+
+export interface Categorize {
+  /** Categorias atribuíveis; OTHER significa "manter em Outros". */
+  categories: { value: string; label: string }[]
+  groups: UncategorizedGroup[]
+  ai: { enabled: boolean; blockedReason: string; provider: string; hash: string; bytes: number; context: { contas: { id: string; nome: string; lancamentos: number; total_gasto: number; ultimo_mes: string }[] } }
+}
