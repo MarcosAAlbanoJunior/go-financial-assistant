@@ -550,3 +550,63 @@ func TestGoals_CreateListDelete(t *testing.T) {
 		t.Errorf("apagar de novo: %v %v", ok, err)
 	}
 }
+
+func TestCoachAnalyses_SaveAnswerListDelete(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	t.Cleanup(func() {
+		pg.Pool.Exec(ctx, `DELETE FROM coach_analyses WHERE month = '1999-03-01' OR month = '1999-04-01'`)
+	})
+
+	older := ports.CoachAnalysis{ID: uuid.New(), Month: mar1999, Advice: []byte(`{"summary":"antiga"}`), Answers: map[string]string{"q:1": "ok"}}
+	newer := ports.CoachAnalysis{ID: uuid.New(), Month: mar1999, Advice: []byte(`{"summary":"nova"}`)}
+	other := ports.CoachAnalysis{ID: uuid.New(), Month: apr1999, Advice: []byte(`{"summary":"abril"}`)}
+	for _, a := range []ports.CoachAnalysis{older, newer, other} {
+		if err := repo.SaveCoachAnalysis(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(5 * time.Millisecond) // created_at distinto para a ordem
+	}
+
+	got, err := repo.CoachAnalyses(ctx, &mar1999, 10)
+	if err != nil || len(got) != 2 || got[0].ID != newer.ID || got[1].ID != older.ID {
+		t.Fatalf("só março, da mais nova para a mais antiga: %v %+v", err, got)
+	}
+	if string(got[0].Advice) == "" || got[0].Answers == nil || got[1].Answers["q:1"] != "ok" || got[0].CreatedAt.IsZero() {
+		t.Errorf("conteúdo: %+v", got)
+	}
+	if limited, _ := repo.CoachAnalyses(ctx, &mar1999, 1); len(limited) != 1 || limited[0].ID != newer.ID {
+		t.Errorf("limite: %+v", limited)
+	}
+	if all, _ := repo.CoachAnalyses(ctx, nil, 1000); len(all) < 3 {
+		t.Errorf("todos os meses: %d", len(all))
+	}
+
+	// Resposta com aspas e SQL: é só dado.
+	nasty := `ainda uso'); DROP TABLE coach_analyses;--`
+	if ok, err := repo.SetCoachAnswer(ctx, newer.ID, "a:s1", nasty); err != nil || !ok {
+		t.Fatalf("gravar resposta: %v %v", ok, err)
+	}
+	if ok, _ := repo.SetCoachAnswer(ctx, newer.ID, "a:s1", "mudei de ideia"); !ok {
+		t.Fatal("atualizar resposta")
+	}
+	if got, _ = repo.CoachAnalyses(ctx, &mar1999, 10); got[0].Answers["a:s1"] != "mudei de ideia" {
+		t.Errorf("resposta atualizada: %+v", got[0].Answers)
+	}
+	if ok, _ := repo.SetCoachAnswer(ctx, newer.ID, "a:s1", ""); !ok {
+		t.Fatal("apagar resposta")
+	}
+	if got, _ = repo.CoachAnalyses(ctx, &mar1999, 10); len(got[0].Answers) != 0 {
+		t.Errorf("resposta vazia apaga: %+v", got[0].Answers)
+	}
+	if ok, err := repo.SetCoachAnswer(ctx, uuid.New(), "q:1", "x"); err != nil || ok {
+		t.Errorf("análise inexistente: %v %v", ok, err)
+	}
+
+	if ok, err := repo.DeleteCoachAnalysis(ctx, older.ID); err != nil || !ok {
+		t.Errorf("apagar: %v %v", ok, err)
+	}
+	if ok, _ := repo.DeleteCoachAnalysis(ctx, older.ID); ok {
+		t.Error("apagar de novo")
+	}
+}
