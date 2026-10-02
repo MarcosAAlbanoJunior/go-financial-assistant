@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 	"net/http"
 	"regexp"
 	"slices"
@@ -30,7 +31,7 @@ func (a *api) budget(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, "orçamento", err)
 		return
 	}
-	b := usecase.BuildBudget(rows, rules, from, to)
+	b := planning.BuildBudget(rows, rules, from, to)
 
 	type month struct {
 		Month       string  `json:"month"`
@@ -87,7 +88,7 @@ func (a *api) projection(w http.ResponseWriter, r *http.Request) {
 	a.writeProjection(w, p)
 }
 
-func (a *api) writeProjection(w http.ResponseWriter, p usecase.Projection) {
+func (a *api) writeProjection(w http.ResponseWriter, p planning.Projection) {
 	type month struct {
 		Month       string  `json:"month"`
 		Fixed       float64 `json:"fixed"`

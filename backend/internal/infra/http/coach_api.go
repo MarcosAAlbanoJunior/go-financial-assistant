@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 	"net/http"
 	"regexp"
 	"strings"
@@ -57,7 +58,7 @@ type coachInput struct {
 	hash       string
 	context    usecase.CoachContext
 	candidates []usecase.Candidate
-	goals      []usecase.GoalProgress
+	goals      []planning.GoalProgress
 }
 
 func (a *api) coachInput(ctx context.Context, month time.Time) (coachInput, error) {
