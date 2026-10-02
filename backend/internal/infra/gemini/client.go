@@ -15,6 +15,9 @@ const modelName = "gemini-2.5-flash-lite"
 type Client struct {
 	client *genai.Client
 	config *genai.GenerateContentConfig
+
+	// CoachModel troca o modelo do Coach; vazio usa defaultCoachModel.
+	CoachModel string
 }
 
 func NewClient(ctx context.Context, apiKey string) (*Client, error) {
