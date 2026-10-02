@@ -300,3 +300,26 @@ func TestBuildBalances_AggregatorConnectorUsesAccountNames(t *testing.T) {
 		t.Errorf("bancos: %+v", v.Institutions)
 	}
 }
+
+func TestBuildBalances_AutoInvestedEqualToBalanceIsHidden(t *testing.T) {
+	a, b := bank(nil, "x", "Itaú", 100, balNow), bank(nil, "y", "Outro", 100, balNow)
+	a.AutoInvested, b.AutoInvested = fp(100), fp(40)
+	v := BuildBalances([]ports.Account{a, b}, nil, balNow)
+	for _, in := range v.Institutions {
+		got := in.Accounts[0].AutoInvested
+		if in.Name == "Itaú" && got != nil {
+			t.Errorf("igual ao saldo não deve aparecer: %v", *got)
+		}
+		if in.Name == "Outro" && (got == nil || *got != 40) {
+			t.Errorf("valor próprio deve aparecer: %v", got)
+		}
+	}
+}
+
+func TestBuildBalances_AccountNamedLikeBankWithoutAccent(t *testing.T) {
+	a := uuid.New()
+	v := BuildBalances([]ports.Account{bank(&a, "a", "itau", 1, balNow)}, []ports.Institution{{ID: a, Name: "MeuPluggy"}}, balNow)
+	if got := v.Institutions[0].Accounts[0].Name; got != "Conta corrente" {
+		t.Errorf("nome = %q", got)
+	}
+}
