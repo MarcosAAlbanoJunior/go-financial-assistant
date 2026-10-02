@@ -12,6 +12,7 @@ import {
   ScanSearch,
   Scale,
   Sun,
+  Target,
   TrendingUp,
   X,
   type LucideIcon,
@@ -43,6 +44,7 @@ const SECTIONS: { title?: string; items: Item[] }[] = [
     title: 'Planejamento',
     items: [
       { to: '/revisao', label: 'Revisão', Icon: ScanSearch },
+      { to: '/metas', label: 'Metas', Icon: Target },
       { to: '/projecao', label: 'Projeção', Icon: Calculator },
       { to: '/comparacoes', label: 'Comparações', Icon: GitCompareArrows },
     ],
