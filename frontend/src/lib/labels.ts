@@ -14,6 +14,10 @@ export const CATEGORIES = [
   { value: 'SHOPPING', label: 'Compras' },
   { value: 'INVESTMENT', label: 'Investimento' },
   { value: 'SALARY', label: 'Salário/Renda' },
+  { value: 'HOUSING', label: 'Moradia' },
+  { value: 'BILLS', label: 'Contas' },
+  { value: 'EDUCATION', label: 'Educação' },
+  { value: 'PEOPLE', label: 'Pessoas' },
   { value: 'OTHER', label: 'Outros' },
 ]
 

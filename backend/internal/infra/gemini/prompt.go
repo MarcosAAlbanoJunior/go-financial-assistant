@@ -19,7 +19,7 @@ Responda SOMENTE com JSON válido no seguinte formato:
       "amount": <valor positivo em reais, sem sinal negativo>,
       "kind": "<EXPENSE|INCOME|TRANSFER>",
       "direction": "<OUT|IN|null>",
-      "category": "<FOOD|TRANSPORT|HEALTH|ENTERTAINMENT|SHOPPING|MARKET|INVESTMENT|SALARY|OTHER>",
+      "category": "<FOOD|TRANSPORT|HEALTH|ENTERTAINMENT|SHOPPING|MARKET|HOUSING|BILLS|EDUCATION|PEOPLE|INVESTMENT|SALARY|OTHER>",
       "payment_method": "<PIX|CREDIT_CARD|DEBIT_CARD|CASH|OTHER>"
     }
   ]
@@ -42,12 +42,16 @@ Regras de categoria:
 - FOOD: restaurantes, lanchonetes, delivery, cafés, padarias
 - TRANSPORT: combustível, estacionamento, Uber, ônibus, pedágio
 - HEALTH: farmácias, consultas médicas, plano de saúde, hospitais, clínicas, drogarias
-- ENTERTAINMENT: streaming (Netflix, Spotify), jogos, cinema, livros, livrarias, cursos, universidades
+- ENTERTAINMENT: streaming (Netflix, Spotify), jogos, cinema, livros, livrarias
+- EDUCATION: escola, faculdade, universidades, cursos, mensalidades escolares
+- HOUSING: aluguel, condomínio, IPTU, financiamento do imóvel, reformas e manutenção da casa
+- BILLS: luz, água, gás, internet, telefone, TV por assinatura
+- PEOPLE: transferências e Pix para pessoas (família, amigos, diaristas)
 - SHOPPING: compras em lojas físicas ou online, roupas, eletrônicos, e-commerce
 - MARKET: supermercado, mercado, hortifruti, sacolão
 - INVESTMENT: use apenas para TRANSFER de investimentos (APLICACAO, RESGATE, CDB, cofrinho)
 - SALARY: salário, remuneração, SISPAG, freelance, renda recebida
-- OTHER: seguros, boletos, faturas de cartão, transferências para pessoas, demais
+- OTHER: seguros, boletos, faturas de cartão, demais
 
 Regras de payment_method:
 - PIX: descrição contém "PIX"
@@ -65,7 +69,7 @@ Responda SOMENTE com JSON válido no seguinte formato:
   "type": "<SINGLE|INSTALLMENT|RECURRING|CANCEL_RECURRING|INCOME|INCOME_RECURRING|TRANSFER|QUERY|EXPORT_CSV>",
   "amount": <valor total em reais, null se desconhecido>,
   "description": "<descrição resumida>",
-  "category": "<FOOD|TRANSPORT|HEALTH|ENTERTAINMENT|SHOPPING|MARKET|INVESTMENT|SALARY|OTHER>",
+  "category": "<FOOD|TRANSPORT|HEALTH|ENTERTAINMENT|SHOPPING|MARKET|HOUSING|BILLS|EDUCATION|PEOPLE|INVESTMENT|SALARY|OTHER>",
   "payment_method": "<CASH|CREDIT_CARD|DEBIT_CARD|PIX|OTHER>",
   "transfer_direction": "<OUT|IN|null>",
   "confidence": <0.0 a 1.0>,
