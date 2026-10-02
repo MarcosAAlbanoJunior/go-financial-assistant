@@ -13,6 +13,7 @@ import {
   ScanSearch,
   Scale,
   Sun,
+  Tags,
   Target,
   TrendingUp,
   X,
@@ -37,6 +38,7 @@ const SECTIONS: { title?: string; items: Item[] }[] = [
     items: [
       { to: '/transacoes', label: 'Transações', Icon: ArrowLeftRight },
       { to: '/gastos', label: 'Gastos', Icon: ChartPie },
+      { to: '/classificar', label: 'Classificar', Icon: Tags },
       { to: '/orcamento', label: 'Orçamento', Icon: Scale },
       { to: '/contas', label: 'Contas e cartões', Icon: Landmark },
     ],
