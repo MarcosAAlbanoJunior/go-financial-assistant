@@ -49,14 +49,11 @@ export default function Coach() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      disabled={!agreed || analyze.isPending || p.callsLeft === 0}
+                      disabled={!agreed || analyze.isPending}
                       onClick={() => analyze.mutate({ hash: p.hash })}
                     >
                       <Bot size={14} aria-hidden="true" /> {analyze.isPending ? 'Analisando…' : 'Analisar com IA'}
                     </button>
-                    <span className="tile-note">
-                      {p.callsLeft} {p.callsLeft === 1 ? 'análise restante' : 'análises restantes'} hoje.
-                    </span>
                   </div>
                   {analyze.isError && (
                     <p className="state error" role="alert">

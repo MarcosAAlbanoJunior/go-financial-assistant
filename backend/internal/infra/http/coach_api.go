@@ -9,7 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -20,20 +20,16 @@ import (
 const (
 	maxCoachBody     = 1 << 10
 	coachTimeout     = 45 * time.Second
-	coachDailyLimit  = 10
 	coachBlockedText = "O Coach envia valores e nomes de serviços ao Google Gemini. No plano gratuito o Google pode usar e revisar esse conteúdo, " +
 		"então ele só funciona com o plano pago: ative o faturamento do projeto da chave, defina GEMINI_PAID_PLAN=true no .env e reinicie o app."
 )
 
-// coachService guarda o estado do Coach: uma análise por vez e um teto diário (em memória, zera ao reiniciar).
+// coachService guarda o estado do Coach: uma análise por vez (a quantidade de análises é problema de quem hospeda).
 type coachService struct {
 	advisor ports.Coach
 	paid    bool
 
-	mu    sync.Mutex
-	busy  bool
-	day   string
-	calls int
+	busy atomic.Bool
 }
 
 func newCoachService(advisor ports.Coach, paid bool) *coachService {
@@ -42,38 +38,10 @@ func newCoachService(advisor ports.Coach, paid bool) *coachService {
 
 func (c *coachService) enabled() bool { return c.advisor != nil && c.paid }
 
-// begin reserva a análise: recusa se já há uma em andamento ou se o teto do dia acabou.
-func (c *coachService) begin(now time.Time) (ok bool, reason string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if day := now.UTC().Format("2006-01-02"); day != c.day {
-		c.day, c.calls = day, 0
-	}
-	switch {
-	case c.busy:
-		return false, "já há uma análise em andamento"
-	case c.calls >= coachDailyLimit:
-		return false, "limite de análises do dia atingido"
-	}
-	c.busy = true
-	c.calls++ // conta também as que falham: a chamada ao Gemini já pode ter sido cobrada
-	return true, ""
-}
+// begin reserva a análise; recusa se já há uma em andamento (clique duplo, aba aberta em dois lugares).
+func (c *coachService) begin() bool { return c.busy.CompareAndSwap(false, true) }
 
-func (c *coachService) end() {
-	c.mu.Lock()
-	c.busy = false
-	c.mu.Unlock()
-}
-
-func (c *coachService) callsLeft(now time.Time) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if now.UTC().Format("2006-01-02") != c.day {
-		return coachDailyLimit
-	}
-	return max(0, coachDailyLimit-c.calls)
-}
+func (c *coachService) end() { c.busy.Store(false) }
 
 // coachInput junta, para o mês, o contexto enviado à IA e o que é preciso para ligar a resposta aos números do código.
 type coachInput struct {
@@ -123,7 +91,7 @@ func (a *api) coachPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"enabled": a.coach.enabled(), "blockedReason": blocked, "provider": "Google Gemini", "month": formatMonth(month),
-		"bytes": len(in.payload), "hash": in.hash, "callsLeft": a.coach.callsLeft(a.now()), "context": json.RawMessage(in.payload),
+		"bytes": len(in.payload), "hash": in.hash, "context": json.RawMessage(in.payload),
 	})
 }
 
@@ -151,8 +119,8 @@ func (a *api) coachAnalyze(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, coachBlockedText)
 		return
 	}
-	if ok, reason := a.coach.begin(a.now()); !ok {
-		writeError(w, http.StatusTooManyRequests, reason)
+	if !a.coach.begin() {
+		writeError(w, http.StatusTooManyRequests, "já há uma análise em andamento")
 		return
 	}
 	defer a.coach.end()
@@ -239,6 +207,6 @@ func (a *api) coachAnalyze(w http.ResponseWriter, r *http.Request) {
 		questions = []string{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"summary": advice.Summary, "actions": actions, "goals": notes, "questions": questions, "callsLeft": a.coach.callsLeft(a.now()),
+		"summary": advice.Summary, "actions": actions, "goals": notes, "questions": questions,
 	})
 }
