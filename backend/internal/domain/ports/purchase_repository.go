@@ -44,6 +44,11 @@ type PurchaseRepository interface {
 	// Open Finance
 	// UpsertAccount cria ou atualiza a conta e devolve seu ID interno.
 	UpsertAccount(ctx context.Context, account ExternalAccount) (uuid.UUID, error)
+	// UpsertInstitution cria ou atualiza a instituição do item e devolve seu ID interno. needsLogo
+	// diz se vale buscar o logo agora (nunca buscado, buscado há mais de 30 dias ou falha antiga).
+	UpsertInstitution(ctx context.Context, itemID string, inst ExternalInstitution) (id uuid.UUID, needsLogo bool, err error)
+	// SaveInstitutionLogo guarda o logo; data nil só registra a tentativa (mantém o logo anterior).
+	SaveInstitutionLogo(ctx context.Context, id uuid.UUID, data []byte, mime string) error
 	// RefreshExternal informa se a transação já foi sincronizada. Se sim, vincula a conta de
 	// origem (quando ainda não tinha, pois foi sincronizada antes da tabela de contas) e promove
 	// a categoria de um lançamento que estava em OTHER (regras novas de classificação).

@@ -216,3 +216,11 @@ func TestRun_AdvancesOffsetAndStopsOnCancel(t *testing.T) {
 		t.Errorf("offset deveria avançar para update_id+1: %v", offsets)
 	}
 }
+
+// O texto do /saldos usa *negrito* e traz nomes vindos do banco: o canal escapa o HTML e converte o negrito.
+func TestToHTML_BalancesText(t *testing.T) {
+	got := toHTML("💰 *Seus saldos*\n🏦 AT&T <b>x</b>  R$ 1,00", maxTextRunes)
+	if want := "💰 <b>Seus saldos</b>\n🏦 AT&amp;T &lt;b&gt;x&lt;/b&gt;  R$ 1,00"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

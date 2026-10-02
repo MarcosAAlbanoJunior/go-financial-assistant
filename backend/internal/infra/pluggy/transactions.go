@@ -29,7 +29,14 @@ type account struct {
 	CreditData *struct {
 		CreditLimit          *float64 `json:"creditLimit"`
 		AvailableCreditLimit *float64 `json:"availableCreditLimit"`
+		Brand                string   `json:"brand"`
+		BalanceCloseDate     string   `json:"balanceCloseDate"`
+		BalanceDueDate       string   `json:"balanceDueDate"`
+		MinimumPayment       *float64 `json:"minimumPayment"`
 	} `json:"creditData"`
+	BankData *struct {
+		AutomaticallyInvestedBalance *float64 `json:"automaticallyInvestedBalance"`
+	} `json:"bankData"`
 }
 
 func (a account) toExternal(itemID string) ports.ExternalAccount {
@@ -39,9 +46,28 @@ func (a account) toExternal(itemID string) ports.ExternalAccount {
 		Last4: last4(a.Number),
 	}
 	if a.CreditData != nil {
-		ext.CreditLimit, ext.AvailableCreditLimit = a.CreditData.CreditLimit, a.CreditData.AvailableCreditLimit
+		cd := a.CreditData
+		ext.CreditLimit, ext.AvailableCreditLimit = cd.CreditLimit, cd.AvailableCreditLimit
+		ext.Brand = strings.ToUpper(strings.Join(strings.Fields(cd.Brand), " "))
+		ext.CloseDate, ext.DueDate = parseDay(cd.BalanceCloseDate), parseDay(cd.BalanceDueDate)
+		ext.MinimumPayment = cd.MinimumPayment
+	}
+	if a.BankData != nil {
+		ext.AutoInvested = a.BankData.AutomaticallyInvestedBalance
 	}
 	return ext
+}
+
+// parseDay lê uma data do Pluggy ("2026-10-10" ou ISO completo) como o dia civil, em UTC; nil se vazia ou inválida.
+func parseDay(s string) *time.Time {
+	if len(s) < 10 {
+		return nil
+	}
+	t, err := time.Parse("2006-01-02", s[:10])
+	if err != nil {
+		return nil
+	}
+	return &t
 }
 
 // last4 devolve os 4 últimos dígitos do número da conta ou do cartão.
@@ -87,6 +113,8 @@ func (c *Client) FetchItem(ctx context.Context, itemID string, from time.Time) (
 	}
 
 	var data ports.ItemData
+	// O conector só enriquece a tela: se não puder ser lido, as contas e as transações seguem normalmente.
+	data.Institution = c.institution(ctx, itemID)
 	for _, acc := range accounts {
 		data.Accounts = append(data.Accounts, acc.toExternal(itemID))
 		txs, err := c.transactions(ctx, acc.ID, from)

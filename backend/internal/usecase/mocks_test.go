@@ -47,6 +47,8 @@ type mockPurchaseRepo struct {
 	saveInvestmentsFn              func(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error
 	refreshExternalFn              func(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error)
 	upsertAccountFn                func(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error)
+	upsertInstitutionFn            func(ctx context.Context, itemID string, inst ports.ExternalInstitution) (uuid.UUID, bool, error)
+	saveLogoFn                     func(ctx context.Context, id uuid.UUID, data []byte, mime string) error
 	reconcileExternalFn            func(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error)
 	saveExternalFn                 func(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error
 	existsPaymentByDateAndAmountFn func(ctx context.Context, date time.Time, amount float64) (bool, error)
@@ -141,6 +143,20 @@ func (m *mockPurchaseRepo) UpsertAccount(ctx context.Context, a ports.ExternalAc
 		return m.upsertAccountFn(ctx, a)
 	}
 	return uuid.New(), nil
+}
+
+func (m *mockPurchaseRepo) UpsertInstitution(ctx context.Context, itemID string, inst ports.ExternalInstitution) (uuid.UUID, bool, error) {
+	if m.upsertInstitutionFn != nil {
+		return m.upsertInstitutionFn(ctx, itemID, inst)
+	}
+	return uuid.New(), false, nil
+}
+
+func (m *mockPurchaseRepo) SaveInstitutionLogo(ctx context.Context, id uuid.UUID, data []byte, mime string) error {
+	if m.saveLogoFn != nil {
+		return m.saveLogoFn(ctx, id, data, mime)
+	}
+	return nil
 }
 
 func (m *mockPurchaseRepo) RefreshExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {

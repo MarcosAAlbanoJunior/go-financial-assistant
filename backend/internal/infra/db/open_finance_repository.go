@@ -12,21 +12,58 @@ import (
 
 func (r *PostgresPurchaseRepository) UpsertAccount(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
 	query := `
-		INSERT INTO accounts (external_id, item_id, type, name, last4, balance, credit_limit, available_credit_limit, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+		INSERT INTO accounts (external_id, item_id, type, name, last4, balance, credit_limit, available_credit_limit,
+			institution_id, brand, close_date, due_date, minimum_payment, auto_invested_balance, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
 		ON CONFLICT (external_id) DO UPDATE SET
 			item_id = EXCLUDED.item_id, type = EXCLUDED.type, name = EXCLUDED.name, last4 = EXCLUDED.last4,
 			balance = EXCLUDED.balance, credit_limit = EXCLUDED.credit_limit,
-			available_credit_limit = EXCLUDED.available_credit_limit, updated_at = NOW()
+			available_credit_limit = EXCLUDED.available_credit_limit,
+			institution_id = COALESCE(EXCLUDED.institution_id, accounts.institution_id),
+			brand = EXCLUDED.brand, close_date = EXCLUDED.close_date, due_date = EXCLUDED.due_date,
+			minimum_payment = EXCLUDED.minimum_payment, auto_invested_balance = EXCLUDED.auto_invested_balance,
+			updated_at = NOW()
 		RETURNING id
 	`
 	var id uuid.UUID
 	if err := r.db.Pool.QueryRow(ctx, query,
 		a.ID, a.ItemID, a.Type, a.Name, a.Last4, a.Balance, a.CreditLimit, a.AvailableCreditLimit,
+		a.InstitutionID, a.Brand, a.CloseDate, a.DueDate, a.MinimumPayment, a.AutoInvested,
 	).Scan(&id); err != nil {
 		return uuid.Nil, fmt.Errorf("erro ao salvar conta: %w", err)
 	}
 	return id, nil
+}
+
+// O logo é buscado de novo a cada 30 dias; se a busca falhou, tenta de novo depois de 1 dia.
+func (r *PostgresPurchaseRepository) UpsertInstitution(ctx context.Context, itemID string, inst ports.ExternalInstitution) (uuid.UUID, bool, error) {
+	var id uuid.UUID
+	var needsLogo bool
+	err := r.db.Pool.QueryRow(ctx, `
+		INSERT INTO institutions (item_id, name, color, updated_at)
+		VALUES ($1, $2, NULLIF($3, ''), NOW())
+		ON CONFLICT (item_id) DO UPDATE SET name = EXCLUDED.name, color = COALESCE(EXCLUDED.color, institutions.color), updated_at = NOW()
+		RETURNING id, (logo_checked_at IS NULL
+			OR (logo IS NULL AND logo_checked_at < NOW() - INTERVAL '1 day')
+			OR logo_checked_at < NOW() - INTERVAL '30 days')
+	`, itemID, inst.Name, inst.Color).Scan(&id, &needsLogo)
+	if err != nil {
+		return uuid.Nil, false, fmt.Errorf("erro ao salvar instituição: %w", err)
+	}
+	return id, needsLogo, nil
+}
+
+func (r *PostgresPurchaseRepository) SaveInstitutionLogo(ctx context.Context, id uuid.UUID, data []byte, mime string) error {
+	var err error
+	if data == nil {
+		_, err = r.db.Pool.Exec(ctx, `UPDATE institutions SET logo_checked_at = NOW() WHERE id = $1`, id)
+	} else {
+		_, err = r.db.Pool.Exec(ctx, `UPDATE institutions SET logo = $2, logo_mime = $3, logo_checked_at = NOW() WHERE id = $1`, id, data, mime)
+	}
+	if err != nil {
+		return fmt.Errorf("erro ao salvar logo da instituição: %w", err)
+	}
+	return nil
 }
 
 func (r *PostgresPurchaseRepository) RefreshExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
