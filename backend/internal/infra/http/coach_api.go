@@ -277,3 +277,12 @@ func (a *api) deleteCoachAnalysis(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
+
+func (a *api) registerCoach(rt routes) {
+	rt.mux.Handle("GET /api/coach/preview", rt.protected(a.coachPreview))
+	rt.mux.Handle("GET /api/coach/analyses", rt.protected(a.coachAnalyses))
+	rt.mux.Handle("PUT /api/coach/analyses/{id}/answers", rt.protected(a.setCoachAnswer))
+	rt.mux.Handle("DELETE /api/coach/analyses/{id}", rt.protected(a.deleteCoachAnalysis))
+	// A análise custa dinheiro e sai da máquina: limite apertado por IP (contra clique repetido ou loop).
+	rt.mux.Handle("POST /api/coach/analyze", newIPRateLimiter(3, time.Minute).middleware(rt.protected(a.coachAnalyze)))
+}

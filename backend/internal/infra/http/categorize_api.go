@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
@@ -163,4 +164,10 @@ func (a *api) suggestCategories(w http.ResponseWriter, r *http.Request) {
 		out[i] = suggestion{c.Key, c.Category}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"suggestions": out})
+}
+
+func (a *api) registerCategorize(rt routes) {
+	rt.mux.Handle("GET /api/categorize", rt.protected(a.categorize))
+	rt.mux.Handle("PUT /api/categorize/rules", rt.protected(a.setCategoryRule))
+	rt.mux.Handle("POST /api/categorize/suggest", newIPRateLimiter(3, time.Minute).middleware(rt.protected(a.suggestCategories)))
 }

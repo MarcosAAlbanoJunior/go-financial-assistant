@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"

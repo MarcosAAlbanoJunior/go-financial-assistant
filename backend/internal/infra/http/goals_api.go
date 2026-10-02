@@ -204,3 +204,9 @@ func (a *api) deleteGoal(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
+
+func (a *api) registerGoals(rt routes) {
+	rt.mux.Handle("GET /api/goals", rt.protected(a.goals))
+	rt.mux.Handle("POST /api/goals", rt.protected(a.createGoal))
+	rt.mux.Handle("DELETE /api/goals/{id}", rt.protected(a.deleteGoal))
+}

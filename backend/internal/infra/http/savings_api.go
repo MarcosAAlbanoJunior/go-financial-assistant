@@ -100,3 +100,8 @@ func (a *api) setDecision(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
+
+func (a *api) registerSavings(rt routes) {
+	rt.mux.Handle("GET /api/savings", rt.protected(a.savings))
+	rt.mux.Handle("PUT /api/savings/decisions", rt.protected(a.setDecision))
+}
