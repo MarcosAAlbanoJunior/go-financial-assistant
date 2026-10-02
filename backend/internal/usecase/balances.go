@@ -396,8 +396,8 @@ func formatCardText(in InstitutionBalance, c BalanceCard, clean func(string) str
 	var b strings.Builder
 	fmt.Fprintf(&b, "• %s\n  Saldo devedor %s", title, FormatBRL(c.Invoice))
 	if c.DaysToDue != nil && *c.DaysToDue >= 0 && c.Invoice > 0 {
-		switch {
-		case c.DueLevel == LevelWarning:
+		switch c.DueLevel {
+		case LevelWarning:
 			fmt.Fprintf(&b, " · ⚠️ vence %s", dueText(*c.DaysToDue))
 		default:
 			fmt.Fprintf(&b, " · vence %s (%s)", c.DueDate.UTC().Format("02/01"), dueText(*c.DaysToDue))

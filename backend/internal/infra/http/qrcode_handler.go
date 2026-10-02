@@ -36,7 +36,7 @@ func (h *qrcodeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	if state == "open" {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"connected": true,
 			"message":   "WhatsApp já está conectado",
 		})
@@ -55,7 +55,7 @@ func (h *qrcodeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, qrcodeHTML, base64QR)
+	_, _ = fmt.Fprintf(w, qrcodeHTML, base64QR)
 }
 
 const qrcodeHTML = `<!DOCTYPE html>
