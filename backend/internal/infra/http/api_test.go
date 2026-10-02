@@ -838,3 +838,80 @@ func TestAPI_DeleteGoal(t *testing.T) {
 		t.Errorf("sem sessão = %d", rec.Code)
 	}
 }
+
+func TestAPI_Savings(t *testing.T) {
+	jul := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	r := &fakeReader{decisions: []ports.Decision{
+		{Kind: "FIXED", Key: "netflix", Label: "NETFLIX", Category: "ENTERTAINMENT", Month: jul, Monthly: 44.9}, // o fake ainda cobra: voltou
+		{Kind: "FIXED", Key: "spotify", Label: "SPOTIFY", Category: "ENTERTAINMENT", Month: jul, Monthly: 20},   // sem cobrança: ago e set confirmados
+	}}
+	s := newGoalsAPI(t, r)
+	c := login(t, s)
+
+	rec := do(s, "GET", "/api/savings", "", nil, c)
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, body)
+	}
+	for _, want := range []string{`"status":"RETURNED"`, `"returned":44.9`, `"status":"CONFIRMED"`, `"monthsConfirmed":2`, `"realized":40`, `"perMonth":20`, `"perYear":240`, `"categoryLabel":"Lazer"`, `"month":"2026-07"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("falta %s em %s", want, body)
+		}
+	}
+	if rec := do(s, "GET", "/api/savings", "", nil); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
+	}
+	r.decisions = nil
+	if rec := do(s, "GET", "/api/savings", "", nil, c); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"decisions":[]`) {
+		t.Errorf("sem decisões: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestAPI_SetDecision(t *testing.T) {
+	r := &fakeReader{}
+	s := newGoalsAPI(t, r)
+	c := login(t, s)
+	json := map[string]string{"Content-Type": "application/json"}
+	put := func(body string) int { return do(s, "PUT", "/api/savings/decisions", body, json, c).Code }
+
+	// O servidor lê nome, categoria e custo da sugestão do mês (a conta fixa do fake).
+	if code := put(`{"kind":"FIXED","key":"netflix","month":"2026-10","decided":true}`); code != 200 {
+		t.Fatalf("decidir: %d", code)
+	}
+	if len(r.decisions) != 1 || r.decisions[0].Monthly != 44.9 || r.decisions[0].Label == "" || r.decisions[0].Month.Format("2006-01") != "2026-10" || r.decisions[0].Category != "ENTERTAINMENT" {
+		t.Errorf("decisão gravada com os dados do servidor: %+v", r.decisions)
+	}
+	if code := put(`{"kind":"FIXED","key":"netflix","decided":false}`); code != 200 || len(r.decisions) != 0 {
+		t.Errorf("desfazer: %d %+v", code, r.decisions)
+	}
+
+	for name, tc := range map[string]struct {
+		body string
+		want int
+	}{
+		"tipo avulso":          {`{"kind":"DUPLICATE","key":"netflix","month":"2026-10","decided":true}`, 400},
+		"aumento":              {`{"kind":"INCREASE","key":"FOOD","month":"2026-10","decided":true}`, 400},
+		"chave com SQL":        {`{"kind":"FIXED","key":"x'; drop table payments;--","month":"2026-10","decided":true}`, 400},
+		"sem decided":          {`{"kind":"FIXED","key":"netflix","month":"2026-10"}`, 400},
+		"mês futuro":           {`{"kind":"FIXED","key":"netflix","month":"2026-12","decided":true}`, 400},
+		"mês inválido":         {`{"kind":"FIXED","key":"netflix","month":"x","decided":true}`, 400},
+		"sugestão inexistente": {`{"kind":"FIXED","key":"conta que nao existe","month":"2026-10","decided":true}`, 404},
+		"corpo inválido":       {`nao-json`, 400},
+	} {
+		if code := put(tc.body); code != tc.want {
+			t.Errorf("%s: %d, esperava %d", name, code, tc.want)
+		}
+	}
+	if len(r.decisions) != 0 {
+		t.Errorf("nada inválido pode ser gravado: %+v", r.decisions)
+	}
+	if code := do(s, "PUT", "/api/savings/decisions", `kind=FIXED`, map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, c).Code; code != 403 {
+		t.Errorf("form (CSRF) = %d", code)
+	}
+	if code := do(s, "PUT", "/api/savings/decisions", `{"kind":"FIXED","key":"netflix","month":"2026-10","decided":true}`, map[string]string{"Content-Type": "application/json", "Origin": "https://evil.example"}, c).Code; code != 403 {
+		t.Errorf("origem diferente = %d", code)
+	}
+	if code := do(s, "PUT", "/api/savings/decisions", `{"kind":"FIXED","key":"netflix","month":"2026-10","decided":true}`, json).Code; code != 401 {
+		t.Errorf("sem sessão = %d", code)
+	}
+}
