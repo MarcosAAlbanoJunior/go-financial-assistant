@@ -211,7 +211,7 @@ type Dismissal struct {
 	Key  string
 }
 
-// Decision é um "cancelei" sobre uma sugestão recorrente da revisão (kind FIXED, ANT ou NEW).
+// Decision é um "cancelei" sobre uma sugestão recorrente da revisão (kind FIXED ou ANT).
 type Decision struct {
 	Kind     string
 	Key      string
