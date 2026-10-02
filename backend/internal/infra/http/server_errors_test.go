@@ -7,9 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 func TestHandleError_InvalidAmount(t *testing.T) {
@@ -59,7 +60,7 @@ func TestHandleError_Default(t *testing.T) {
 
 func TestHandle_ErrorNotification_StoresSentID(t *testing.T) {
 	analyzer := &mockAnalyzer{
-		executeTextFn: func(_ context.Context, _ usecase.TextInput) (*usecase.ExpenseOutput, error) {
+		executeTextFn: func(_ context.Context, _ ledger.TextInput) (*ledger.ExpenseOutput, error) {
 			return nil, errors.New("algo errado")
 		},
 	}

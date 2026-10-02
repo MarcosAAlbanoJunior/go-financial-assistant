@@ -11,8 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 const testToken = "123:SECRET"
@@ -134,7 +135,7 @@ func TestDownload_TooLarge(t *testing.T) {
 
 type fakeHandler struct{ got []chat.Message }
 
-func (f *fakeHandler) Handle(_ context.Context, m chat.Message) (*usecase.ExpenseOutput, error) {
+func (f *fakeHandler) Handle(_ context.Context, m chat.Message) (*ledger.ExpenseOutput, error) {
 	f.got = append(f.got, m)
 	return nil, errors.New("ignorado")
 }

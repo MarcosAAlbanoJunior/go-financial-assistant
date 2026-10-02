@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"bytes"
@@ -26,10 +26,10 @@ type CSVExporter interface {
 }
 
 type ExportCSV struct {
-	repo ports.PurchaseRepository
+	repo ports.LedgerStore
 }
 
-func NewExportCSV(repo ports.PurchaseRepository) *ExportCSV {
+func NewExportCSV(repo ports.LedgerStore) *ExportCSV {
 	return &ExportCSV{repo: repo}
 }
 

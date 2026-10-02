@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestExportCSV_EmptyMonth(t *testing.T) {
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentDetailsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentDetail, error) {
 			return nil, nil
 		},
@@ -34,7 +34,7 @@ func TestExportCSV_EmptyMonth(t *testing.T) {
 }
 
 func TestExportCSV_RepoError(t *testing.T) {
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentDetailsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentDetail, error) {
 			return nil, errSentinel
 		},
@@ -198,7 +198,7 @@ func TestExportCSV_TotalRow(t *testing.T) {
 		{Description: strPtr("A"), Category: "FOOD", PaymentMethod: "PIX", Amount: 30.00, PurchaseType: "SINGLE", DueDate: &due},
 		{Description: strPtr("B"), Category: "FOOD", PaymentMethod: "PIX", Amount: 20.50, PurchaseType: "SINGLE", DueDate: &due},
 	}
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentDetailsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentDetail, error) {
 			return details, nil
 		},
@@ -249,7 +249,7 @@ func TestExportCSV_TransferRows(t *testing.T) {
 		{Description: strPtr("Aplicação Cofrinho"), Category: "OTHER", PaymentMethod: "PIX", Amount: 500.00, PurchaseType: "SINGLE", PurchaseKind: "TRANSFER", TransferDirection: "OUT", DueDate: &due},
 		{Description: strPtr("Resgate CDB"), Category: "OTHER", PaymentMethod: "PIX", Amount: 200.00, PurchaseType: "SINGLE", PurchaseKind: "TRANSFER", TransferDirection: "IN", DueDate: &due},
 	}
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findPaymentDetailsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentDetail, error) {
 			return details, nil
 		},
@@ -355,8 +355,8 @@ func singleDetail() ports.PaymentDetail {
 	}
 }
 
-func repoWithOneDetail(d ports.PaymentDetail) *mockPurchaseRepo {
-	return &mockPurchaseRepo{
+func repoWithOneDetail(d ports.PaymentDetail) *mockLedger {
+	return &mockLedger{
 		findPaymentDetailsByMonthFn: func(_ context.Context, _ time.Time) ([]ports.PaymentDetail, error) {
 			return []ports.PaymentDetail{d}, nil
 		},

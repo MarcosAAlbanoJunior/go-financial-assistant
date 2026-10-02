@@ -10,10 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 // EvolutionClient é o que o adapter WhatsApp precisa da Evolution API.
@@ -34,7 +35,7 @@ type webhookHandler struct {
 	processedIDs   sync.Map
 }
 
-func newWebhookHandler(cfg WhatsAppConfig, client EvolutionClient, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter, logger *slog.Logger) *webhookHandler {
+func newWebhookHandler(cfg WhatsAppConfig, client EvolutionClient, analyzeExpense ledger.ExpenseAnalyzer, csvExporter ledger.CSVExporter, logger *slog.Logger) *webhookHandler {
 	allowed := make(map[string]struct{}, len(cfg.AllowedNumbers)+1)
 	for k := range cfg.AllowedNumbers {
 		allowed[k] = struct{}{}

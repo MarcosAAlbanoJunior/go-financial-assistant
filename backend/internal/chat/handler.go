@@ -8,8 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 const pendingImportTTL = 30 * time.Minute
@@ -20,20 +23,20 @@ var (
 )
 
 type pendingImportSession struct {
-	items     []usecase.PendingTransaction
+	items     []ledger.PendingTransaction
 	index     int
 	expiresAt time.Time
 }
 
 // Syncer sincroniza as transações do Open Finance sob demanda.
 type Syncer interface {
-	Sync(ctx context.Context) (usecase.SyncResult, error)
+	Sync(ctx context.Context) (openfinance.SyncResult, error)
 }
 
 // Handler processa mensagens do dono e responde para o mesmo chat (owner).
 type Handler struct {
-	analyzeExpense usecase.ExpenseAnalyzer
-	csvExporter    usecase.CSVExporter
+	analyzeExpense ledger.ExpenseAnalyzer
+	csvExporter    ledger.CSVExporter
 	messenger      ports.Messenger
 	owner          string
 	logger         *slog.Logger
@@ -46,7 +49,7 @@ type Handler struct {
 	pending *pendingImportSession
 }
 
-func NewHandler(analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter, messenger ports.Messenger, owner string, logger *slog.Logger) *Handler {
+func NewHandler(analyzeExpense ledger.ExpenseAnalyzer, csvExporter ledger.CSVExporter, messenger ports.Messenger, owner string, logger *slog.Logger) *Handler {
 	return &Handler{
 		analyzeExpense: analyzeExpense,
 		csvExporter:    csvExporter,
@@ -62,7 +65,7 @@ func (h *Handler) SetSyncer(s Syncer) { h.syncer = s }
 // Handle processa a mensagem e já responde ao usuário. O output só é retornado
 // para registros de texto/imagem; os demais fluxos retornam (nil, nil).
 // Erros de registro são notificados ao usuário e também devolvidos ao adapter.
-func (h *Handler) Handle(ctx context.Context, msg Message) (*usecase.ExpenseOutput, error) {
+func (h *Handler) Handle(ctx context.Context, msg Message) (*ledger.ExpenseOutput, error) {
 	if msg.Document != nil {
 		h.handleDocumentImport(ctx, msg.Document)
 		return nil, nil
@@ -101,14 +104,14 @@ func (h *Handler) Handle(ctx context.Context, msg Message) (*usecase.ExpenseOutp
 	return output, nil
 }
 
-func (h *Handler) route(ctx context.Context, msg Message) (*usecase.ExpenseOutput, error) {
+func (h *Handler) route(ctx context.Context, msg Message) (*ledger.ExpenseOutput, error) {
 	if msg.Image != nil {
 		data, err := msg.Image.Load(ctx)
 		if err != nil {
 			h.logger.Error("falha ao obter imagem", "error", err)
 			return nil, ErrInvalidImage
 		}
-		return h.analyzeExpense.ExecuteImage(ctx, usecase.ImageInput{
+		return h.analyzeExpense.ExecuteImage(ctx, ledger.ImageInput{
 			ImageData: data,
 			MimeType:  msg.Image.MimeType,
 			Caption:   msg.Image.Caption,
@@ -118,7 +121,7 @@ func (h *Handler) route(ctx context.Context, msg Message) (*usecase.ExpenseOutpu
 	if msg.Text == "" {
 		return nil, ErrUnsupportedMessage
 	}
-	return h.analyzeExpense.ExecuteText(ctx, usecase.TextInput{Text: msg.Text})
+	return h.analyzeExpense.ExecuteText(ctx, ledger.TextInput{Text: msg.Text})
 }
 
 func (h *Handler) handleDocumentImport(ctx context.Context, doc *Attachment) {
@@ -136,7 +139,7 @@ func (h *Handler) handleDocumentImport(ctx context.Context, doc *Attachment) {
 
 	h.sendText(ctx, "⏳ Analisando o extrato, aguarde...")
 
-	result, err := h.analyzeExpense.ExecuteDocument(ctx, usecase.DocumentInput{
+	result, err := h.analyzeExpense.ExecuteDocument(ctx, ledger.DocumentInput{
 		Data:     data,
 		MimeType: mimeType,
 		Caption:  doc.Caption,

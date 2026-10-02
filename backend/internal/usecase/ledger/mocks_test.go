@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"context"
@@ -33,7 +33,7 @@ func (m *mockAnalyzer) AnalyzeDocument(ctx context.Context, data []byte, mimeTyp
 
 // SavePendingTransaction não é método do AIAnalyzer — pertence ao use case AnalyzeExpense.
 
-type mockPurchaseRepo struct {
+type mockLedger struct {
 	saveFn                         func(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error
 	findActiveRecurringFn          func(ctx context.Context) ([]domain.Purchase, error)
 	findByDescriptionFn            func(ctx context.Context, description string) ([]domain.Purchase, error)
@@ -44,149 +44,93 @@ type mockPurchaseRepo struct {
 	findPaymentDetailsByMonthFn    func(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error)
 	findIncomeTotalByMonthFn       func(ctx context.Context, month time.Time) (float64, error)
 	findTransferNetByMonthFn       func(ctx context.Context, month time.Time) (float64, float64, error)
-	saveInvestmentsFn              func(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error
-	refreshExternalFn              func(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error)
-	upsertAccountFn                func(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error)
-	upsertInstitutionFn            func(ctx context.Context, itemID string, inst ports.ExternalInstitution) (uuid.UUID, bool, error)
-	saveLogoFn                     func(ctx context.Context, id uuid.UUID, data []byte, mime string) error
-	reconcileExternalFn            func(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error)
-	saveExternalFn                 func(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error
 	existsPaymentByDateAndAmountFn func(ctx context.Context, date time.Time, amount float64) (bool, error)
 }
 
-func (m *mockPurchaseRepo) Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error {
+func (m *mockLedger) Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error {
 	if m.saveFn != nil {
 		return m.saveFn(ctx, purchase, payments)
 	}
 	return nil
 }
 
-func (m *mockPurchaseRepo) FindActiveRecurring(ctx context.Context) ([]domain.Purchase, error) {
+func (m *mockLedger) FindActiveRecurring(ctx context.Context) ([]domain.Purchase, error) {
 	if m.findActiveRecurringFn != nil {
 		return m.findActiveRecurringFn(ctx)
 	}
 	return nil, nil
 }
 
-func (m *mockPurchaseRepo) FindByDescription(ctx context.Context, description string) ([]domain.Purchase, error) {
+func (m *mockLedger) FindByDescription(ctx context.Context, description string) ([]domain.Purchase, error) {
 	if m.findByDescriptionFn != nil {
 		return m.findByDescriptionFn(ctx, description)
 	}
 	return nil, nil
 }
 
-func (m *mockPurchaseRepo) Update(ctx context.Context, purchase *domain.Purchase) error {
+func (m *mockLedger) Update(ctx context.Context, purchase *domain.Purchase) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, purchase)
 	}
 	return nil
 }
 
-func (m *mockPurchaseRepo) SavePayment(ctx context.Context, payment *domain.Payment) error {
+func (m *mockLedger) SavePayment(ctx context.Context, payment *domain.Payment) error {
 	if m.savePaymentFn != nil {
 		return m.savePaymentFn(ctx, payment)
 	}
 	return nil
 }
 
-func (m *mockPurchaseRepo) HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error) {
+func (m *mockLedger) HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error) {
 	if m.hasPaymentForMonthFn != nil {
 		return m.hasPaymentForMonthFn(ctx, purchaseID, month)
 	}
 	return false, nil
 }
 
-func (m *mockPurchaseRepo) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error) {
+func (m *mockLedger) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 	if m.findPaymentsByMonthFn != nil {
 		return m.findPaymentsByMonthFn(ctx, month)
 	}
 	return nil, nil
 }
 
-func (m *mockPurchaseRepo) FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error) {
+func (m *mockLedger) FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error) {
 	if m.findPaymentDetailsByMonthFn != nil {
 		return m.findPaymentDetailsByMonthFn(ctx, month)
 	}
 	return nil, nil
 }
 
-func (m *mockPurchaseRepo) FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error) {
+func (m *mockLedger) FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error) {
 	if m.findIncomeTotalByMonthFn != nil {
 		return m.findIncomeTotalByMonthFn(ctx, month)
 	}
 	return 0, nil
 }
 
-func (m *mockPurchaseRepo) FindTransferNetByMonth(ctx context.Context, month time.Time) (float64, float64, error) {
+func (m *mockLedger) FindTransferNetByMonth(ctx context.Context, month time.Time) (float64, float64, error) {
 	if m.findTransferNetByMonthFn != nil {
 		return m.findTransferNetByMonthFn(ctx, month)
 	}
 	return 0, 0, nil
 }
 
-func (m *mockPurchaseRepo) ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error) {
+func (m *mockLedger) ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error) {
 	if m.existsPaymentByDateAndAmountFn != nil {
 		return m.existsPaymentByDateAndAmountFn(ctx, date, amount)
 	}
 	return false, nil
 }
 
-func (m *mockPurchaseRepo) SaveInvestments(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error {
-	if m.saveInvestmentsFn != nil {
-		return m.saveInvestmentsFn(ctx, itemID, positions, day)
-	}
-	return nil
-}
-
-func (m *mockPurchaseRepo) UpsertAccount(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
-	if m.upsertAccountFn != nil {
-		return m.upsertAccountFn(ctx, a)
-	}
-	return uuid.New(), nil
-}
-
-func (m *mockPurchaseRepo) UpsertInstitution(ctx context.Context, itemID string, inst ports.ExternalInstitution) (uuid.UUID, bool, error) {
-	if m.upsertInstitutionFn != nil {
-		return m.upsertInstitutionFn(ctx, itemID, inst)
-	}
-	return uuid.New(), false, nil
-}
-
-func (m *mockPurchaseRepo) SaveInstitutionLogo(ctx context.Context, id uuid.UUID, data []byte, mime string) error {
-	if m.saveLogoFn != nil {
-		return m.saveLogoFn(ctx, id, data, mime)
-	}
-	return nil
-}
-
-func (m *mockPurchaseRepo) RefreshExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
-	if m.refreshExternalFn != nil {
-		return m.refreshExternalFn(ctx, tx, accountID)
-	}
-	return false, nil
-}
-
-func (m *mockPurchaseRepo) ReconcileExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
-	if m.reconcileExternalFn != nil {
-		return m.reconcileExternalFn(ctx, tx, accountID)
-	}
-	return false, nil
-}
-
-func (m *mockPurchaseRepo) SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error {
-	if m.saveExternalFn != nil {
-		return m.saveExternalFn(ctx, purchase, payment)
-	}
-	return nil
-}
-
 func ptr[T any](v T) *T { return &v }
 
-func successRepo() *mockPurchaseRepo {
-	return &mockPurchaseRepo{}
+func successRepo() *mockLedger {
+	return &mockLedger{}
 }
 
-func newUC(repo *mockPurchaseRepo, analyzer *mockAnalyzer) *AnalyzeExpense {
+func newUC(repo *mockLedger, analyzer *mockAnalyzer) *AnalyzeExpense {
 	return NewAnalyzeExpense(repo, analyzer, slog.Default())
 }
 

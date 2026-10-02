@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 const (
@@ -17,7 +18,7 @@ const (
 )
 
 type messageHandler interface {
-	Handle(ctx context.Context, msg chat.Message) (*usecase.ExpenseOutput, error)
+	Handle(ctx context.Context, msg chat.Message) (*ledger.ExpenseOutput, error)
 }
 
 // Bot recebe mensagens por long polling (sem precisar de URL pública) e as entrega ao
