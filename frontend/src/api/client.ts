@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Budget, Categorize, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Balances, SyncResult, Budget, Categorize, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -55,6 +55,11 @@ export const useBreakdown = (month: string, by: BreakdownBy) =>
 
 export const useAccounts = () =>
   useQuery({ queryKey: ['accounts'], queryFn: () => request<Account[]>('/api/accounts') })
+
+export const useBalances = () => useQuery({ queryKey: ['balances'], queryFn: () => request<Balances>('/api/balances') })
+
+/** Dispara a sincronização do Open Finance (a mesma do /sync do chat). */
+export const syncNow = () => postJSON<SyncResult>('/api/sync')
 
 /** query já vem montada e codificada por quem chama (URLSearchParams). */
 export const useTransactions = (query: string) =>
