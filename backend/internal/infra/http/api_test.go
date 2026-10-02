@@ -649,3 +649,139 @@ func TestAPI_Projection(t *testing.T) {
 		t.Errorf("sem sessão = %d", rec.Code)
 	}
 }
+
+// newGoalsAPI monta a API com o relógio em 15/10/2026.
+func newGoalsAPI(t *testing.T, r *fakeReader) *Server {
+	t.Helper()
+	s := newTestAPI(t, r)
+	s.mux = http.NewServeMux()
+	if err := s.mountAPI(testPassword, r, func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC) }); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestAPI_Goals(t *testing.T) {
+	r := &fakeReader{
+		accounts:  []ports.Account{{Type: "BANK", Balance: 1000}, {Type: "CREDIT", Balance: 500}},
+		positions: []ports.Position{{Balance: 2000}},
+		catMonths: []ports.CategoryMonth{{Category: "FOOD", Month: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Total: 550}},
+		goals: []ports.Goal{
+			{ID: uuid.New(), Kind: ports.GoalSave, Name: "Viagem", TargetAmount: 6000, TargetDate: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC), CreatedAt: time.Now()},
+			{ID: uuid.New(), Kind: ports.GoalCut, Name: "Comer menos fora", Category: "FOOD", CutPercent: 20, Baseline: 800, CreatedAt: time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)},
+			{ID: uuid.New(), Kind: ports.GoalReserve, Name: "Reserva", ReserveMonths: 6, CreatedAt: time.Now()},
+		},
+	}
+	s := newGoalsAPI(t, r)
+	c := login(t, s)
+
+	rec := do(s, "GET", "/api/goals", "", nil, c)
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, body)
+	}
+	for _, want := range []string{
+		`"wealth":3000`, // conta corrente + investimentos; o cartão não entra
+		`"targetDate":"2027-01"`, `"monthsLeft":3`, `"perMonth":1000`, `"target":6000`,
+		`"categoryLabel":"Alimentação"`, `"target":640`, `"current":550`, `"hit":true`, // 20% abaixo de 800
+		`"reserveMonths":6`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("falta %s em %s", want, body)
+		}
+	}
+	if rec := do(s, "GET", "/api/goals", "", nil); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
+	}
+}
+
+func TestAPI_CreateGoal(t *testing.T) {
+	r := &fakeReader{catMonths: []ports.CategoryMonth{
+		{Category: "FOOD", Month: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC), Total: 800},
+		{Category: "FOOD", Month: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), Total: 600},
+	}}
+	s := newGoalsAPI(t, r)
+	c := login(t, s)
+	json := map[string]string{"Content-Type": "application/json"}
+	post := func(body string) int { return do(s, "POST", "/api/goals", body, json, c).Code }
+
+	if code := post(`{"kind":"SAVE","name":"  Viagem  ","targetAmount":12000.456,"targetDate":"2027-06"}`); code != 201 {
+		t.Fatalf("SAVE: %d", code)
+	}
+	if g := r.created[0]; g.Name != "Viagem" || g.TargetAmount != 12000.46 || g.TargetDate.Format("2006-01-02") != "2027-06-01" || g.Kind != ports.GoalSave {
+		t.Errorf("SAVE gravada: %+v", g)
+	}
+	if code := post(`{"kind":"CUT","name":"Comida","category":"FOOD","cutPercent":10}`); code != 201 || r.created[1].Baseline != 700 || r.created[1].Category != "FOOD" {
+		t.Errorf("CUT: baseline é a média dos meses anteriores (700): %d %+v", code, r.created)
+	}
+	if code := post(`{"kind":"RESERVE","name":"Reserva","reserveMonths":6}`); code != 201 || r.created[2].ReserveMonths != 6 {
+		t.Errorf("RESERVE: %d %+v", code, r.created)
+	}
+
+	for name, body := range map[string]string{
+		"tipo inválido":         `{"kind":"X","name":"a"}`,
+		"nome vazio":            `{"kind":"RESERVE","name":"   ","reserveMonths":6}`,
+		"nome longo":            `{"kind":"RESERVE","name":"` + strings.Repeat("a", 61) + `","reserveMonths":6}`,
+		"nome com controle":     `{"kind":"RESERVE","name":"a\u0000b","reserveMonths":6}`,
+		"campo desconhecido":    `{"kind":"RESERVE","name":"a","reserveMonths":6,"id":"x"}`,
+		"data passada":          `{"kind":"SAVE","name":"a","targetAmount":100,"targetDate":"2026-10"}`,
+		"data em 11 anos":       `{"kind":"SAVE","name":"a","targetAmount":100,"targetDate":"2037-11"}`,
+		"data inválida":         `{"kind":"SAVE","name":"a","targetAmount":100,"targetDate":"amanhã"}`,
+		"valor zero":            `{"kind":"SAVE","name":"a","targetAmount":0,"targetDate":"2027-06"}`,
+		"valor enorme":          `{"kind":"SAVE","name":"a","targetAmount":1e12,"targetDate":"2027-06"}`,
+		"categoria de renda":    `{"kind":"CUT","name":"a","category":"SALARY","cutPercent":10}`,
+		"categoria com SQL":     `{"kind":"CUT","name":"a","category":"FOOD'; drop table goals;--","cutPercent":10}`,
+		"percentual alto":       `{"kind":"CUT","name":"a","category":"FOOD","cutPercent":95}`,
+		"percentual zero":       `{"kind":"CUT","name":"a","category":"FOOD","cutPercent":0}`,
+		"meses de reserva alto": `{"kind":"RESERVE","name":"a","reserveMonths":37}`,
+		"corpo inválido":        `nao-json`,
+	} {
+		if code := post(body); code != 400 {
+			t.Errorf("%s: %d, esperava 400", name, code)
+		}
+	}
+	if code := post(`{"kind":"CUT","name":"a","category":"TRANSPORT","cutPercent":10}`); code != 422 {
+		t.Errorf("categoria sem histórico = %d", code)
+	}
+	if code := do(s, "POST", "/api/goals", `kind=RESERVE`, map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, c).Code; code != 403 {
+		t.Errorf("form (CSRF) = %d", code)
+	}
+	if code := do(s, "POST", "/api/goals", `{"kind":"RESERVE","name":"a","reserveMonths":6}`, map[string]string{"Content-Type": "application/json", "Origin": "https://evil.example"}, c).Code; code != 403 {
+		t.Errorf("origem diferente = %d", code)
+	}
+	if code := do(s, "POST", "/api/goals", `{"kind":"RESERVE","name":"a","reserveMonths":6}`, json).Code; code != 401 {
+		t.Errorf("sem sessão = %d", code)
+	}
+	if len(r.created) != 3 {
+		t.Errorf("só as 3 válidas foram gravadas: %d", len(r.created))
+	}
+
+	r.goals = make([]ports.Goal, maxGoals)
+	if code := post(`{"kind":"RESERVE","name":"a","reserveMonths":6}`); code != 409 {
+		t.Errorf("limite de metas = %d", code)
+	}
+}
+
+func TestAPI_DeleteGoal(t *testing.T) {
+	r := &fakeReader{deleteFound: true}
+	s := newGoalsAPI(t, r)
+	c := login(t, s)
+	id := uuid.New()
+
+	if rec := do(s, "DELETE", "/api/goals/"+id.String(), "", nil, c); rec.Code != 200 || r.deleted != id {
+		t.Errorf("apagar: %d %v", rec.Code, r.deleted)
+	}
+	r.deleteFound = false
+	if rec := do(s, "DELETE", "/api/goals/"+id.String(), "", nil, c); rec.Code != 404 {
+		t.Errorf("inexistente = %d", rec.Code)
+	}
+	if rec := do(s, "DELETE", "/api/goals/1;drop", "", nil, c); rec.Code != 400 {
+		t.Errorf("id inválido = %d", rec.Code)
+	}
+	if rec := do(s, "DELETE", "/api/goals/"+id.String(), "", map[string]string{"Origin": "https://evil.example"}, c); rec.Code != 403 {
+		t.Errorf("origem diferente = %d", rec.Code)
+	}
+	if rec := do(s, "DELETE", "/api/goals/"+id.String(), "", nil); rec.Code != 401 {
+		t.Errorf("sem sessão = %d", rec.Code)
+	}
+}
