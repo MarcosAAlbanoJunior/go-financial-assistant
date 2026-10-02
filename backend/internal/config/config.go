@@ -31,6 +31,12 @@ type Config struct {
 	// GeminiPaidPlan é a declaração de que o projeto da chave tem faturamento (serviços pagos). O Coach, que
 	// envia dados financeiros ao Gemini, só funciona com ela: no plano grátis o Google pode usar e revisar o conteúdo.
 	GeminiPaidPlan bool
+	// Resumo semanal (calculado por código, sem IA) enviado ao dono no canal de conversa.
+	DigestEnabled  bool
+	DigestWeekday  time.Weekday
+	DigestHour     int
+	DigestLocation *time.Location
+
 	// CoachModel troca o modelo do Coach; vazio usa o padrão do cliente.
 	CoachModel string
 
@@ -93,6 +99,7 @@ func Load() (*Config, error) {
 		errs = append(errs, fmt.Errorf("GEMINI_PAID_PLAN inválida: %q — use true ou false", paid))
 	}
 	cfg.CoachModel = strings.TrimSpace(getEnv("COACH_GEMINI_MODEL", ""))
+	loadDigest(cfg, &errs)
 
 	cfg.Channel = strings.ToLower(strings.TrimSpace(getEnv("CHANNEL", ChannelWhatsApp)))
 	cfg.AllowedNumbers = parseAllowedNumbers(getEnv("ALLOWED_NUMBERS", ""))
@@ -129,6 +136,52 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+var weekdays = map[string]time.Weekday{
+	"sunday": time.Sunday, "monday": time.Monday, "tuesday": time.Tuesday, "wednesday": time.Wednesday,
+	"thursday": time.Thursday, "friday": time.Friday, "saturday": time.Saturday,
+}
+
+// loadDigest lê DIGEST_ENABLED (padrão true), DIGEST_WEEKDAY (monday..sunday, padrão monday), DIGEST_HOUR (0-23,
+// padrão 9) e DIGEST_TIMEZONE (padrão America/Sao_Paulo).
+func loadDigest(cfg *Config, errs *[]error) {
+	enabled := strings.TrimSpace(getEnv("DIGEST_ENABLED", ""))
+	if enabled == "" {
+		enabled = "true"
+	}
+	var err error
+	if cfg.DigestEnabled, err = strconv.ParseBool(enabled); err != nil {
+		*errs = append(*errs, fmt.Errorf("DIGEST_ENABLED inválida: %q — use true ou false", enabled))
+	}
+
+	day := strings.ToLower(strings.TrimSpace(getEnv("DIGEST_WEEKDAY", "monday")))
+	if day == "" {
+		day = "monday"
+	}
+	weekday, ok := weekdays[day]
+	if !ok {
+		*errs = append(*errs, fmt.Errorf("DIGEST_WEEKDAY inválido: %q — use monday, tuesday, wednesday, thursday, friday, saturday ou sunday", day))
+	}
+	cfg.DigestWeekday = weekday
+
+	hourStr := strings.TrimSpace(getEnv("DIGEST_HOUR", "9"))
+	if hourStr == "" {
+		hourStr = "9"
+	}
+	hour, err := strconv.Atoi(hourStr)
+	if err != nil || hour < 0 || hour > 23 {
+		*errs = append(*errs, fmt.Errorf("DIGEST_HOUR inválida: %q — use um inteiro de 0 a 23", hourStr))
+	}
+	cfg.DigestHour = hour
+
+	zone := strings.TrimSpace(getEnv("DIGEST_TIMEZONE", "America/Sao_Paulo"))
+	if zone == "" {
+		zone = "America/Sao_Paulo"
+	}
+	if cfg.DigestLocation, err = time.LoadLocation(zone); err != nil {
+		*errs = append(*errs, fmt.Errorf("DIGEST_TIMEZONE inválido: %q", zone))
+	}
 }
 
 func loadOpenFinance(cfg *Config, errs *[]error) {
