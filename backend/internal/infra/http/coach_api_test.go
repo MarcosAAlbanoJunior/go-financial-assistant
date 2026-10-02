@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/google/uuid"
 )
@@ -37,12 +38,12 @@ func (f *fakeCoach) Advise(_ context.Context, payload []byte) (ports.CoachAdvice
 func coachReader() *fakeReader {
 	d := func(day int) time.Time { return time.Date(2026, 11, day, 0, 0, 0, 0, time.UTC) }
 	return &fakeReader{
-		payments: []ports.ExpensePayment{
+		payments: []domain.ExpensePayment{
 			{Key: "pix enviado fulano de tal", Label: "Pix enviado Fulano de Tal", Category: "OTHER", PaymentMethod: "PIX", Date: d(2), Amount: 300},
 			{Key: "pix enviado fulano de tal", Label: "Pix enviado Fulano de Tal", Category: "OTHER", PaymentMethod: "PIX", Date: d(3), Amount: 300},
 		},
-		goals:     []ports.Goal{{Kind: ports.GoalReserve, Name: "Reserva", ReserveMonths: 6, CreatedAt: time.Now()}},
-		decisions: []ports.Decision{{Kind: "FIXED", Key: "spotify", Label: "Spotify Premium 123456", Category: "ENTERTAINMENT", Month: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), Monthly: 20}},
+		goals:     []domain.Goal{{Kind: domain.GoalReserve, Name: "Reserva", ReserveMonths: 6, CreatedAt: time.Now()}},
+		decisions: []domain.Decision{{Kind: "FIXED", Key: "spotify", Label: "Spotify Premium 123456", Category: "ENTERTAINMENT", Month: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), Monthly: 20}},
 	}
 }
 

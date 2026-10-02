@@ -36,9 +36,9 @@ func IsPersonTransfer(label string) bool { return transferRE.MatchString(label) 
 
 // BuildCategorizeContext escolhe as contas que podem ir à IA (sem transferências, as MaxCategorizeItems maiores) e
 // devolve também essas contas, na ordem dos IDs "c1", "c2"...
-func BuildCategorizeContext(groups []ports.UncategorizedGroup) (CategorizeContext, []ports.UncategorizedGroup) {
+func BuildCategorizeContext(groups []domain.UncategorizedGroup) (CategorizeContext, []domain.UncategorizedGroup) {
 	c := CategorizeContext{Items: []CategorizeItem{}}
-	var kept []ports.UncategorizedGroup
+	var kept []domain.UncategorizedGroup
 	for _, g := range groups {
 		if IsPersonTransfer(g.Label) || len(kept) == MaxCategorizeItems {
 			continue
@@ -56,7 +56,7 @@ type CategoryChoice struct {
 }
 
 // ValidateCategories fica só com o que a IA devolveu de aproveitável: IDs enviados, categorias permitidas, uma por conta.
-func ValidateCategories(raw []ports.CategorySuggestion, kept []ports.UncategorizedGroup) []CategoryChoice {
+func ValidateCategories(raw []ports.CategorySuggestion, kept []domain.UncategorizedGroup) []CategoryChoice {
 	allowed := map[string]bool{}
 	for _, c := range AICategories {
 		allowed[string(c)] = true

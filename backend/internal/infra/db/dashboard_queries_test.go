@@ -101,11 +101,11 @@ func TestDashboard_BreakdownAndAccounts(t *testing.T) {
 	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryMarket, desc: "dash-g", amount: 20, date: mar1999})
 	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "dash-h", amount: 900, date: mar1999})
 
-	byCat, err := repo.ExpenseBreakdown(ctx, mar1999, ports.BreakdownByCategory)
+	byCat, err := repo.ExpenseBreakdown(ctx, mar1999, domain.BreakdownByCategory)
 	if err != nil || len(byCat) != 2 || byCat[0].Key != "FOOD" || byCat[0].Total != 30 {
 		t.Errorf("por categoria: %+v %v", byCat, err)
 	}
-	byAcc, err := repo.ExpenseBreakdown(ctx, mar1999, ports.BreakdownByAccount)
+	byAcc, err := repo.ExpenseBreakdown(ctx, mar1999, domain.BreakdownByAccount)
 	if err != nil || len(byAcc) != 2 || byAcc[0].Key != acc.String() || byAcc[0].Name != "Conta teste 1234" || byAcc[1].Key != "" {
 		t.Errorf("por conta: %+v %v", byAcc, err)
 	}
@@ -136,7 +136,7 @@ func TestDashboard_TransactionsFilterAndPaging(t *testing.T) {
 	seed(t, repo, pg, seedEntry{kind: domain.KindIncome, cat: domain.CategorySalary, desc: "Salário", amount: 900, date: mar1999.AddDate(0, 0, 3)})
 	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "outra", amount: 5, date: apr1999})
 
-	list := func(f ports.TransactionFilter) ([]ports.Transaction, int) {
+	list := func(f domain.TransactionFilter) ([]domain.Transaction, int) {
 		t.Helper()
 		f.Month = &mar1999
 		if f.Limit == 0 {
@@ -149,21 +149,21 @@ func TestDashboard_TransactionsFilterAndPaging(t *testing.T) {
 		return txs, total
 	}
 
-	if txs, total := list(ports.TransactionFilter{}); total != 3 || len(txs) != 3 || txs[0].Description != "Salário" {
+	if txs, total := list(domain.TransactionFilter{}); total != 3 || len(txs) != 3 || txs[0].Description != "Salário" {
 		t.Errorf("mais recentes primeiro, só março: %d %+v", total, txs)
 	}
-	if _, total := list(ports.TransactionFilter{Kind: "EXPENSE"}); total != 2 {
+	if _, total := list(domain.TransactionFilter{Kind: "EXPENSE"}); total != 2 {
 		t.Errorf("filtro por tipo: %d", total)
 	}
-	if txs, total := list(ports.TransactionFilter{AccountID: &acc}); total != 1 || txs[0].AccountName != "Conta teste 1234" {
+	if txs, total := list(domain.TransactionFilter{AccountID: &acc}); total != 1 || txs[0].AccountName != "Conta teste 1234" {
 		t.Errorf("filtro por conta: %d %+v", total, txs)
 	}
 	// % e _ da busca valem literalmente: "100%_" não pode casar "Padariaxyz".
-	if txs, total := list(ports.TransactionFilter{Search: "100%_"}); total != 1 || txs[0].Description != "Padaria 100%_ok" {
+	if txs, total := list(domain.TransactionFilter{Search: "100%_"}); total != 1 || txs[0].Description != "Padaria 100%_ok" {
 		t.Errorf("curingas devem ser escapados: %d %+v", total, txs)
 	}
 	// Paginação: o total reflete o filtro inteiro, não só a página.
-	if txs, total := list(ports.TransactionFilter{Limit: 2, Offset: 2}); total != 3 || len(txs) != 1 {
+	if txs, total := list(domain.TransactionFilter{Limit: 2, Offset: 2}); total != 3 || len(txs) != 1 {
 		t.Errorf("paginação: total=%d len=%d", total, len(txs))
 	}
 }
@@ -301,8 +301,8 @@ func TestDashboard_TransactionGroupsAndDayFilter(t *testing.T) {
 	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "grp-e", amount: 9, date: apr1999})
 	seed(t, repo, pg, seedEntry{kind: domain.KindExpense, cat: domain.CategoryFood, desc: "grp-cancel", amount: 500, date: mar1999, status: domain.PaymentStatusCancelled})
 
-	f := ports.TransactionFilter{Month: &mar1999}
-	byCat, err := repo.TransactionGroups(ctx, f, ports.GroupByCategory)
+	f := domain.TransactionFilter{Month: &mar1999}
+	byCat, err := repo.TransactionGroups(ctx, f, domain.GroupByCategory)
 	if err != nil || len(byCat) != 3 {
 		t.Fatalf("por categoria: %+v %v", byCat, err)
 	}
@@ -313,19 +313,19 @@ func TestDashboard_TransactionGroupsAndDayFilter(t *testing.T) {
 		t.Errorf("renda separada da despesa: %+v", byCat[2])
 	}
 
-	byDay, err := repo.TransactionGroups(ctx, f, ports.GroupByDay)
+	byDay, err := repo.TransactionGroups(ctx, f, domain.GroupByDay)
 	if err != nil || len(byDay) != 2 || byDay[0].Key != "1999-03-05" || byDay[1].Key != "1999-03-02" || byDay[1].Expense != 50 {
 		t.Errorf("por dia (mais recente primeiro): %+v %v", byDay, err)
 	}
 
 	// Mesmos filtros da lista: tipo e busca restringem os grupos.
-	onlyFood := ports.TransactionFilter{Month: &mar1999, Kind: "EXPENSE", Search: "grp-a"}
-	if g, _ := repo.TransactionGroups(ctx, onlyFood, ports.GroupByCategory); len(g) != 1 || g[0].Expense != 30 {
+	onlyFood := domain.TransactionFilter{Month: &mar1999, Kind: "EXPENSE", Search: "grp-a"}
+	if g, _ := repo.TransactionGroups(ctx, onlyFood, domain.GroupByCategory); len(g) != 1 || g[0].Expense != 30 {
 		t.Errorf("filtro por tipo e busca: %+v", g)
 	}
 
 	day := mar1999.AddDate(0, 0, 1)
-	txs, total, err := repo.Transactions(ctx, ports.TransactionFilter{Day: &day, Limit: 50})
+	txs, total, err := repo.Transactions(ctx, domain.TransactionFilter{Day: &day, Limit: 50})
 	if err != nil || total != 2 || len(txs) != 2 {
 		t.Errorf("filtro por dia: total=%d %v", total, err)
 	}
@@ -351,7 +351,7 @@ func TestBudget_ExpenseKeyMonthsAndRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := map[string][]ports.ExpenseKeyMonth{}
+	got := map[string][]domain.ExpenseKeyMonth{}
 	for _, r := range rows {
 		got[r.Key] = append(got[r.Key], r)
 	}
@@ -369,14 +369,14 @@ func TestBudget_ExpenseKeyMonthsAndRules(t *testing.T) {
 		t.Errorf("renda e cancelada não entram: %+v", got)
 	}
 
-	if err := repo.SetExpenseRule(ctx, "zzteste assinatura", ports.ClassFixed); err != nil {
+	if err := repo.SetExpenseRule(ctx, "zzteste assinatura", domain.ClassFixed); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.SetExpenseRule(ctx, "zzteste assinatura", ports.ClassVariable); err != nil { // atualiza
+	if err := repo.SetExpenseRule(ctx, "zzteste assinatura", domain.ClassVariable); err != nil { // atualiza
 		t.Fatal(err)
 	}
 	rules, _ := repo.ExpenseRules(ctx)
-	if rules["zzteste assinatura"] != ports.ClassVariable {
+	if rules["zzteste assinatura"] != domain.ClassVariable {
 		t.Errorf("regra gravada: %v", rules)
 	}
 	if err := repo.SetExpenseRule(ctx, "zzteste assinatura", ""); err != nil {
@@ -431,7 +431,7 @@ func TestBudget_IncomePayments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mine []ports.IncomePayment
+	var mine []domain.IncomePayment
 	for _, p := range got {
 		// Todo salário vira uma fonte só, mesmo que a descrição mude de um mês para o outro (empresa, "REMUNERACAO/SALARIO"...).
 		if p.Key == "salario" && p.Month.Year() == 1999 {
@@ -474,7 +474,7 @@ func TestReview_CategoryMonthsPaymentsAndDismissals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mine []ports.ExpensePayment
+	var mine []domain.ExpensePayment
 	for _, p := range pays {
 		if p.Key == "zzteste lanche" {
 			mine = append(mine, p)
@@ -484,7 +484,7 @@ func TestReview_CategoryMonthsPaymentsAndDismissals(t *testing.T) {
 		t.Errorf("despesas individuais de fevereiro, em ordem de data: %+v", mine)
 	}
 
-	d := ports.Dismissal{Kind: "ANT", Key: "zzteste lanche"}
+	d := domain.Dismissal{Kind: "ANT", Key: "zzteste lanche"}
 	for range 2 { // dispensar duas vezes não falha nem duplica
 		if err := repo.SetDismissal(ctx, d, true); err != nil {
 			t.Fatal(err)
@@ -513,16 +513,16 @@ func TestGoals_CreateListDelete(t *testing.T) {
 	ctx := context.Background()
 	t.Cleanup(func() { pg.Pool.Exec(ctx, `DELETE FROM goals WHERE name LIKE 'zzteste%'`) })
 
-	save := ports.Goal{ID: uuid.New(), Kind: ports.GoalSave, Name: "zzteste viagem", TargetAmount: 5000.5, TargetDate: time.Date(1999, 12, 1, 0, 0, 0, 0, time.UTC)}
-	cut := ports.Goal{ID: uuid.New(), Kind: ports.GoalCut, Name: "zzteste comida", Category: "FOOD", CutPercent: 15, Baseline: 800}
-	reserve := ports.Goal{ID: uuid.New(), Kind: ports.GoalReserve, Name: "zzteste reserva", ReserveMonths: 6}
-	for _, g := range []ports.Goal{save, cut, reserve} {
+	save := domain.Goal{ID: uuid.New(), Kind: domain.GoalSave, Name: "zzteste viagem", TargetAmount: 5000.5, TargetDate: time.Date(1999, 12, 1, 0, 0, 0, 0, time.UTC)}
+	cut := domain.Goal{ID: uuid.New(), Kind: domain.GoalCut, Name: "zzteste comida", Category: "FOOD", CutPercent: 15, Baseline: 800}
+	reserve := domain.Goal{ID: uuid.New(), Kind: domain.GoalReserve, Name: "zzteste reserva", ReserveMonths: 6}
+	for _, g := range []domain.Goal{save, cut, reserve} {
 		if err := repo.CreateGoal(ctx, g); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// O banco recusa meta sem os campos do tipo.
-	if err := repo.CreateGoal(ctx, ports.Goal{ID: uuid.New(), Kind: ports.GoalSave, Name: "zzteste inválida"}); err == nil {
+	if err := repo.CreateGoal(ctx, domain.Goal{ID: uuid.New(), Kind: domain.GoalSave, Name: "zzteste inválida"}); err == nil {
 		t.Error("SAVE sem valor e data deveria falhar")
 	}
 
@@ -530,11 +530,11 @@ func TestGoals_CreateListDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := map[uuid.UUID]ports.Goal{}
+	got := map[uuid.UUID]domain.Goal{}
 	for _, g := range all {
 		got[g.ID] = g
 	}
-	if g := got[save.ID]; g.TargetAmount != 5000.5 || !g.TargetDate.Equal(save.TargetDate) || g.Kind != ports.GoalSave || g.CreatedAt.IsZero() {
+	if g := got[save.ID]; g.TargetAmount != 5000.5 || !g.TargetDate.Equal(save.TargetDate) || g.Kind != domain.GoalSave || g.CreatedAt.IsZero() {
 		t.Errorf("SAVE: %+v", g)
 	}
 	if g := got[cut.ID]; g.Category != "FOOD" || g.CutPercent != 15 || g.Baseline != 800 || !g.TargetDate.IsZero() {
@@ -559,10 +559,10 @@ func TestCoachAnalyses_SaveAnswerListDelete(t *testing.T) {
 		pg.Pool.Exec(ctx, `DELETE FROM coach_analyses WHERE month = '1999-03-01' OR month = '1999-04-01'`)
 	})
 
-	older := ports.CoachAnalysis{ID: uuid.New(), Month: mar1999, Advice: []byte(`{"summary":"antiga"}`), Answers: map[string]string{"q:1": "ok"}}
-	newer := ports.CoachAnalysis{ID: uuid.New(), Month: mar1999, Advice: []byte(`{"summary":"nova"}`)}
-	other := ports.CoachAnalysis{ID: uuid.New(), Month: apr1999, Advice: []byte(`{"summary":"abril"}`)}
-	for _, a := range []ports.CoachAnalysis{older, newer, other} {
+	older := domain.CoachAnalysis{ID: uuid.New(), Month: mar1999, Advice: []byte(`{"summary":"antiga"}`), Answers: map[string]string{"q:1": "ok"}}
+	newer := domain.CoachAnalysis{ID: uuid.New(), Month: mar1999, Advice: []byte(`{"summary":"nova"}`)}
+	other := domain.CoachAnalysis{ID: uuid.New(), Month: apr1999, Advice: []byte(`{"summary":"abril"}`)}
+	for _, a := range []domain.CoachAnalysis{older, newer, other} {
 		if err := repo.SaveCoachAnalysis(ctx, a); err != nil {
 			t.Fatal(err)
 		}
@@ -620,7 +620,7 @@ func TestReview_Decisions(t *testing.T) {
 		pg.Pool.Exec(ctx, `DELETE FROM review_dismissals WHERE key LIKE 'zzteste%'`)
 	})
 
-	d := ports.Decision{Kind: "FIXED", Key: "zzteste streaming", Label: "ZZTeste Streaming", Category: "ENTERTAINMENT", Month: mar1999, Monthly: 39.9}
+	d := domain.Decision{Kind: "FIXED", Key: "zzteste streaming", Label: "ZZTeste Streaming", Category: "ENTERTAINMENT", Month: mar1999, Monthly: 39.9}
 	if err := repo.SetDecision(ctx, d); err != nil {
 		t.Fatal(err)
 	}
@@ -633,7 +633,7 @@ func TestReview_Decisions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mine []ports.Decision
+	var mine []domain.Decision
 	for _, x := range all {
 		if x.Key == d.Key {
 			mine = append(mine, x)
@@ -643,7 +643,7 @@ func TestReview_Decisions(t *testing.T) {
 		t.Fatalf("decisão gravada uma vez, com o último valor: %+v", mine)
 	}
 	dismissals, _ := repo.Dismissals(ctx)
-	if !slices.Contains(dismissals, ports.Dismissal{Kind: "FIXED", Key: d.Key}) {
+	if !slices.Contains(dismissals, domain.Dismissal{Kind: "FIXED", Key: d.Key}) {
 		t.Error("decidir também dispensa a sugestão")
 	}
 
@@ -652,12 +652,12 @@ func TestReview_Decisions(t *testing.T) {
 	}
 	all, _ = repo.Decisions(ctx)
 	dismissals, _ = repo.Dismissals(ctx)
-	if slices.ContainsFunc(all, func(x ports.Decision) bool { return x.Key == d.Key }) || slices.Contains(dismissals, ports.Dismissal{Kind: "FIXED", Key: d.Key}) {
+	if slices.ContainsFunc(all, func(x domain.Decision) bool { return x.Key == d.Key }) || slices.Contains(dismissals, domain.Dismissal{Kind: "FIXED", Key: d.Key}) {
 		t.Error("desfazer apaga a decisão e traz a sugestão de volta")
 	}
 
 	// O banco recusa tipos que não são recorrentes.
-	if err := repo.SetDecision(ctx, ports.Decision{Kind: "DUPLICATE", Key: "zzteste dup", Label: "x", Category: "OTHER", Month: mar1999, Monthly: 10}); err == nil {
+	if err := repo.SetDecision(ctx, domain.Decision{Kind: "DUPLICATE", Key: "zzteste dup", Label: "x", Category: "OTHER", Month: mar1999, Monthly: 10}); err == nil {
 		t.Error("DUPLICATE não aceita decisão")
 	}
 }
@@ -676,7 +676,7 @@ func TestCategoryRules_RetroactiveFutureAndListing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	find := func(key string) *ports.UncategorizedGroup {
+	find := func(key string) *domain.UncategorizedGroup {
 		for i := range groups {
 			if groups[i].Key == key {
 				return &groups[i]

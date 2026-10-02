@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 const (
@@ -56,7 +56,7 @@ func (i *Insights) WeeklyDigest(ctx context.Context, today time.Time) (string, e
 }
 
 // FormatDigest escreve o resumo em texto simples (sem Markdown, já que nomes de contas vêm do banco).
-func FormatDigest(today time.Time, totals ports.MonthTotals, review Review, goals []GoalProgress, savings []DecisionResult) string {
+func FormatDigest(today time.Time, totals domain.MonthTotals, review Review, goals []GoalProgress, savings []DecisionResult) string {
 	var alerts []string
 	add := func(format string, args ...any) { alerts = append(alerts, "• "+fmt.Sprintf(format, args...)) }
 
@@ -80,13 +80,13 @@ func FormatDigest(today time.Time, totals ports.MonthTotals, review Review, goal
 	}
 	for _, g := range goals {
 		switch g.Goal.Kind {
-		case ports.GoalCut:
+		case domain.GoalCut:
 			if g.Current > g.Target {
 				add("Meta \"%s\": o mês já passou %s do teto de %s.", g.Goal.Name, FormatBRL(g.Current-g.Target), FormatBRL(g.Target))
 			} else if g.Projected != nil && *g.Projected > g.Target {
 				add("Meta \"%s\": no ritmo atual o mês fecha em %s, acima do teto de %s.", g.Goal.Name, FormatBRL(*g.Projected), FormatBRL(g.Target))
 			}
-		case ports.GoalSave:
+		case domain.GoalSave:
 			if !g.Done && g.Fits != nil && !*g.Fits {
 				add("Meta \"%s\": guardar %s por mês não cabe na sobra projetada de %s.", g.Goal.Name, FormatBRL(g.PerMonth), FormatBRL(max(0, *g.Surplus)))
 			}

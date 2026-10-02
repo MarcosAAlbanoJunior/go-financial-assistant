@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 func TestParseInstallment(t *testing.T) {
@@ -31,18 +31,18 @@ func TestParseInstallment(t *testing.T) {
 
 func TestBuildProjection_AveragesAndKnownInstallments(t *testing.T) {
 	start := month(2026, time.October)
-	var rows []ports.ExpenseKeyMonth
+	var rows []domain.ExpenseKeyMonth
 	// Fixa (todo mês, 100) e variável (varia) em ago e set; nenhuma despesa antes disso.
 	for _, m := range []time.Month{time.August, time.September} {
 		rows = append(rows,
-			ports.ExpenseKeyMonth{Key: "netflix", Label: "Netflix", Month: month(2026, m), Total: 100, Count: 1},
-			ports.ExpenseKeyMonth{Key: "mercado", Label: "Mercado", Month: month(2026, m), Total: float64(400 + 200*int(m-time.August)), Count: 9})
+			domain.ExpenseKeyMonth{Key: "netflix", Label: "Netflix", Month: month(2026, m), Total: 100, Count: 1},
+			domain.ExpenseKeyMonth{Key: "mercado", Label: "Mercado", Month: month(2026, m), Total: float64(400 + 200*int(m-time.August)), Count: 9})
 	}
 	// Parcelada: em set está na 10/12, então faltam 2 parcelas (out e nov) de 50.
 	rows = append(rows,
-		ports.ExpenseKeyMonth{Key: "tv", Label: "TV (9/12)", Month: month(2026, time.August), Total: 50, Count: 1, Installment: true},
-		ports.ExpenseKeyMonth{Key: "tv", Label: "TV (10/12)", Month: month(2026, time.September), Total: 50, Count: 1, Installment: true})
-	income := []ports.IncomePayment{
+		domain.ExpenseKeyMonth{Key: "tv", Label: "TV (9/12)", Month: month(2026, time.August), Total: 50, Count: 1, Installment: true},
+		domain.ExpenseKeyMonth{Key: "tv", Label: "TV (10/12)", Month: month(2026, time.September), Total: 50, Count: 1, Installment: true})
+	income := []domain.IncomePayment{
 		{Key: "salario", Label: "Salário", Month: month(2026, time.August), Amount: 5000},
 		{Key: "salario", Label: "Salário", Month: month(2026, time.September), Amount: 7000},
 	}
@@ -74,7 +74,7 @@ func TestBuildProjection_NoHistory(t *testing.T) {
 
 func TestBuildProjection_FinishedInstallmentsAndGaps(t *testing.T) {
 	start := month(2026, time.October)
-	rows := []ports.ExpenseKeyMonth{
+	rows := []domain.ExpenseKeyMonth{
 		{Key: "seguro", Label: "SEGURO Parc 012/012", Month: month(2026, time.September), Total: 12, Count: 1, Installment: true}, // última
 		{Key: "geladeira", Label: "Geladeira (2/6)", Month: month(2026, time.July), Total: 200, Count: 1, Installment: true},      // sumiu em ago e set
 	}
@@ -87,13 +87,13 @@ func TestBuildProjection_FinishedInstallmentsAndGaps(t *testing.T) {
 	}
 }
 
-func inc(key string, m time.Month, amount float64) ports.IncomePayment {
-	return ports.IncomePayment{Key: key, Label: key, Month: month(2026, m), Amount: amount}
+func inc(key string, m time.Month, amount float64) domain.IncomePayment {
+	return domain.IncomePayment{Key: key, Label: key, Month: month(2026, m), Amount: amount}
 }
 
 func TestEstimateIncome_OneOffPaymentDoesNotInflateTheSalary(t *testing.T) {
 	months := []time.Time{month(2026, time.August), month(2026, time.September)}
-	payments := []ports.IncomePayment{
+	payments := []domain.IncomePayment{
 		inc("salário empresa", time.August, 6362),
 		inc("entrada empresa", time.August, 1700),
 		inc("salário empresa", time.September, 6372),
@@ -116,7 +116,7 @@ func TestEstimateIncome_OneOffPaymentDoesNotInflateTheSalary(t *testing.T) {
 
 func TestEstimateIncome_NeededMonthsAdaptToHistory(t *testing.T) {
 	three := []time.Time{month(2026, time.July), month(2026, time.August), month(2026, time.September)}
-	payments := []ports.IncomePayment{
+	payments := []domain.IncomePayment{
 		inc("salário", time.July, 5000), inc("salário", time.August, 5000), inc("salário", time.September, 5000),
 		inc("bônus", time.August, 3000), inc("bônus", time.September, 3000), // 2 de 3 meses: eventual
 	}
@@ -126,12 +126,12 @@ func TestEstimateIncome_NeededMonthsAdaptToHistory(t *testing.T) {
 
 	// Com um mês só não há como distinguir: tudo entra.
 	one := []time.Time{month(2026, time.September)}
-	if got := EstimateIncome([]ports.IncomePayment{inc("salário", time.September, 5000), inc("bônus", time.September, 800)}, one); len(got) != 2 {
+	if got := EstimateIncome([]domain.IncomePayment{inc("salário", time.September, 5000), inc("bônus", time.September, 800)}, one); len(got) != 2 {
 		t.Errorf("com 1 mês tudo entra: %+v", got)
 	}
 
 	// Fora da janela não conta; sem pagamentos, nada.
-	if got := EstimateIncome([]ports.IncomePayment{inc("salário", time.January, 9999)}, three); len(got) != 0 {
+	if got := EstimateIncome([]domain.IncomePayment{inc("salário", time.January, 9999)}, three); len(got) != 0 {
 		t.Errorf("fora da janela: %+v", got)
 	}
 	if got := EstimateIncome(nil, three); len(got) != 0 {
@@ -142,7 +142,7 @@ func TestEstimateIncome_NeededMonthsAdaptToHistory(t *testing.T) {
 func TestEstimateIncome_MedianAndCounts(t *testing.T) {
 	months := []time.Time{month(2026, time.July), month(2026, time.August), month(2026, time.September)}
 	// Quinzena: dois pagamentos por mês, um deles com valor atípico no último mês.
-	payments := []ports.IncomePayment{
+	payments := []domain.IncomePayment{
 		inc("quinzena", time.July, 2000), inc("quinzena", time.July, 2000),
 		inc("quinzena", time.August, 2000), inc("quinzena", time.August, 2000),
 		inc("quinzena", time.September, 2000), inc("quinzena", time.September, 7000),
@@ -154,7 +154,7 @@ func TestEstimateIncome_MedianAndCounts(t *testing.T) {
 
 func TestMedianMonthlyIncome(t *testing.T) {
 	months := []time.Time{month(2026, time.April), month(2026, time.May), month(2026, time.June), month(2026, time.July)}
-	payments := []ports.IncomePayment{
+	payments := []domain.IncomePayment{
 		inc("a", time.April, 3000), inc("b", time.April, 5000), // abril: 8000
 		inc("c", time.May, 8100),                            // maio: 8100
 		inc("d", time.June, 7900), inc("e", time.June, 100), // junho: 8000
@@ -164,7 +164,7 @@ func TestMedianMonthlyIncome(t *testing.T) {
 		t.Errorf("mediana de 8000, 8100, 8000 e 18000 = 8050, got %v", got)
 	}
 	// Mês com despesa e nenhuma entrada conta como zero.
-	if got := MedianMonthlyIncome([]ports.IncomePayment{inc("a", time.April, 100)}, months[:3]); got != 0 {
+	if got := MedianMonthlyIncome([]domain.IncomePayment{inc("a", time.April, 100)}, months[:3]); got != 0 {
 		t.Errorf("2 de 3 meses sem renda: mediana 0, got %v", got)
 	}
 	if MedianMonthlyIncome(payments, nil) != 0 {
@@ -176,14 +176,14 @@ func TestMedianMonthlyIncome(t *testing.T) {
 // diferente), só uma fonte se repete, e o mês atípico não pode puxar a média para cima.
 func TestBuildProjection_VariedIncomeSourcesAreNotLost(t *testing.T) {
 	start := month(2026, time.October)
-	var rows []ports.ExpenseKeyMonth
-	var income []ports.IncomePayment
+	var rows []domain.ExpenseKeyMonth
+	var income []domain.IncomePayment
 	amounts := map[time.Month]float64{time.April: 5000, time.May: 5100, time.June: 5000, time.July: 6500, time.August: 5100, time.September: 12000}
 	for m := time.April; m <= time.September; m++ {
-		rows = append(rows, ports.ExpenseKeyMonth{Key: "mercado", Label: "Mercado", Month: month(2026, m), Total: 6000, Count: 9})
+		rows = append(rows, domain.ExpenseKeyMonth{Key: "mercado", Label: "Mercado", Month: month(2026, m), Total: 6000, Count: 9})
 		income = append(income,
-			ports.IncomePayment{Key: "aluguel recebido", Label: "Aluguel recebido", Month: month(2026, m), Amount: 1000},                    // única fonte fixa
-			ports.IncomePayment{Key: "pix recebido " + m.String(), Label: "Pix recebido", Month: month(2026, m), Amount: amounts[m] - 1000}) // origem diferente a cada mês
+			domain.IncomePayment{Key: "aluguel recebido", Label: "Aluguel recebido", Month: month(2026, m), Amount: 1000},                    // única fonte fixa
+			domain.IncomePayment{Key: "pix recebido " + m.String(), Label: "Pix recebido", Month: month(2026, m), Amount: amounts[m] - 1000}) // origem diferente a cada mês
 	}
 	a := BuildProjection(rows, nil, income, nil, start, 3).Assumptions
 
@@ -202,13 +202,13 @@ func TestBuildProjection_VariedIncomeSourcesAreNotLost(t *testing.T) {
 // Quando as fontes recorrentes já passam da mediana (mês fraco recente), elas são o piso.
 func TestBuildProjection_RecurringSourcesAreTheFloor(t *testing.T) {
 	start := month(2026, time.October)
-	var rows []ports.ExpenseKeyMonth
-	var income []ports.IncomePayment
+	var rows []domain.ExpenseKeyMonth
+	var income []domain.IncomePayment
 	for _, m := range []time.Month{time.April, time.May, time.June, time.July, time.August, time.September} {
-		rows = append(rows, ports.ExpenseKeyMonth{Key: "mercado", Label: "Mercado", Month: month(2026, m), Total: 1000, Count: 9})
+		rows = append(rows, domain.ExpenseKeyMonth{Key: "mercado", Label: "Mercado", Month: month(2026, m), Total: 1000, Count: 9})
 	}
 	for _, m := range []time.Month{time.July, time.August, time.September} { // salário só nos 3 últimos meses
-		income = append(income, ports.IncomePayment{Key: "salario", Label: "Salário", Month: month(2026, m), Amount: 5000})
+		income = append(income, domain.IncomePayment{Key: "salario", Label: "Salário", Month: month(2026, m), Amount: 5000})
 	}
 	// Mediana dos 6 meses = (0 + 5000) / 2 = 2500, abaixo dos 5000 recorrentes: vale a fonte recorrente.
 	a := BuildProjection(rows, nil, income, nil, start, 3).Assumptions

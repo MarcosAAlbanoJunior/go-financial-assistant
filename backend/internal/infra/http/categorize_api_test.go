@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/gemini"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
@@ -14,7 +15,7 @@ import (
 
 func categorizeReader() *fakeReader {
 	last := time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
-	return &fakeReader{uncategorized: []ports.UncategorizedGroup{
+	return &fakeReader{uncategorized: []domain.UncategorizedGroup{
 		{Key: "pix enviado fulano", Label: "Pix enviado Fulano de Tal", Count: 10, Total: 5000, Last: last},
 		{Key: "padaria do ze", Label: "PADARIA DO ZE 123456", Count: 8, Total: 400, Last: last},
 		{Key: "condominio", Label: "Condominio Edificio", Count: 3, Total: 900, Last: last},
@@ -143,7 +144,7 @@ func TestAPI_SetCategoryRule(t *testing.T) {
 	c := login(t, s)
 	put := func(body string) int { return do(s, "PUT", "/api/categorize/rules", body, jsonHeader, c).Code }
 
-	if rec := do(s, "PUT", "/api/categorize/rules", `{"key":"condominio","category":"HOUSING"}`, jsonHeader, c); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"changed":3`) || len(r.rules2) != 1 || r.rules2[0] != (ports.CategoryRule{Key: "condominio", Category: "HOUSING"}) {
+	if rec := do(s, "PUT", "/api/categorize/rules", `{"key":"condominio","category":"HOUSING"}`, jsonHeader, c); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"changed":3`) || len(r.rules2) != 1 || r.rules2[0] != (domain.CategoryRule{Key: "condominio", Category: "HOUSING"}) {
 		t.Errorf("gravar: %d %s %+v", rec.Code, rec.Body, r.rules2)
 	}
 	if put(`{"key":"padaria do ze","category":"OTHER"}`) != 200 {

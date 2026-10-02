@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 var reviewTo = month(2026, time.September)
 
 func day(d int) time.Time { return time.Date(2026, time.September, d, 0, 0, 0, 0, time.UTC) }
 
-func pay(key string, amount float64, d int, method string) ports.ExpensePayment {
-	return ports.ExpensePayment{Key: key, Label: key, Category: "FOOD", PaymentMethod: method, Date: day(d), Amount: amount}
+func pay(key string, amount float64, d int, method string) domain.ExpensePayment {
+	return domain.ExpensePayment{Key: key, Label: key, Category: "FOOD", PaymentMethod: method, Date: day(d), Amount: amount}
 }
 
 func candidatesOf(r Review, kind string) map[string]Candidate {
@@ -29,7 +29,7 @@ func candidatesOf(r Review, kind string) map[string]Candidate {
 func near(a, b float64) bool { return math.Abs(a-b) < 0.005 }
 
 func TestBuildReview_MatrixAndIncreases(t *testing.T) {
-	cm := []ports.CategoryMonth{
+	cm := []domain.CategoryMonth{
 		{Category: "FOOD", Month: month(2026, time.June), Total: 200},
 		{Category: "FOOD", Month: month(2026, time.July), Total: 220},
 		{Category: "FOOD", Month: month(2026, time.August), Total: 180},
@@ -63,14 +63,14 @@ func TestBuildReview_MatrixAndIncreases(t *testing.T) {
 }
 
 func TestBuildReview_IncreaseNeedsHistory(t *testing.T) {
-	cm := []ports.CategoryMonth{{Category: "FOOD", Month: reviewTo, Total: 900}}
+	cm := []domain.CategoryMonth{{Category: "FOOD", Month: reviewTo, Total: 900}}
 	if r := BuildReview(cm, nil, nil, nil, nil, reviewTo); len(r.Candidates) != 0 {
 		t.Errorf("sem mês anterior não há como comparar: %+v", r.Candidates)
 	}
 }
 
 func TestBuildReview_FixedAnnualCost(t *testing.T) {
-	var rows []ports.ExpenseKeyMonth
+	var rows []domain.ExpenseKeyMonth
 	rows = append(rows, monthsFrom("streaming", time.April, 40, 40, 40, 40, 40, 40)...)
 	rows = append(rows, monthsFrom("luz", time.April, 180, 210, 195, 205, 190, 200)...)
 	rows = append(rows, monthsFrom("mercado", time.April, 400, 900, 150, 700, 300, 800)...)
@@ -89,15 +89,15 @@ func TestBuildReview_FixedAnnualCost(t *testing.T) {
 }
 
 // rowsOf resume as despesas do mês em uma linha por conta, como o banco devolveria.
-func rowsOf(ps []ports.ExpensePayment) []ports.ExpenseKeyMonth {
+func rowsOf(ps []domain.ExpensePayment) []domain.ExpenseKeyMonth {
 	idx := map[string]int{}
-	var rows []ports.ExpenseKeyMonth
+	var rows []domain.ExpenseKeyMonth
 	for _, p := range ps {
 		i, ok := idx[p.Key]
 		if !ok {
 			i = len(rows)
 			idx[p.Key] = i
-			rows = append(rows, ports.ExpenseKeyMonth{Key: p.Key, Label: p.Label, Category: p.Category, Month: reviewTo, AllPaid: true})
+			rows = append(rows, domain.ExpenseKeyMonth{Key: p.Key, Label: p.Label, Category: p.Category, Month: reviewTo, AllPaid: true})
 		}
 		rows[i].Total += p.Amount
 		rows[i].Count++
@@ -106,7 +106,7 @@ func rowsOf(ps []ports.ExpensePayment) []ports.ExpenseKeyMonth {
 }
 
 func TestBuildReview_Ant(t *testing.T) {
-	var ps []ports.ExpensePayment
+	var ps []domain.ExpensePayment
 	for d := 1; d <= 5; d++ {
 		ps = append(ps, pay("padaria", 18, d*3, "CREDIT_CARD")) // 5 x 18 = 90
 	}
@@ -126,7 +126,7 @@ func TestBuildReview_Ant(t *testing.T) {
 }
 
 func TestBuildReview_Duplicates(t *testing.T) {
-	ps := []ports.ExpensePayment{
+	ps := []domain.ExpensePayment{
 		pay("oficina", 250, 2, "CREDIT_CARD"), pay("oficina", 250, 3, "CREDIT_CARD"), // duplicada
 		pay("farmacia", 60, 1, "DEBIT_CARD"), pay("farmacia", 60, 10, "DEBIT_CARD"), // longe demais
 		pay("lanche", 12, 5, "DEBIT_CARD"), pay("lanche", 15, 5, "DEBIT_CARD"), // valores diferentes
@@ -147,7 +147,7 @@ func TestBuildReview_Duplicates(t *testing.T) {
 }
 
 func TestBuildReview_DuplicateIgnoresInstallments(t *testing.T) {
-	ps := []ports.ExpensePayment{pay("geladeira", 150, 2, "CREDIT_CARD"), pay("geladeira", 150, 3, "CREDIT_CARD")}
+	ps := []domain.ExpensePayment{pay("geladeira", 150, 2, "CREDIT_CARD"), pay("geladeira", 150, 3, "CREDIT_CARD")}
 	rows := rowsOf(ps)
 	rows[0].Installment = true
 	if dup := candidatesOf(BuildReview(nil, rows, nil, ps, nil, reviewTo), ReviewDuplicate); len(dup) != 0 {
@@ -157,16 +157,16 @@ func TestBuildReview_DuplicateIgnoresInstallments(t *testing.T) {
 
 func TestBuildReview_NewBills(t *testing.T) {
 	rows := monthsFrom("streaming", time.June, 40, 40, 40, 40) // até setembro: não é nova
-	rows = append(rows, ports.ExpenseKeyMonth{Key: "curso", Label: "Curso", Month: reviewTo, Total: 120, Count: 1})
-	rows = append(rows, ports.ExpenseKeyMonth{Key: "balinha", Month: reviewTo, Total: 8, Count: 1})                 // abaixo de R$ 30
-	rows = append(rows, ports.ExpenseKeyMonth{Key: "tv", Month: reviewTo, Total: 300, Count: 1, Installment: true}) // parcelada
+	rows = append(rows, domain.ExpenseKeyMonth{Key: "curso", Label: "Curso", Month: reviewTo, Total: 120, Count: 1})
+	rows = append(rows, domain.ExpenseKeyMonth{Key: "balinha", Month: reviewTo, Total: 8, Count: 1})                 // abaixo de R$ 30
+	rows = append(rows, domain.ExpenseKeyMonth{Key: "tv", Month: reviewTo, Total: 300, Count: 1, Installment: true}) // parcelada
 	nw := candidatesOf(BuildReview(nil, rows, nil, nil, nil, reviewTo), ReviewNew)
 	if len(nw) != 1 || nw["curso"].Recurring || !near(nw["curso"].Saving, 120) {
 		t.Errorf("só o curso é conta nova: %+v", nw)
 	}
 
 	// Com menos de 2 meses anteriores, tudo seria "novo": não sugere nada.
-	short := []ports.ExpenseKeyMonth{
+	short := []domain.ExpenseKeyMonth{
 		{Key: "a", Month: month(2026, time.August), Total: 50, Count: 1},
 		{Key: "curso", Month: reviewTo, Total: 120, Count: 1},
 	}
@@ -178,8 +178,8 @@ func TestBuildReview_NewBills(t *testing.T) {
 func TestBuildReview_DismissedAndOrder(t *testing.T) {
 	rows := monthsFrom("streaming", time.April, 40, 40, 40, 40, 40, 40)
 	rows = append(rows, monthsFrom("seguro", time.April, 90, 90, 90, 90, 90, 90)...)
-	rows = append(rows, ports.ExpenseKeyMonth{Key: "curso", Month: reviewTo, Total: 500, Count: 1})
-	r := BuildReview(nil, rows, nil, nil, []ports.Dismissal{{Kind: ReviewFixed, Key: "streaming"}, {Kind: ReviewNew, Key: "outra"}}, reviewTo)
+	rows = append(rows, domain.ExpenseKeyMonth{Key: "curso", Month: reviewTo, Total: 500, Count: 1})
+	r := BuildReview(nil, rows, nil, nil, []domain.Dismissal{{Kind: ReviewFixed, Key: "streaming"}, {Kind: ReviewNew, Key: "outra"}}, reviewTo)
 
 	got := ""
 	for _, c := range r.Candidates {

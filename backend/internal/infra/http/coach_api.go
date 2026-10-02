@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 	"github.com/google/uuid"
@@ -145,45 +146,45 @@ func (a *api) coachAnalyze(w http.ResponseWriter, r *http.Request) {
 
 // runCoachAnalysis monta o contexto, confere que é o que a pessoa viu na prévia (hash), pede a análise à IA, valida a
 // resposta e a grava. Erros de regra voltam como apiError; o resto é falha interna.
-func (a *api) runCoachAnalysis(ctx context.Context, month time.Time, hash string) (ports.CoachAnalysis, error) {
+func (a *api) runCoachAnalysis(ctx context.Context, month time.Time, hash string) (domain.CoachAnalysis, error) {
 	in, err := a.coachInput(ctx, month)
 	if err != nil {
-		return ports.CoachAnalysis{}, err
+		return domain.CoachAnalysis{}, err
 	}
 	if hash != in.hash {
-		return ports.CoachAnalysis{}, &apiError{http.StatusConflict, "os dados mudaram desde a prévia: confira de novo o que será enviado"}
+		return domain.CoachAnalysis{}, &apiError{http.StatusConflict, "os dados mudaram desde a prévia: confira de novo o que será enviado"}
 	}
 	if len(in.payload) > usecase.MaxCoachBytes {
-		return ports.CoachAnalysis{}, &apiError{http.StatusRequestEntityTooLarge, "contexto grande demais para enviar"}
+		return domain.CoachAnalysis{}, &apiError{http.StatusRequestEntityTooLarge, "contexto grande demais para enviar"}
 	}
 
 	adviceCtx, cancel := context.WithTimeout(ctx, coachTimeout)
 	defer cancel()
 	raw, err := a.coach.advisor.Advise(adviceCtx, in.payload)
 	if err != nil {
-		return ports.CoachAnalysis{}, err
+		return domain.CoachAnalysis{}, err
 	}
 	advice, err := usecase.ValidateAdvice(raw, in.context)
 	if errors.Is(err, usecase.ErrEmptyAdvice) {
-		return ports.CoachAnalysis{}, &apiError{http.StatusBadGateway, "a IA não devolveu uma resposta utilizável; tente de novo"}
+		return domain.CoachAnalysis{}, &apiError{http.StatusBadGateway, "a IA não devolveu uma resposta utilizável; tente de novo"}
 	}
 	if err != nil {
-		return ports.CoachAnalysis{}, err
+		return domain.CoachAnalysis{}, err
 	}
 
 	record, err := json.Marshal(usecase.NewCoachRecord(advice, in.candidates, in.goals))
 	if err != nil {
-		return ports.CoachAnalysis{}, err
+		return domain.CoachAnalysis{}, err
 	}
-	analysis := ports.CoachAnalysis{ID: uuid.New(), Month: month, Advice: record, Answers: map[string]string{}}
+	analysis := domain.CoachAnalysis{ID: uuid.New(), Month: month, Advice: record, Answers: map[string]string{}}
 	if err := a.reader.SaveCoachAnalysis(ctx, analysis); err != nil {
-		return ports.CoachAnalysis{}, err
+		return domain.CoachAnalysis{}, err
 	}
 	analysis.CreatedAt = a.now()
 	return analysis, nil
 }
 
-func analysisJSON(an ports.CoachAnalysis) map[string]any {
+func analysisJSON(an domain.CoachAnalysis) map[string]any {
 	answers := an.Answers
 	if answers == nil {
 		answers = map[string]string{}

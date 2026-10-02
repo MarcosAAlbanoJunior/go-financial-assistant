@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -16,7 +15,7 @@ type totalsJSON struct {
 	Redeemed float64 `json:"redeemed"`
 }
 
-func toTotalsJSON(m ports.MonthTotals) totalsJSON {
+func toTotalsJSON(m domain.MonthTotals) totalsJSON {
 	return totalsJSON{formatMonth(m.Month), m.Income, m.Expense, m.Applied, m.Redeemed}
 }
 
@@ -64,8 +63,8 @@ func (a *api) breakdown(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	by := ports.BreakdownDimension(r.URL.Query().Get("by"))
-	if by != ports.BreakdownByCategory && by != ports.BreakdownByPaymentMethod && by != ports.BreakdownByAccount {
+	by := domain.BreakdownDimension(r.URL.Query().Get("by"))
+	if by != domain.BreakdownByCategory && by != domain.BreakdownByPaymentMethod && by != domain.BreakdownByAccount {
 		writeError(w, http.StatusBadRequest, "by deve ser category, payment_method ou account")
 		return
 	}
@@ -86,11 +85,11 @@ func (a *api) breakdown(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func breakdownLabel(by ports.BreakdownDimension, it ports.BreakdownItem) string {
+func breakdownLabel(by domain.BreakdownDimension, it domain.BreakdownItem) string {
 	switch by {
-	case ports.BreakdownByCategory:
+	case domain.BreakdownByCategory:
 		return domain.Category(it.Key).Label()
-	case ports.BreakdownByPaymentMethod:
+	case domain.BreakdownByPaymentMethod:
 		return domain.PaymentMethod(it.Key).Label()
 	}
 	if it.Name == "" {

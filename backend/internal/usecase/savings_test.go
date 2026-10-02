@@ -5,26 +5,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
-func charge(key string, m time.Month, total float64) ports.ExpenseKeyMonth {
-	return ports.ExpenseKeyMonth{Key: key, Month: month(2026, m), Total: total}
+func charge(key string, m time.Month, total float64) domain.ExpenseKeyMonth {
+	return domain.ExpenseKeyMonth{Key: key, Month: month(2026, m), Total: total}
 }
 
 func TestBuildSavings(t *testing.T) {
 	now := month(2026, time.October)
-	dec := func(key string, m time.Month, monthly float64) ports.Decision {
-		return ports.Decision{Kind: ReviewFixed, Key: key, Month: month(2026, m), Monthly: monthly}
+	dec := func(key string, m time.Month, monthly float64) domain.Decision {
+		return domain.Decision{Kind: ReviewFixed, Key: key, Month: month(2026, m), Monthly: monthly}
 	}
-	decisions := []ports.Decision{
+	decisions := []domain.Decision{
 		dec("ok", time.June, 40),           // jul, ago, set sem cobrança: 3 meses confirmados
 		dec("voltou", time.June, 40),       // voltou em ago
 		dec("recente", time.September, 40), // decidiu em set; nenhum mês fechado depois (out está aberto)
 		dec("voltou-aberto", time.August, 40),
 		dec("parcial", time.August, 100),
 	}
-	rows := []ports.ExpenseKeyMonth{
+	rows := []domain.ExpenseKeyMonth{
 		charge("ok", time.June, 40), // o mês da decisão não conta
 		charge("voltou", time.August, 40),
 		charge("voltou-aberto", time.October, 39.9), // voltou no mês em andamento

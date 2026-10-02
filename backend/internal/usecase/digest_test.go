@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
 func TestFormatBRL(t *testing.T) {
@@ -26,10 +26,10 @@ func TestMonthStartAndBankBalance(t *testing.T) {
 	if got := MonthStart(time.Date(2026, 10, 17, 23, 59, 0, 0, time.FixedZone("x", -3*3600))); !got.Equal(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)) {
 		t.Errorf("MonthStart: %v", got)
 	}
-	if BankBalance(nil) != nil || BankBalance([]ports.Account{{Type: "CREDIT", Balance: 50}}) != nil {
+	if BankBalance(nil) != nil || BankBalance([]domain.Account{{Type: "CREDIT", Balance: 50}}) != nil {
 		t.Error("sem conta corrente o saldo é desconhecido (nil), não zero")
 	}
-	if got := BankBalance([]ports.Account{{Type: "BANK", Balance: 100}, {Type: "CREDIT", Balance: 999}, {Type: "BANK", Balance: 50.5}}); got == nil || *got != 150.5 {
+	if got := BankBalance([]domain.Account{{Type: "BANK", Balance: 100}, {Type: "CREDIT", Balance: 999}, {Type: "BANK", Balance: 50.5}}); got == nil || *got != 150.5 {
 		t.Errorf("soma só as contas correntes: %v", got)
 	}
 }
@@ -49,16 +49,16 @@ func TestFormatDigest(t *testing.T) {
 		{Kind: ReviewFixed, Label: "Streaming", Amount: 40, Recurring: true}, // fixa não é alerta
 	}}
 	goals := []GoalProgress{
-		{Goal: ports.Goal{Kind: ports.GoalCut, Name: "Comida"}, Current: 300, Target: 800, Projected: &over},
-		{Goal: ports.Goal{Kind: ports.GoalCut, Name: "Lazer"}, Current: 900, Target: 800},
-		{Goal: ports.Goal{Kind: ports.GoalCut, Name: "Calma"}, Current: 100, Target: 800},
-		{Goal: ports.Goal{Kind: ports.GoalSave, Name: "Viagem"}, PerMonth: 2000, Surplus: &surplus, Fits: &noFit},
+		{Goal: domain.Goal{Kind: domain.GoalCut, Name: "Comida"}, Current: 300, Target: 800, Projected: &over},
+		{Goal: domain.Goal{Kind: domain.GoalCut, Name: "Lazer"}, Current: 900, Target: 800},
+		{Goal: domain.Goal{Kind: domain.GoalCut, Name: "Calma"}, Current: 100, Target: 800},
+		{Goal: domain.Goal{Kind: domain.GoalSave, Name: "Viagem"}, PerMonth: 2000, Surplus: &surplus, Fits: &noFit},
 	}
 	savings := []DecisionResult{
-		{Decision: ports.Decision{Label: "Academia", Monthly: 99}, Status: SavingReturned, Returned: 99},
-		{Decision: ports.Decision{Label: "Streaming", Monthly: 40}, Status: SavingConfirmed, MonthsConfirmed: 3, Realized: 120},
+		{Decision: domain.Decision{Label: "Academia", Monthly: 99}, Status: SavingReturned, Returned: 99},
+		{Decision: domain.Decision{Label: "Streaming", Monthly: 40}, Status: SavingConfirmed, MonthsConfirmed: 3, Realized: 120},
 	}
-	text := FormatDigest(today, ports.MonthTotals{Income: 5000, Expense: 1433.63}, review, goals, savings)
+	text := FormatDigest(today, domain.MonthTotals{Income: 5000, Expense: 1433.63}, review, goals, savings)
 
 	for _, want := range []string{
 		"Resumo semanal — 12/10/2026", "despesas R$ 1.433,63 · receitas R$ 5.000,00", "Economia realizada com o que você cancelou: R$ 120,00 (R$ 40,00 por mês).",
@@ -82,7 +82,7 @@ func TestFormatDigest(t *testing.T) {
 
 func TestFormatDigest_QuietWeekAndLimits(t *testing.T) {
 	today := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
-	quiet := FormatDigest(today, ports.MonthTotals{}, Review{}, nil, nil)
+	quiet := FormatDigest(today, domain.MonthTotals{}, Review{}, nil, nil)
 	if !strings.Contains(quiet, "Sem alertas esta semana.") || strings.Contains(quiet, "Economia realizada") {
 		t.Errorf("semana tranquila: %s", quiet)
 	}
@@ -91,7 +91,7 @@ func TestFormatDigest_QuietWeekAndLimits(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		dups = append(dups, Candidate{Kind: ReviewDuplicate, Label: strings.Repeat("x", 100), Count: 2, Amount: 10})
 	}
-	long := FormatDigest(today, ports.MonthTotals{}, Review{Candidates: dups}, nil, nil)
+	long := FormatDigest(today, domain.MonthTotals{}, Review{Candidates: dups}, nil, nil)
 	if n := strings.Count(long, "•"); n != maxDigestAlerts || len([]rune(long)) > 4000 {
 		t.Errorf("limite de alertas e de tamanho (Telegram aceita 4096): %d alertas, %d caracteres", n, len([]rune(long)))
 	}

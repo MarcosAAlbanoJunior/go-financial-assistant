@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
@@ -91,7 +90,7 @@ func (a *api) setDecision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := rev.Candidates[i]
-	if err := a.reader.SetDecision(r.Context(), ports.Decision{Kind: c.Kind, Key: c.Key, Label: c.Label, Category: c.Category, Month: month, Monthly: c.Amount}); err != nil {
+	if err := a.reader.SetDecision(r.Context(), domain.Decision{Kind: c.Kind, Key: c.Key, Label: c.Label, Category: c.Category, Month: month, Monthly: c.Amount}); err != nil {
 		a.fail(w, "decisão", err)
 		return
 	}
