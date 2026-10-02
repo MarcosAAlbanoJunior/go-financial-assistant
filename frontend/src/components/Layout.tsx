@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  ScanSearch,
   Scale,
   Sun,
   TrendingUp,
@@ -41,6 +42,7 @@ const SECTIONS: { title?: string; items: Item[] }[] = [
   {
     title: 'Planejamento',
     items: [
+      { to: '/revisao', label: 'Revisão', Icon: ScanSearch },
       { to: '/projecao', label: 'Projeção', Icon: Calculator },
       { to: '/comparacoes', label: 'Comparações', Icon: GitCompareArrows },
     ],
