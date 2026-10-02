@@ -97,8 +97,9 @@ type transaction struct {
 		PaymentMethod string `json:"paymentMethod"`
 	} `json:"paymentData"`
 	CreditCardMetadata *struct {
-		InstallmentNumber int `json:"installmentNumber"`
-		TotalInstallments int `json:"totalInstallments"`
+		InstallmentNumber int    `json:"installmentNumber"`
+		TotalInstallments int    `json:"totalInstallments"`
+		BillForecastDate  string `json:"billForecastDate"` // "AAAA-MM": a fatura em que a parcela cai
 	} `json:"creditCardMetadata"`
 }
 
