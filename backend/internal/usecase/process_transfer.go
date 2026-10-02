@@ -53,4 +53,3 @@ func (uc *AnalyzeExpense) processTransfer(
 		Type:        string(ports.ExpenseTypeTransfer),
 	}, nil
 }
-

@@ -187,7 +187,7 @@ func (h *webhookHandler) toChatMessage(payload evolutionPayload) chat.Message {
 func (h *webhookHandler) writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v) // cabeçalhos já enviados: sem o que fazer se o cliente caiu
 }
 
 func (h *webhookHandler) writeError(w http.ResponseWriter, msg string, status int) {

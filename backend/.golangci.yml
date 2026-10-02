@@ -1,0 +1,31 @@
+# Linter do backend: `make lint` (golangci-lint v2). Instalação: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - unused
+    - ineffassign
+  settings:
+    errcheck:
+      # Falhas ao fechar/escrever em respostas HTTP já iniciadas não têm o que fazer.
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (github.com/jackc/pgx/v5.Tx).Rollback
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters: [errcheck]
+
+formatters:
+  enable:
+    - gofmt
