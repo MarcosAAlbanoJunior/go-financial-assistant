@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Budget, CoachAnalysis, CoachPreview, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Budget, CoachAnalysis, CoachPreview, Savings, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -166,3 +166,13 @@ export const setCoachAnswer = (id: string, key: string, answer: string) =>
   })
 
 export const deleteCoachAnalysis = (id: string) => request(`/api/coach/analyses/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+export const useSavings = () => useQuery({ queryKey: ['savings'], queryFn: () => request<Savings>('/api/savings') })
+
+/** Marca (ou desfaz) "cancelei" numa sugestão do mês; o servidor lê o custo da própria sugestão. */
+export const setDecision = (kind: ReviewKind, key: string, month: string, decided: boolean) =>
+  request('/api/savings/decisions', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, key, month, decided }),
+  })

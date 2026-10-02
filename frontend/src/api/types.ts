@@ -292,3 +292,31 @@ export interface CoachAnalysis {
   advice: CoachRecord
   answers: Record<string, string>
 }
+
+export type SavingStatus = 'PENDING' | 'CONFIRMED' | 'RETURNED'
+
+/** Uma conta marcada como "cancelei", conferida contra o que foi cobrado depois. */
+export interface SavingDecision {
+  kind: ReviewKind
+  key: string
+  label: string
+  category: string
+  categoryLabel: string
+  /** Mês em que a pessoa decidiu (AAAA-MM). */
+  month: string
+  /** Quanto a conta custava por mês. */
+  monthly: number
+  status: SavingStatus
+  /** Meses fechados depois da decisão sem a cobrança. */
+  monthsConfirmed: number
+  realized: number
+  /** Quanto foi cobrado quando voltou (0 se não voltou). */
+  returned: number
+}
+
+export interface Savings {
+  realized: number
+  perMonth: number
+  perYear: number
+  decisions: SavingDecision[]
+}
