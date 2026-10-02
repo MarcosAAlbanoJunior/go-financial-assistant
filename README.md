@@ -147,7 +147,7 @@ COMPOSE_PROFILES=whatsapp
 
 Sem isso, `docker compose up` não sobe a Evolution API e o app ficará aguardando por ela. Além disso, as portas do Postgres e do Redis passaram a escutar apenas em `127.0.0.1`.
 
-**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach), a `013` (decisões "cancelei" da Revisão) e a `014` (regras de categoria):
+**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach), a `013` (decisões "cancelei" da Revisão) a `014` (regras de categoria) e a `015` (bancos, logos e dados dos cartões; depois, rode uma sincronização):
 
 ```bash
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/010_create_review_dismissals.sql
@@ -155,6 +155,7 @@ docker compose exec -T postgres psql -U finassist -d finassist < backend/migrati
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/012_create_coach_analyses.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/013_create_review_decisions.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/014_create_category_rules.sql
+docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/015_create_institutions.sql
 ```
 
 ### 5. Open Finance (opcional)
@@ -209,6 +210,7 @@ O front-end (React + TypeScript + Vite, gráficos com Recharts) fica em `fronten
 1. Defina `DASHBOARD_PASSWORD` no `.env` (mínimo de 12 caracteres).
 2. `docker compose up -d --build` e abra **http://localhost:8080** (mude a porta com `WEB_PORT`).
 3. Entre com a senha. As telas são:
+   - **Painel** (página inicial): total em conta com a participação de cada banco, e, por banco (logo ou monograma e cor de marca), a conta corrente e cada cartão **separado**: fatura, limite usado, disponível e vencimento, com ícone e texto para atenção (limite ≥ 70%, ≥ 90% ou vencimento em até 3 dias) e "desatualizado" (mais de 36 h). "Faturas em aberto" aparece à parte, sem subtrair do total, e o aplicado automaticamente do Itaú fica fora dele. "Ocultar valores" (só no navegador) e "Sincronizar" (mesma sincronização do `/sync`). Exige a migration `015`. O logo vem do conector do Pluggy, é baixado só por https, sem rede interna, até 256 KB, e servido pelo próprio app (o CSP não muda); falhando, usa o monograma. Os logos não são versionados.
    - **Visão geral**: receitas, despesas, saldo do mês, "em conta" e investimentos, com a variação sobre o mês anterior, e o histórico de 12 meses.
    - **Gastos**: despesas do mês por categoria, forma de pagamento e conta/cartão.
    - **Comparações**: despesas por categoria no mês escolhido contra o anterior, e a evolução de receitas e despesas em 6, 12 ou 24 meses.
@@ -238,7 +240,7 @@ O serviço `backup` do Docker Compose grava um `pg_dump` completo do banco em `.
 
 ## Resumo semanal
 
-Toda semana (padrão: segunda às 9h, no fuso configurado) o app manda ao seu chat (Telegram ou WhatsApp) um resumo curto do que merece atenção, **calculado só por código, sem IA e sem enviar nada a terceiros além do próprio canal**: total do mês até agora, possíveis cobranças duplicadas, contas novas do mês, contas que você marcou como canceladas e **voltaram a ser cobradas**, metas de redução que estouram o teto no ritmo atual, metas de juntar que não cabem na sobra projetada e a economia já realizada. Sem nada a avisar, ele diz "Sem alertas esta semana". No Telegram, `/resumo` pede um na hora. Se o app estiver desligado na hora marcada, aquela semana é pulada. O Telegram (ou o WhatsApp) recebe os nomes das contas em texto, como em qualquer mensagem do bot.
+Toda semana (padrão: segunda às 9h, no fuso configurado) o app manda ao seu chat (Telegram ou WhatsApp) um resumo curto do que merece atenção, **calculado só por código, sem IA e sem enviar nada a terceiros além do próprio canal**: total do mês até agora, possíveis cobranças duplicadas, contas novas do mês, contas que você marcou como canceladas e **voltaram a ser cobradas**, metas de redução que estouram o teto no ritmo atual, metas de juntar que não cabem na sobra projetada e a economia já realizada. Sem nada a avisar, ele diz "Sem alertas esta semana". No Telegram, `/resumo` pede um na hora. `/saldos` mostra o mesmo painel de saldos em texto (total, bancos, cartões e vencimentos). Se o app estiver desligado na hora marcada, aquela semana é pulada. O Telegram (ou o WhatsApp) recebe os nomes das contas em texto, como em qualquer mensagem do bot.
 
 ## Coach com IA (opcional)
 
@@ -270,6 +272,9 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 | `GET /api/investments?from=&to=` | aplicado, resgatado e **líquido acumulado desde o primeiro lançamento** |
 | `GET /api/transactions?month=&kind=&category=&payment_method=&account=&q=&page=&limit=` | lista paginada (padrão 50, máx. 100), manual e Open Finance |
 | `GET /api/accounts` | contas e cartões, com saldo e limite |
+| `GET /api/balances` | painel: total em conta, bancos, contas e cartões (fatura, limite, vencimento) |
+| `GET /api/institutions/{id}/logo` | logo do banco em cache |
+| `POST /api/sync` | sincroniza o Open Finance agora (JSON, mesma origem; 409 se já houver uma em andamento) |
 | `GET /api/budget?month=` | despesas do mês e dos 11 anteriores por classe (fixas, parceladas, variáveis) e as contas do mês |
 | `GET /api/projection?months=` | base da projeção: premissas (renda, fixas, variáveis) e parcelas já conhecidas por mês |
 | `PUT /api/expense-rules` | corrige a classe de uma conta (`FIXED`, `VARIABLE` ou `AUTO`); só JSON na mesma origem |
