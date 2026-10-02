@@ -17,6 +17,25 @@ services:
       timeout: 5s
       retries: 5
 
+  # Backup diário do banco para ./backups (veja o README, seção "Backup e restauração").
+  backup:
+    image: postgres:16-alpine
+    container_name: finassist-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Roda com o seu usuário do host (padrão 1000:1000) para os arquivos não ficarem presos ao root.
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    environment:
+      PGPASSWORD: finassist
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    entrypoint: ["sh", "/backup.sh"]
+
   # Canal WhatsApp: só sobe com COMPOSE_PROFILES=whatsapp (ver .env.example).
   evolution:
     image: evoapicloud/evolution-api:v2.3.7
