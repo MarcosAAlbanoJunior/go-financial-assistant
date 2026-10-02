@@ -1,4 +1,4 @@
-import { freshnessText } from '../lib/balances'
+import { freshnessText } from '../../../shared/lib/format'
 import { Money, StaticMoney } from './Money'
 import { ShareBar } from './ShareBar'
 import type { Balances } from '../api'
@@ -17,7 +17,7 @@ export function BalanceHero({ data, hidden, now }: { data: Balances; hidden: boo
         {data.totalInAccount === null
           ? 'Nenhuma conta corrente sincronizada'
           : `${banks} ${banks === 1 ? 'banco' : 'bancos'}`}
-        {data.asOf && ` · atualizado ${freshnessText(data.asOf, now)}`}
+        {data.asOf && ` · dados do banco de ${freshnessText(data.asOf, now)}`}
         {stale && ' · há bancos desatualizados'}
       </p>
       <ShareBar institutions={data.institutions} hidden={hidden} />

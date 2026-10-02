@@ -194,3 +194,18 @@ func TestAPI_SyncNowRateLimited(t *testing.T) {
 		t.Errorf("deveria limitar a taxa, último = %d", last)
 	}
 }
+
+func TestAPI_SyncNowReportsDataAge(t *testing.T) {
+	at := time.Date(2026, 10, 2, 17, 42, 0, 0, time.UTC)
+	older := at.Add(-5 * time.Hour)
+	s := NewServer(0, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s.SetSyncer(&fakeSyncer{})
+	reader := &fakeReader{institutions: []domain.Institution{{ID: uuid.New(), Name: "A", SourceUpdatedAt: &at}, {ID: uuid.New(), Name: "B", SourceUpdatedAt: &older}, {ID: uuid.New(), Name: "C"}}}
+	if err := s.MountAPI(testPassword, reader); err != nil {
+		t.Fatal(err)
+	}
+	rec := do(s, "POST", "/api/sync", "{}", jsonHdr, login(t, s))
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"dataAsOf":"2026-10-02T12:42:00Z"`) {
+		t.Errorf("deveria devolver a atualização mais antiga do Pluggy: %d %s", rec.Code, rec.Body)
+	}
+}

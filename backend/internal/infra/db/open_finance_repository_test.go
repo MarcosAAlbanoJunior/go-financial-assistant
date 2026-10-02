@@ -252,7 +252,8 @@ func TestInstitutions_UpsertLogoAndAccounts(t *testing.T) {
 		pg.Pool.Exec(ctx, `DELETE FROM institutions WHERE item_id = $1`, item)
 	})
 
-	id, needsLogo, err := repo.UpsertInstitution(ctx, item, ports.ExternalInstitution{Name: "Banco Teste", Color: "ec0000"})
+	at := time.Date(2026, 10, 2, 17, 42, 0, 0, time.UTC)
+	id, needsLogo, err := repo.UpsertInstitution(ctx, item, ports.ExternalInstitution{Name: "Banco Teste", Color: "ec0000", UpdatedAt: &at})
 	if err != nil || !needsLogo {
 		t.Fatalf("primeira vez deveria pedir o logo: %v %v", needsLogo, err)
 	}
@@ -314,6 +315,10 @@ func TestInstitutions_UpsertLogoAndAccounts(t *testing.T) {
 			for _, i := range insts {
 				if i.ID == id && (!i.HasLogo || i.Color != "ec0000") {
 					t.Errorf("instituição inesperada: %+v", i)
+				}
+				// Um sync sem a data (conector falhou) não apaga a que já existia.
+				if i.ID == id && (i.SourceUpdatedAt == nil || !i.SourceUpdatedAt.Equal(at)) {
+					t.Errorf("data do Pluggy deveria ser mantida: %v", i.SourceUpdatedAt)
 				}
 			}
 			return

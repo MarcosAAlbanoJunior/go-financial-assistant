@@ -39,4 +39,6 @@ type Institution struct {
 	Name    string
 	Color   string // hexadecimal de 6 dígitos sem "#"; vazio se desconhecida
 	HasLogo bool
+	// SourceUpdatedAt é quando o Pluggy atualizou os dados do banco; nil se nunca informado.
+	SourceUpdatedAt *time.Time
 }
