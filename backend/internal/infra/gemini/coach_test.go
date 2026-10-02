@@ -74,3 +74,24 @@ func TestAdvise_RequestShape(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCategorizeResponse(t *testing.T) {
+	got, err := parseCategorizeResponse(makeResponse(`{"sugestoes":[{"id":"c1","categoria":"FOOD"},{"id":"c2","categoria":"BILLS"}]}`))
+	if err != nil || len(got) != 2 || got[0].ID != "c1" || got[1].Category != "BILLS" {
+		t.Fatalf("%+v %v", got, err)
+	}
+	for name, resp := range map[string]*genai.GenerateContentResponse{"nil": nil, "vazia": {}, "não JSON": makeResponse("ops")} {
+		if _, err := parseCategorizeResponse(resp); err == nil {
+			t.Errorf("%s: esperava erro", name)
+		}
+	}
+}
+
+// O esquema só deixa a IA responder com as categorias que o app aceita sugerir.
+func TestCategorizeEnumMatchesAppCategories(t *testing.T) {
+	schema := categorizeSchema(CategorizeEnum)
+	enum := schema.Properties["sugestoes"].Items.Properties["categoria"].Enum
+	if len(enum) != 9 || enum[0] != "FOOD" || enum[8] != "EDUCATION" {
+		t.Errorf("enum: %v", enum)
+	}
+}
