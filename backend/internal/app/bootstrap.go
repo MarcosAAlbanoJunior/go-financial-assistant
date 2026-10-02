@@ -25,16 +25,14 @@ func (a *app) loadConfig() error {
 		return fmt.Errorf("APP_SECRET_KEY inválida: %w", err)
 	}
 	a.store = db.NewSettingsStore(a.db)
-	if overrides, err := settings.LoadOverrides(a.ctx, a.store, cipher, a.logger); err != nil {
+	overrides, err := settings.LoadOverrides(a.ctx, a.store, cipher, a.logger)
+	if err != nil {
 		a.logger.Warn("configurações salvas no dashboard não carregadas (a migration 016 foi aplicada?)", "error", err)
-	} else {
-		config.SetOverrides(overrides)
 	}
 
-	if a.cfg, err = config.Load(); err != nil {
+	if a.cfg, err = config.Load(overrides); err != nil {
 		a.logger.Error("configuração salva no dashboard inválida; usando só o ambiente", "error", err)
-		config.SetOverrides(nil)
-		if a.cfg, err = config.Load(); err != nil {
+		if a.cfg, err = config.Load(nil); err != nil {
 			return err
 		}
 	}

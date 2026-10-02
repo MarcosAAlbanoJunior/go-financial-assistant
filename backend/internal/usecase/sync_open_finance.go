@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
@@ -34,6 +33,7 @@ type SyncOpenFinance struct {
 	lookbackDays int
 	logger       *slog.Logger
 	logos        ports.LogoFetcher // opcional: sem ele, o painel usa o monograma
+	clock        domain.Clock
 	mu           sync.Mutex
 	cfgMu        sync.RWMutex
 }
@@ -45,11 +45,14 @@ func (s *SyncOpenFinance) SetConfig(itemIDs []string, lookbackDays int) {
 	s.cfgMu.Unlock()
 }
 
+// SetClock troca o relógio (testes).
+func (s *SyncOpenFinance) SetClock(c domain.Clock) { s.clock = c }
+
 // SetLogoFetcher liga o cache de logos dos bancos.
 func (s *SyncOpenFinance) SetLogoFetcher(f ports.LogoFetcher) { s.logos = f }
 
 func NewSyncOpenFinance(repo ports.PurchaseRepository, provider ports.OpenFinanceProvider, itemIDs []string, lookbackDays int, logger *slog.Logger) *SyncOpenFinance {
-	return &SyncOpenFinance{repo: repo, provider: provider, itemIDs: itemIDs, lookbackDays: lookbackDays, logger: logger}
+	return &SyncOpenFinance{repo: repo, provider: provider, itemIDs: itemIDs, lookbackDays: lookbackDays, logger: logger, clock: domain.SystemClock{}}
 }
 
 // Sync processa todos os itens. A falha de um item (ou de uma transação) não impede os
@@ -66,7 +69,7 @@ func (s *SyncOpenFinance) Sync(ctx context.Context) (SyncResult, error) {
 	if len(itemIDs) == 0 {
 		return SyncResult{}, ErrNotConfigured
 	}
-	from := time.Now().UTC().AddDate(0, 0, -lookbackDays)
+	from := s.clock.Now().UTC().AddDate(0, 0, -lookbackDays)
 
 	var result SyncResult
 	var errs []error
@@ -141,7 +144,7 @@ func (s *SyncOpenFinance) syncInvestments(ctx context.Context, itemID string, re
 		s.logger.Warn("investimentos não sincronizados", "error", err)
 		return
 	}
-	if err := s.repo.SaveInvestments(ctx, itemID, positions, time.Now().UTC()); err != nil {
+	if err := s.repo.SaveInvestments(ctx, itemID, positions, s.clock.Now().UTC()); err != nil {
 		s.logger.Error("erro ao salvar investimentos", "error", err)
 		return
 	}

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
@@ -26,6 +27,7 @@ type DigestJob struct {
 	owner     string
 	logger    *slog.Logger
 	schedule  DigestSchedule
+	clock     domain.Clock
 	changed   <-chan struct{}
 }
 
@@ -34,13 +36,13 @@ type DigestSchedule func() (enabled bool, weekday time.Weekday, hour int, loc *t
 
 // NewDigestJob: changed (opcional) acorda o job quando a configuração muda, para recalcular o próximo envio.
 func NewDigestJob(insights *Insights, messenger ports.Messenger, owner string, logger *slog.Logger, schedule DigestSchedule, changed <-chan struct{}) *DigestJob {
-	return &DigestJob{insights: insights, messenger: messenger, owner: owner, logger: logger, schedule: schedule, changed: changed}
+	return &DigestJob{insights: insights, messenger: messenger, owner: owner, logger: logger, schedule: schedule, changed: changed, clock: domain.SystemClock{}}
 }
 
 // Send monta e envia o resumo de hoje.
 func (j *DigestJob) Send(ctx context.Context) error {
 	_, _, _, loc := j.schedule()
-	text, err := j.insights.WeeklyDigest(ctx, time.Now().In(loc))
+	text, err := j.insights.WeeklyDigest(ctx, j.clock.Now().In(loc))
 	if err != nil {
 		return err
 	}
@@ -60,7 +62,7 @@ func (j *DigestJob) Run(ctx context.Context) {
 			}
 			continue
 		}
-		next := NextDigestTime(time.Now(), weekday, hour, loc)
+		next := NextDigestTime(j.clock.Now(), weekday, hour, loc)
 		j.logger.Info("próximo resumo semanal", "at", next.Format(time.RFC3339))
 		timer := time.NewTimer(time.Until(next))
 		select {

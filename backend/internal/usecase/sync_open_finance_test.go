@@ -367,3 +367,16 @@ func TestSync_NotConfiguredUntilItemsAreSet(t *testing.T) {
 		t.Fatalf("com bancos configurados deveria sincronizar: %v", err)
 	}
 }
+
+// Com o relógio fixo, a janela da sincronização é exata (sem depender da hora em que o teste roda).
+func TestSync_WindowFollowsClock(t *testing.T) {
+	prov := &mockProvider{}
+	s := newSync(&mockPurchaseRepo{}, prov, "item")
+	s.SetClock(domain.FixedClock{T: time.Date(2026, 10, 2, 15, 0, 0, 0, time.UTC)})
+	if _, err := s.Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if want := time.Date(2026, 8, 3, 15, 0, 0, 0, time.UTC); !prov.from.Equal(want) {
+		t.Errorf("from = %v, quer %v (60 dias antes do relógio)", prov.from, want)
+	}
+}

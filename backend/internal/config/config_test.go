@@ -27,7 +27,7 @@ func validEnv() map[string]string {
 func TestLoad_Success(t *testing.T) {
 	setEnv(t, validEnv())
 
-	cfg, err := Load()
+	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("esperava sucesso, got: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestLoad_DefaultPort(t *testing.T) {
 	delete(env, "PORT")
 	setEnv(t, env)
 
-	cfg, err := Load()
+	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("esperava sucesso, got: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestLoad_DefaultEvolutionAPIURL(t *testing.T) {
 	delete(env, "EVOLUTION_API_URL")
 	setEnv(t, env)
 
-	cfg, err := Load()
+	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("esperava sucesso, got: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestLoad_InvalidPort(t *testing.T) {
 	env["PORT"] = "nao-e-numero"
 	setEnv(t, env)
 
-	_, err := Load()
+	_, err := Load(nil)
 	if err == nil {
 		t.Fatal("esperava erro de PORT inválida")
 	}
@@ -98,7 +98,7 @@ func TestLoad_MissingDatabaseURL(t *testing.T) {
 	delete(env, "DATABASE_URL")
 	setEnv(t, env)
 
-	_, err := Load()
+	_, err := Load(nil)
 	if err == nil {
 		t.Fatal("esperava erro de DATABASE_URL obrigatória")
 	}
@@ -109,7 +109,7 @@ func TestLoad_MissingGeminiAPIKey(t *testing.T) {
 	delete(env, "GEMINI_API_KEY")
 	setEnv(t, env)
 
-	_, err := Load()
+	_, err := Load(nil)
 	if err == nil {
 		t.Fatal("esperava erro de GEMINI_API_KEY obrigatória")
 	}
@@ -120,7 +120,7 @@ func TestLoad_MissingEvolutionInstance(t *testing.T) {
 	delete(env, "EVOLUTION_INSTANCE")
 	setEnv(t, env)
 
-	_, err := Load()
+	_, err := Load(nil)
 	if err == nil {
 		t.Fatal("esperava erro de EVOLUTION_INSTANCE obrigatória")
 	}
@@ -131,7 +131,7 @@ func TestLoad_MissingEvolutionAPIKey(t *testing.T) {
 	delete(env, "EVOLUTION_API_KEY")
 	setEnv(t, env)
 
-	_, err := Load()
+	_, err := Load(nil)
 	if err == nil {
 		t.Fatal("esperava erro de EVOLUTION_API_KEY obrigatória")
 	}
@@ -142,7 +142,7 @@ func TestLoad_MissingOwnerPhone(t *testing.T) {
 	delete(env, "OWNER_PHONE")
 	setEnv(t, env)
 
-	_, err := Load()
+	_, err := Load(nil)
 	if err == nil {
 		t.Fatal("esperava erro de OWNER_PHONE obrigatória")
 	}
@@ -153,7 +153,7 @@ func TestLoad_MultipleErrors(t *testing.T) {
 		"PORT": "invalido",
 	})
 
-	_, err := Load()
+	_, err := Load(nil)
 	if err == nil {
 		t.Fatal("esperava múltiplos erros")
 	}
@@ -203,7 +203,7 @@ func TestLoad_AllowedNumbers(t *testing.T) {
 	env["ALLOWED_NUMBERS"] = "5511111111111, 5522222222222"
 	setEnv(t, env)
 
-	cfg, err := Load()
+	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("esperava sucesso, got: %v", err)
 	}
@@ -226,7 +226,7 @@ func telegramEnv() map[string]string {
 func TestLoad_DefaultChannelIsWhatsApp(t *testing.T) {
 	setEnv(t, validEnv())
 
-	cfg, err := Load()
+	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("esperava sucesso, got: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestLoad_DefaultChannelIsWhatsApp(t *testing.T) {
 func TestLoad_Telegram_NoEvolutionVarsRequired(t *testing.T) {
 	setEnv(t, telegramEnv())
 
-	cfg, err := Load()
+	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("esperava sucesso sem variáveis do WhatsApp, got: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestLoad_Telegram_MissingVars(t *testing.T) {
 		env := telegramEnv()
 		env[key] = ""
 		setEnv(t, env)
-		if _, err := Load(); err == nil {
+		if _, err := Load(nil); err == nil {
 			t.Errorf("esperava erro sem %s", key)
 		}
 	}
@@ -263,7 +263,7 @@ func TestLoad_Telegram_InvalidChatID(t *testing.T) {
 		env := telegramEnv()
 		env["TELEGRAM_CHAT_ID"] = id
 		setEnv(t, env)
-		if _, err := Load(); err == nil {
+		if _, err := Load(nil); err == nil {
 			t.Errorf("esperava erro para TELEGRAM_CHAT_ID=%q", id)
 		}
 	}
@@ -273,7 +273,7 @@ func TestLoad_InvalidChannel(t *testing.T) {
 	env := validEnv()
 	env["CHANNEL"] = "sms"
 	setEnv(t, env)
-	if _, err := Load(); err == nil {
+	if _, err := Load(nil); err == nil {
 		t.Error("esperava erro para CHANNEL inválido")
 	}
 }
@@ -282,7 +282,7 @@ func TestLoad_WhatsApp_StillRequiresEvolutionVars(t *testing.T) {
 	env := validEnv()
 	env["OWNER_PHONE"] = ""
 	setEnv(t, env)
-	if _, err := Load(); err == nil {
+	if _, err := Load(nil); err == nil {
 		t.Error("esperava erro sem OWNER_PHONE no canal whatsapp")
 	}
 }
@@ -299,7 +299,7 @@ func openFinanceEnv() map[string]string {
 
 func TestLoad_OpenFinanceDisabledByDefault(t *testing.T) {
 	setEnv(t, validEnv())
-	cfg, err := Load()
+	cfg, err := Load(nil)
 	if err != nil || cfg.OpenFinanceEnabled() {
 		t.Errorf("Open Finance deveria ficar desligado sem variáveis: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestLoad_OpenFinanceDisabledByDefault(t *testing.T) {
 
 func TestLoad_OpenFinance_Success(t *testing.T) {
 	setEnv(t, openFinanceEnv())
-	cfg, err := Load()
+	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("esperava sucesso, got: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestLoad_OpenFinance_Invalid(t *testing.T) {
 				t.Setenv(k, "")
 			}
 			setEnv(t, env)
-			if _, err := Load(); err == nil {
+			if _, err := Load(nil); err == nil {
 				t.Error("esperava erro de configuração")
 			}
 		})
@@ -355,7 +355,7 @@ func TestLoad_DashboardPassword(t *testing.T) {
 			env := validEnv()
 			env["DASHBOARD_PASSWORD"] = tc.password
 			setEnv(t, env)
-			cfg, err := Load()
+			cfg, err := Load(nil)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr = %v", err, tc.wantErr)
 			}
@@ -381,7 +381,7 @@ func TestLoad_CoachSettings(t *testing.T) {
 			env["GEMINI_PAID_PLAN"] = tc.paid
 			env["COACH_GEMINI_MODEL"] = tc.model
 			setEnv(t, env)
-			cfg, err := Load()
+			cfg, err := Load(nil)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr = %v", err, tc.wantErr)
 			}
@@ -419,7 +419,7 @@ func TestLoad_DigestSettings(t *testing.T) {
 				env[k] = v
 			}
 			setEnv(t, env)
-			cfg, err := Load()
+			cfg, err := Load(nil)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr = %v", err, tc.wantErr)
 			}
@@ -427,5 +427,22 @@ func TestLoad_DigestSettings(t *testing.T) {
 				t.Errorf("cfg = %+v", cfg)
 			}
 		})
+	}
+}
+
+// O que foi salvo no dashboard (overrides) vale mais que o ambiente, sem estado global entre chamadas.
+func TestLoad_OverridesBeatEnvironment(t *testing.T) {
+	setEnv(t, validEnv())
+	t.Setenv("DIGEST_HOUR", "7")
+	cfg, err := Load(map[string]string{"DIGEST_HOUR": "18"})
+	if err != nil || cfg.DigestHour != 18 {
+		t.Fatalf("override deveria valer: %v %v", cfg, err)
+	}
+	cfg, err = Load(nil)
+	if err != nil || cfg.DigestHour != 7 {
+		t.Fatalf("sem override vale o ambiente: %v %v", cfg, err)
+	}
+	if _, err := Load(map[string]string{"DIGEST_HOUR": "99"}); err == nil {
+		t.Error("override inválido deveria dar erro")
 	}
 }
