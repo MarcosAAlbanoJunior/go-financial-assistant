@@ -135,18 +135,19 @@ Categorias: FOOD (restaurantes, delivery, padarias), MARKET (supermercado, horti
 Devolva só as contas que você consegue classificar com confiança, usando os ids recebidos. Omita as que forem ambíguas ou desconhecidas: é melhor omitir do que chutar.`
 
 func categorizeSchema(categories []string) *genai.Schema {
-	maxItems := int64(100)
+	// Sem MaxItems: com ele o Gemini recusa este esquema (400). Quem limita é o app, que só envia
+	// MaxCategorizeItems contas e descarta ids repetidos ou desconhecidos na resposta.
 	return &genai.Schema{
 		Type: genai.TypeObject,
 		Properties: map[string]*genai.Schema{
 			"sugestoes": {
-				Type:     genai.TypeArray,
-				MaxItems: &maxItems,
+				Type: genai.TypeArray,
 				Items: &genai.Schema{
 					Type: genai.TypeObject,
 					Properties: map[string]*genai.Schema{
-						"id":        {Type: genai.TypeString},
-						"categoria": {Type: genai.TypeString, Enum: categories},
+						"id": {Type: genai.TypeString},
+						// No esquema da API, um texto com valores fixos precisa de format "enum" (sem isso o Gemini responde 400).
+						"categoria": {Type: genai.TypeString, Format: "enum", Enum: categories},
 					},
 					Required: []string{"id", "categoria"},
 				},
