@@ -364,3 +364,29 @@ func TestLoad_DashboardPassword(t *testing.T) {
 		})
 	}
 }
+
+func TestLoad_CoachSettings(t *testing.T) {
+	for name, tc := range map[string]struct {
+		paid, model string
+		want        bool
+		wantErr     bool
+	}{
+		"padrão (bloqueado)": {"", "", false, false},
+		"plano pago":         {"true", "gemini-x", true, false},
+		"valor inválido":     {"talvez", "", false, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			env := validEnv()
+			env["GEMINI_PAID_PLAN"] = tc.paid
+			env["COACH_GEMINI_MODEL"] = tc.model
+			setEnv(t, env)
+			cfg, err := Load()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if err == nil && (cfg.GeminiPaidPlan != tc.want || cfg.CoachModel != tc.model) {
+				t.Errorf("cfg = %v %q", cfg.GeminiPaidPlan, cfg.CoachModel)
+			}
+		})
+	}
+}
