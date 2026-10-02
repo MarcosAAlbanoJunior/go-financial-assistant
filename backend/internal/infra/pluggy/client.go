@@ -30,6 +30,7 @@ type Client struct {
 	clientSecret string
 	baseURL      string
 	http         *http.Client
+	ownNames     []string // normalizados; ver SetOwnNames
 
 	mu        sync.Mutex
 	apiKey    string

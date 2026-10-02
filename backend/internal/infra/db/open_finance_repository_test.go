@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -326,5 +327,29 @@ func TestInstitutions_ColorCheck(t *testing.T) {
 	t.Cleanup(func() { pg.Pool.Exec(context.Background(), `DELETE FROM institutions WHERE item_id = $1`, item) })
 	if _, _, err := repo.UpsertInstitution(context.Background(), item, ports.ExternalInstitution{Name: "B", Color: "red;x"}); err == nil {
 		t.Error("cor fora do padrão hexadecimal deveria ser recusada pelo banco")
+	}
+}
+
+// As grafias do mesmo comércio no débito do Itaú caem na mesma conta, e o rótulo mostra o comércio.
+func TestExpenseKey_DebitPrefix(t *testing.T) {
+	_, pg := newTestRepo(t)
+	ctx := context.Background()
+	for desc, want := range map[string]string{
+		"DEBITO VISA ELECTRON BRASIL   20/09 NETFLIX ENTRETENIME": "debito netflix",
+		"DEBITO VISA ELECTRON BRASIL   20/08 NETFLIX.COM":         "debito netflix",
+		"DEBITO VISA ELECTRON BRASIL   13/07 EBN         .SPOTIF": "debito ebn",
+		"Pix enviado FULANO DE TAL":                               "pix enviado fulano de tal",
+		"OTICA VENDRAMEBIRI01/12 (1/12)":                          "otica vendramebiri",
+	} {
+		var key, label string
+		if err := pg.Pool.QueryRow(ctx, `SELECT `+expenseKey+`, `+cleanDescription+` FROM (SELECT $1::text AS description) p`, desc).Scan(&key, &label); err != nil {
+			t.Fatal(err)
+		}
+		if key != want {
+			t.Errorf("%q: chave %q, quer %q", desc, key, want)
+		}
+		if strings.HasPrefix(desc, "DEBITO") && strings.Contains(label, "DEBITO") {
+			t.Errorf("%q: rótulo ainda tem o prefixo: %q", desc, label)
+		}
 	}
 }

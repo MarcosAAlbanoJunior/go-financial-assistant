@@ -40,7 +40,7 @@ export default function Review() {
   return (
     <>
       <h1 className="page-title">Revisão de {formatMonthTitle(month)}</h1>
-      <MonthFilter month={month} now={now} onChange={setMonth} />
+      <MonthFilter month={month} now={now} onChange={setMonth} warnPartial />
 
       <SavingsPanel />
 

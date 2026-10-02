@@ -450,3 +450,33 @@ func TestToExternal_SalaryAndInvestmentCategories(t *testing.T) {
 		t.Errorf("aplicação é INVESTMENT: %+v", inv)
 	}
 }
+
+func TestIsOwnTransfer(t *testing.T) {
+	c := NewClient("id", "secret")
+	if c.isOwnTransfer("Pix enviado MARCOS ANTONIO ALBANO") {
+		t.Fatal("sem nomes configurados nada é ignorado")
+	}
+	c.SetOwnNames([]string{"Marcos Antônio  Albano", ""})
+	for in, want := range map[string]bool{
+		"Pix enviado MARCOS ANTONIO ALBANO":             true,
+		"Pix recebido MARCOS ANTONIO ALBANO":            true,
+		"TRANSFERENCIA PIX Marcos Antônio Albano":       true,
+		"Pix enviado LARISSA ALBANO":                    false, // outra pessoa da família
+		"Pagamento de boleto MARCOS ANTONIO ALBANO":     false, // não é transferência
+		"Compra débito MERCADO":                         false,
+		"Pix enviado MARCOS ANTONIO ALBANO DE OLIVEIRA": true, // contém o nome; cuidado: nome parcial casa
+	} {
+		if got := c.isOwnTransfer(in); got != want {
+			t.Errorf("%q = %v, quer %v", in, got, want)
+		}
+	}
+}
+
+func TestFetchItem_SkipsOwnTransfers(t *testing.T) {
+	c := fakePluggy(t, new(atomic.Int32))
+	c.SetOwnNames([]string{"A"}) // descrições do fake: "A" e "B"; "pix" não aparece, então nada some
+	got, err := c.FetchItem(context.Background(), "item", time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil || len(got.Transactions) != 2 {
+		t.Fatalf("transações que não são transferências não podem sumir: %d %v", len(got.Transactions), err)
+	}
+}
