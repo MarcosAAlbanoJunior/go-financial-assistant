@@ -15,7 +15,7 @@ export default function Overview() {
   return (
     <>
       <h1 className="page-title">{formatMonthTitle(month)}</h1>
-      <MonthFilter month={month} now={now} onChange={setMonth} />
+      <MonthFilter month={month} now={now} onChange={setMonth} warnPartial />
 
       {summary.isError && !summary.data ? (
         <div className="state error" role="alert">
@@ -25,7 +25,7 @@ export default function Overview() {
           </button>
         </div>
       ) : summary.data ? (
-        <Tiles data={summary.data} stale={summary.isPlaceholderData} />
+        <Tiles data={summary.data} stale={summary.isPlaceholderData} partial={month === now} />
       ) : (
         <p className="state">Carregando…</p>
       )}
@@ -44,7 +44,7 @@ export default function Overview() {
   )
 }
 
-function Tiles({ data, stale }: { data: NonNullable<ReturnType<typeof useSummary>['data']>; stale: boolean }) {
+function Tiles({ data, stale, partial }: { data: NonNullable<ReturnType<typeof useSummary>['data']>; stale: boolean; partial: boolean }) {
   const { current: c, previous: p } = data
   const balance = c.income - c.expense
   const invested = c.applied - c.redeemed
@@ -54,17 +54,17 @@ function Tiles({ data, stale }: { data: NonNullable<ReturnType<typeof useSummary
       <StatTile
         label="Receitas"
         value={formatBRL(c.income)}
-        compare={{ current: c.income, previous: p.income, previousMonth: p.month, upIsGood: true }}
+        compare={partial ? undefined : { current: c.income, previous: p.income, previousMonth: p.month, upIsGood: true }}
       />
       <StatTile
         label="Despesas"
         value={formatBRL(c.expense)}
-        compare={{ current: c.expense, previous: p.expense, previousMonth: p.month, upIsGood: false }}
+        compare={partial ? undefined : { current: c.expense, previous: p.expense, previousMonth: p.month, upIsGood: false }}
       />
       <StatTile
         label="Saldo do mês"
         value={formatBRL(balance)}
-        compare={{ current: balance, previous: p.income - p.expense, previousMonth: p.month, upIsGood: true }}
+        compare={partial ? undefined : { current: balance, previous: p.income - p.expense, previousMonth: p.month, upIsGood: true }}
       />
       <StatTile
         label="Em conta"

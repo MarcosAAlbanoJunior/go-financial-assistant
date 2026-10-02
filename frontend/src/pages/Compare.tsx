@@ -26,7 +26,7 @@ export default function Compare() {
   return (
     <>
       <h1 className="page-title">Comparações até {formatMonthTitle(month)}</h1>
-      <MonthFilter month={month} now={now} onChange={setMonth} />
+      <MonthFilter month={month} now={now} onChange={setMonth} warnPartial />
 
       <section className="card" aria-labelledby="cmp-title">
         <h2 className="chart-title" id="cmp-title">
