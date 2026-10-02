@@ -16,7 +16,13 @@ import (
 var (
 	// Não são gasto nem renda: a fatura já é contada pelas compras do cartão, e
 	// transferência entre contas do mesmo titular só move dinheiro de lugar.
-	ignoredCategories = []string{"credit card payment", "same person transfer"}
+	ignoredCategories = []string{"same person transfer"}
+
+	// O Pluggy classifica como "credit card payment" todo boleto pago e até Pix QR Code de parcelamento, não só pagamento de
+	// fatura (ex.: "Pagamento de boleto BANCO C6 S.A." era a parcela de um financiamento e sumia do app). Só é pagamento de
+	// fatura, e portanto ignorado, o que na descrição se parece com um: fatura, cartão, bandeira, pagamento recebido.
+	cardPaymentCategory = "credit card payment"
+	cardPaymentKeywords = []string{"fatura", "cartao", "cartão", "pagamento recebido", "pagamento com saldo", " mc", "visa", "mastercard", "elo ", "amex", "hipercard"}
 
 	// Aplicação (saída) e resgate (entrada) de investimentos viram TRANSFER.
 	investmentCategories = []string{"investment", "fixed income", "variable income", "mutual fund"}
@@ -81,7 +87,7 @@ func toExternal(accountType string, t transaction) (ports.ExternalTransaction, b
 	inflow := t.Type == "CREDIT"
 
 	// Em cartão, crédito é pagamento de fatura ou estorno: não é renda.
-	if containsAny(category, ignoredCategories) || (isCard && inflow) {
+	if containsAny(category, ignoredCategories) || (isCard && inflow) || isCardPayment(category, t.Description+" "+t.DescriptionRaw) {
 		return ports.ExternalTransaction{}, false
 	}
 
@@ -148,6 +154,19 @@ func installmentDate(purchase time.Time, forecast string) time.Time {
 	}
 	last := time.Date(m.Year(), m.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
 	return time.Date(m.Year(), m.Month(), min(purchase.Day(), last), 0, 0, 0, 0, time.UTC)
+}
+
+// isCardPayment diz se a transação é pagamento de fatura de cartão: categoria "credit card payment" do Pluggy e a descrição
+// com cara de fatura. Boleto para um banco (financiamento) e Pix QR Code com essa categoria são gasto de verdade.
+func isCardPayment(category, description string) bool {
+	if !strings.Contains(category, cardPaymentCategory) {
+		return false
+	}
+	d := " " + strings.ToLower(description) + " "
+	if strings.Contains(d, "pix") {
+		return false
+	}
+	return containsAny(d, cardPaymentKeywords)
 }
 
 // categoryFromDescription aplica descriptionRules; sem correspondência devolve OTHER.
