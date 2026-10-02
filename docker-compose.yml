@@ -130,6 +130,7 @@ services:
       SYNC_INTERVAL_HOURS: ${SYNC_INTERVAL_HOURS:-6}
       SYNC_LOOKBACK_DAYS: ${SYNC_LOOKBACK_DAYS:-60}
       OWN_NAMES: ${OWN_NAMES:-}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

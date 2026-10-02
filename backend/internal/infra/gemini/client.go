@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
@@ -16,8 +17,34 @@ type Client struct {
 	client *genai.Client
 	config *genai.GenerateContentConfig
 
-	// CoachModel troca o modelo do Coach; vazio usa defaultCoachModel.
-	CoachModel string
+	mu         sync.RWMutex
+	coachModel string // troca o modelo do Coach; vazio usa defaultCoachModel
+}
+
+// SetCoachModel troca o modelo do Coach com o app rodando.
+func (c *Client) SetCoachModel(model string) {
+	c.mu.Lock()
+	c.coachModel = model
+	c.mu.Unlock()
+}
+
+func (c *Client) coachModelName() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.coachModel == "" {
+		return defaultCoachModel
+	}
+	return c.coachModel
+}
+
+// Ping confere uma chave da API com uma chamada mínima (usa a chave dada, não a do cliente em uso).
+func Ping(ctx context.Context, apiKey string) error {
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
+	if err != nil {
+		return fmt.Errorf("erro ao criar cliente gemini: %w", err)
+	}
+	_, err = client.Models.GenerateContent(ctx, modelName, genai.Text("Responda apenas: ok"), &genai.GenerateContentConfig{MaxOutputTokens: 5})
+	return err
 }
 
 func NewClient(ctx context.Context, apiKey string) (*Client, error) {

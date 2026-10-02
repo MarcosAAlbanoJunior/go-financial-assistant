@@ -58,7 +58,7 @@ func TestAdvise_RequestShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &Client{client: gc, CoachModel: "modelo-de-teste"}
+	c := &Client{client: gc, coachModel: "modelo-de-teste"}
 
 	got, err := c.Advise(context.Background(), []byte(`{"mes":"2026-09"}`))
 	if err != nil || got.Summary != "ok" {

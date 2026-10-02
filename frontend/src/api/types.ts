@@ -401,3 +401,57 @@ export interface Categorize {
   groups: UncategorizedGroup[]
   ai: { enabled: boolean; blockedReason: string; provider: string; hash: string; bytes: number; context: { contas: { id: string; nome: string; lancamentos: number; total_gasto: number; ultimo_mes: string }[] } }
 }
+
+export type SettingKind = 'text' | 'int' | 'bool' | 'enum' | 'list' | 'secret'
+
+export interface SettingField {
+  key: string
+  label: string
+  help: string
+  kind: SettingKind
+  options?: string[]
+  min?: number
+  max?: number
+  /** Vale na hora; senão, só depois de reiniciar o app. */
+  live: boolean
+  /** Vazio para segredos: eles nunca voltam para a tela. */
+  value: string
+  isSet: boolean
+  source: 'db' | 'env' | 'default'
+  pendingRestart: boolean
+  default: string
+}
+
+export interface SettingGroup {
+  id: string
+  title: string
+  help: string
+  fields: SettingField[]
+}
+
+export interface SettingsData {
+  channel: string
+  /** Sem APP_SECRET_KEY no ambiente, segredos não podem ser guardados aqui. */
+  encryption: boolean
+  restartPending: boolean
+  groups: SettingGroup[]
+}
+
+export interface TransferExample {
+  description: string
+  kind: 'EXPENSE' | 'INCOME'
+  amount: number
+}
+
+export interface OwnTransfers {
+  count: number
+  expense: number
+  income: number
+  examples: TransferExample[]
+}
+
+export interface SaveSettingsResult {
+  changed: string[]
+  restartPending: boolean
+  ownTransfers?: OwnTransfers
+}

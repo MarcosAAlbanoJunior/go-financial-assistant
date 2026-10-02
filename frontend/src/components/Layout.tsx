@@ -12,6 +12,7 @@ import {
   Moon,
   ScanSearch,
   Scale,
+  Settings,
   Sun,
   Tags,
   Target,
@@ -115,6 +116,10 @@ export function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="side-foot">
+          <NavLink to="/configuracoes" className="side-link" onClick={() => setOpen(false)}>
+            <Settings size={18} aria-hidden="true" />
+            Configurações
+          </NavLink>
           <button type="button" className="side-link" onClick={toggle}>
             {theme === 'dark' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
             {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}

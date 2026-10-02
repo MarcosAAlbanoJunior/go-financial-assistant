@@ -13,7 +13,10 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrSyncInProgress = errors.New("já existe uma sincronização em andamento")
+var (
+	ErrSyncInProgress = errors.New("já existe uma sincronização em andamento")
+	ErrNotConfigured  = errors.New("o Open Finance não está configurado")
+)
 
 type SyncResult struct {
 	Inserted   int // lançamentos novos
@@ -32,6 +35,14 @@ type SyncOpenFinance struct {
 	logger       *slog.Logger
 	logos        ports.LogoFetcher // opcional: sem ele, o painel usa o monograma
 	mu           sync.Mutex
+	cfgMu        sync.RWMutex
+}
+
+// SetConfig troca os bancos e a janela de datas com o app rodando (página de configurações).
+func (s *SyncOpenFinance) SetConfig(itemIDs []string, lookbackDays int) {
+	s.cfgMu.Lock()
+	s.itemIDs, s.lookbackDays = itemIDs, lookbackDays
+	s.cfgMu.Unlock()
 }
 
 // SetLogoFetcher liga o cache de logos dos bancos.
@@ -49,11 +60,17 @@ func (s *SyncOpenFinance) Sync(ctx context.Context) (SyncResult, error) {
 	}
 	defer s.mu.Unlock()
 
-	from := time.Now().UTC().AddDate(0, 0, -s.lookbackDays)
+	s.cfgMu.RLock()
+	itemIDs, lookbackDays := s.itemIDs, s.lookbackDays
+	s.cfgMu.RUnlock()
+	if len(itemIDs) == 0 {
+		return SyncResult{}, ErrNotConfigured
+	}
+	from := time.Now().UTC().AddDate(0, 0, -lookbackDays)
 
 	var result SyncResult
 	var errs []error
-	for _, itemID := range s.itemIDs {
+	for _, itemID := range itemIDs {
 		s.syncInvestments(ctx, itemID, &result)
 
 		data, err := s.provider.FetchItem(ctx, itemID, from)

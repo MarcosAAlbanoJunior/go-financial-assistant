@@ -29,6 +29,7 @@ const (
 type coachService struct {
 	advisor ports.Coach
 	paid    bool
+	paidFn  func() bool // quando definido, vale no lugar de paid (configuração editável no dashboard)
 
 	busy atomic.Bool
 }
@@ -37,7 +38,13 @@ func newCoachService(advisor ports.Coach, paid bool) *coachService {
 	return &coachService{advisor: advisor, paid: paid}
 }
 
-func (c *coachService) enabled() bool { return c.advisor != nil && c.paid }
+func (c *coachService) enabled() bool {
+	paid := c.paid
+	if c.paidFn != nil {
+		paid = c.paidFn()
+	}
+	return c.advisor != nil && paid
+}
 
 // begin reserva a análise; recusa se já há uma em andamento (clique duplo, aba aberta em dois lugares).
 func (c *coachService) begin() bool { return c.busy.CompareAndSwap(false, true) }
