@@ -68,6 +68,7 @@ function Tiles({ data, stale }: { data: NonNullable<ReturnType<typeof useSummary
       />
       <StatTile
         label="Em conta"
+        to="/"
         value={data.bankBalance === null ? '—' : formatBRL(data.bankBalance)}
         note={data.bankBalance === null ? 'Sem contas do Open Finance' : 'Contas correntes, hoje'}
       />
