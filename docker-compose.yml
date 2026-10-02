@@ -89,6 +89,8 @@ services:
       PORT: 3000
       DATABASE_URL: postgres://finassist:finassist@postgres:5432/finassist?sslmode=disable
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_PAID_PLAN: ${GEMINI_PAID_PLAN:-false}
+      COACH_GEMINI_MODEL: ${COACH_GEMINI_MODEL:-}
       CHANNEL: ${CHANNEL:-whatsapp}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
       EVOLUTION_API_URL: http://evolution:8080

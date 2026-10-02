@@ -28,6 +28,11 @@ type Config struct {
 	DatabaseURL string
 
 	GeminiAPIKey string
+	// GeminiPaidPlan é a declaração de que o projeto da chave tem faturamento (serviços pagos). O Coach, que
+	// envia dados financeiros ao Gemini, só funciona com ela: no plano grátis o Google pode usar e revisar o conteúdo.
+	GeminiPaidPlan bool
+	// CoachModel troca o modelo do Coach; vazio usa o padrão do cliente.
+	CoachModel string
 
 	EvolutionAPIURL   string
 	EvolutionInstance string
@@ -79,6 +84,15 @@ func Load() (*Config, error) {
 	if cfg.GeminiAPIKey == "" {
 		errs = append(errs, errors.New("GEMINI_API_KEY é obrigatória"))
 	}
+
+	paid := strings.TrimSpace(getEnv("GEMINI_PAID_PLAN", ""))
+	if paid == "" {
+		paid = "false"
+	}
+	if cfg.GeminiPaidPlan, err = strconv.ParseBool(paid); err != nil {
+		errs = append(errs, fmt.Errorf("GEMINI_PAID_PLAN inválida: %q — use true ou false", paid))
+	}
+	cfg.CoachModel = strings.TrimSpace(getEnv("COACH_GEMINI_MODEL", ""))
 
 	cfg.Channel = strings.ToLower(strings.TrimSpace(getEnv("CHANNEL", ChannelWhatsApp)))
 	cfg.AllowedNumbers = parseAllowedNumbers(getEnv("ALLOWED_NUMBERS", ""))
