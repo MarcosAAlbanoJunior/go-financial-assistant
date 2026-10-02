@@ -4,6 +4,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 )
 
@@ -76,7 +78,7 @@ type Review struct {
 func BuildReview(catMonths []domain.CategoryMonth, keyRows []domain.ExpenseKeyMonth, rules map[string]domain.ExpenseClass,
 	payments []domain.ExpensePayment, dismissed []domain.Dismissal, to time.Time) Review {
 	from := to.AddDate(0, -(ReviewMatrixMonths - 1), 0)
-	budget := BuildBudget(keyRows, rules, to.AddDate(0, -(BudgetMonths-1), 0), to)
+	budget := planning.BuildBudget(keyRows, rules, to.AddDate(0, -(BudgetMonths-1), 0), to)
 
 	r := Review{}
 	for m := from; !m.After(to); m = m.AddDate(0, 1, 0) {
@@ -183,7 +185,7 @@ func increases(matrix []ReviewRow) []Candidate {
 }
 
 // fixedBills lista as contas fixas do mês: o custo anual é o valor vezes 12.
-func fixedBills(b Budget) []Candidate {
+func fixedBills(b planning.Budget) []Candidate {
 	var out []Candidate
 	for _, it := range b.Items {
 		if it.Class == domain.ClassFixed {
@@ -261,7 +263,7 @@ func duplicates(payments []domain.ExpensePayment, classes map[string]domain.Expe
 }
 
 // newBills lista as contas que só aparecem no mês escolhido.
-func newBills(b Budget, keyRows []domain.ExpenseKeyMonth, to time.Time) []Candidate {
+func newBills(b planning.Budget, keyRows []domain.ExpenseKeyMonth, to time.Time) []Candidate {
 	history := map[time.Time]bool{}
 	for _, r := range keyRows {
 		if r.Month.Before(to) {
