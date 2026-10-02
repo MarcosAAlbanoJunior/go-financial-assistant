@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (r *PostgresPurchaseRepository) UpsertAccount(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
+func (r *LedgerRepo) UpsertAccount(ctx context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
 	query := `
 		INSERT INTO accounts (external_id, item_id, type, name, last4, balance, credit_limit, available_credit_limit,
 			institution_id, brand, close_date, due_date, minimum_payment, auto_invested_balance, updated_at)
@@ -36,7 +36,7 @@ func (r *PostgresPurchaseRepository) UpsertAccount(ctx context.Context, a ports.
 }
 
 // O logo é buscado de novo a cada 30 dias; se a busca falhou, tenta de novo depois de 1 dia.
-func (r *PostgresPurchaseRepository) UpsertInstitution(ctx context.Context, itemID string, inst ports.ExternalInstitution) (uuid.UUID, bool, error) {
+func (r *LedgerRepo) UpsertInstitution(ctx context.Context, itemID string, inst ports.ExternalInstitution) (uuid.UUID, bool, error) {
 	var id uuid.UUID
 	var needsLogo bool
 	err := r.db.Pool.QueryRow(ctx, `
@@ -53,7 +53,7 @@ func (r *PostgresPurchaseRepository) UpsertInstitution(ctx context.Context, item
 	return id, needsLogo, nil
 }
 
-func (r *PostgresPurchaseRepository) SaveInstitutionLogo(ctx context.Context, id uuid.UUID, data []byte, mime string) error {
+func (r *LedgerRepo) SaveInstitutionLogo(ctx context.Context, id uuid.UUID, data []byte, mime string) error {
 	var err error
 	if data == nil {
 		_, err = r.db.Pool.Exec(ctx, `UPDATE institutions SET logo_checked_at = NOW() WHERE id = $1`, id)
@@ -66,7 +66,7 @@ func (r *PostgresPurchaseRepository) SaveInstitutionLogo(ctx context.Context, id
 	return nil
 }
 
-func (r *PostgresPurchaseRepository) RefreshExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
+func (r *LedgerRepo) RefreshExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
 	// O CTE com UPDATE roda sempre; a consulta final só diz se a transação existia.
 	query := `
 		WITH linked AS (
@@ -87,7 +87,7 @@ func (r *PostgresPurchaseRepository) RefreshExternal(ctx context.Context, tx por
 	return n > 0, nil
 }
 
-func (r *PostgresPurchaseRepository) SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error {
+func (r *LedgerRepo) SaveExternal(ctx context.Context, purchase *domain.Purchase, payment *domain.Payment) error {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("erro ao iniciar transação: %w", err)
@@ -127,7 +127,7 @@ func (r *PostgresPurchaseRepository) SaveExternal(ctx context.Context, purchase 
 //   - RECURRING: mesmo mês (a recorrência é gerada em dia fixo, o banco pode atrasar).
 //
 // Parcelados ficam de fora: a data de cada parcela no cartão não é previsível.
-func (r *PostgresPurchaseRepository) ReconcileExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
+func (r *LedgerRepo) ReconcileExternal(ctx context.Context, tx ports.ExternalTransaction, accountID uuid.UUID) (bool, error) {
 	query := `
 		UPDATE payments SET external_id = $1, account_id = $6, status = 'PAID', paid_at = COALESCE(paid_at, $5::timestamptz)
 		WHERE id = (
@@ -156,7 +156,7 @@ func (r *PostgresPurchaseRepository) ReconcileExternal(ctx context.Context, tx p
 	return tag.RowsAffected() > 0, nil
 }
 
-func (r *PostgresPurchaseRepository) SaveInvestments(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error {
+func (r *LedgerRepo) SaveInvestments(ctx context.Context, itemID string, positions []ports.ExternalInvestment, day time.Time) error {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("erro ao iniciar transação: %w", err)

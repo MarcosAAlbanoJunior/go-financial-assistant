@@ -15,7 +15,7 @@ import (
 
 // Teste de integração: roda só com TEST_DATABASE_URL apontando para um Postgres com as
 // migrations aplicadas. Ex.: TEST_DATABASE_URL=$DATABASE_URL go test ./internal/infra/db
-func newTestRepo(t *testing.T) (*PostgresPurchaseRepository, *DB) {
+func newTestRepo(t *testing.T) (*testRepo, *DB) {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
@@ -26,7 +26,7 @@ func newTestRepo(t *testing.T) (*PostgresPurchaseRepository, *DB) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pg.Close)
-	return &PostgresPurchaseRepository{db: pg}, pg
+	return &testRepo{LedgerRepo: &LedgerRepo{db: pg}, DashboardRepo: NewDashboardRepo(pg)}, pg
 }
 
 func cleanup(t *testing.T, pg *DB, purchases ...*domain.Purchase) {
@@ -38,7 +38,7 @@ func cleanup(t *testing.T, pg *DB, purchases ...*domain.Purchase) {
 	})
 }
 
-func manualExpense(t *testing.T, repo *PostgresPurchaseRepository, pg *DB, amount float64, typ domain.PurchaseType) *domain.Purchase {
+func manualExpense(t *testing.T, repo *testRepo, pg *DB, amount float64, typ domain.PurchaseType) *domain.Purchase {
 	t.Helper()
 	desc := "teste-open-finance"
 	p, err := domain.NewPurchase(amount, &desc, domain.CategoryFood, domain.PaymentMethodPix, typ, "teste")
@@ -62,7 +62,7 @@ func externalTx(id string, amount float64, date time.Time) ports.ExternalTransac
 }
 
 // testAccount cria (e remove ao final) uma conta de teste e devolve seu ID.
-func testAccount(t *testing.T, repo *PostgresPurchaseRepository, pg *DB) uuid.UUID {
+func testAccount(t *testing.T, repo *testRepo, pg *DB) uuid.UUID {
 	t.Helper()
 	id, err := repo.UpsertAccount(context.Background(), ports.ExternalAccount{ID: "of-test-acc", ItemID: "of-test", Type: "BANK", Name: "Conta teste", Last4: "1234"})
 	if err != nil {

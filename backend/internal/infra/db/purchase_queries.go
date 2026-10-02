@@ -47,7 +47,7 @@ func (m paymentDetailModel) toPort() ports.PaymentDetail {
 	}
 }
 
-func (r *PostgresPurchaseRepository) ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error) {
+func (r *LedgerRepo) ExistsPaymentByDateAndAmount(ctx context.Context, date time.Time, amount float64) (bool, error) {
 	query := `
 		SELECT EXISTS(
 			SELECT 1 FROM payments
@@ -64,7 +64,7 @@ func (r *PostgresPurchaseRepository) ExistsPaymentByDateAndAmount(ctx context.Co
 	return exists, nil
 }
 
-func (r *PostgresPurchaseRepository) HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error) {
+func (r *LedgerRepo) HasPaymentForMonth(ctx context.Context, purchaseID uuid.UUID, month time.Time) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM payments WHERE purchase_id = $1 AND reference_month = $2)`
 	var exists bool
 	if err := r.db.Pool.QueryRow(ctx, query, purchaseID, month).Scan(&exists); err != nil {
@@ -73,7 +73,7 @@ func (r *PostgresPurchaseRepository) HasPaymentForMonth(ctx context.Context, pur
 	return exists, nil
 }
 
-func (r *PostgresPurchaseRepository) FindActiveRecurring(ctx context.Context) ([]domain.Purchase, error) {
+func (r *LedgerRepo) FindActiveRecurring(ctx context.Context) ([]domain.Purchase, error) {
 	query := `
 		SELECT id, description, category, payment_method, type, total_amount,
 		       installment_count, installment_amount, day_of_month, is_active,
@@ -99,7 +99,7 @@ func (r *PostgresPurchaseRepository) FindActiveRecurring(ctx context.Context) ([
 	return result, nil
 }
 
-func (r *PostgresPurchaseRepository) FindByDescription(ctx context.Context, description string) ([]domain.Purchase, error) {
+func (r *LedgerRepo) FindByDescription(ctx context.Context, description string) ([]domain.Purchase, error) {
 	query := `
 		SELECT id, description, category, payment_method, type, total_amount,
 		       installment_count, installment_amount, day_of_month, is_active,
@@ -125,7 +125,7 @@ func (r *PostgresPurchaseRepository) FindByDescription(ctx context.Context, desc
 	return result, nil
 }
 
-func (r *PostgresPurchaseRepository) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error) {
+func (r *LedgerRepo) FindPaymentsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentSummary, error) {
 	query := `
 		SELECT p.category, SUM(pay.amount) AS total
 		FROM payments pay
@@ -153,7 +153,7 @@ func (r *PostgresPurchaseRepository) FindPaymentsByMonth(ctx context.Context, mo
 	return result, rows.Err()
 }
 
-func (r *PostgresPurchaseRepository) FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error) {
+func (r *LedgerRepo) FindPaymentDetailsByMonth(ctx context.Context, month time.Time) ([]ports.PaymentDetail, error) {
 	query := `
 		SELECT
 		    p.description,
