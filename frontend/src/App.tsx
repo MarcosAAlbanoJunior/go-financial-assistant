@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Accounts from './pages/Accounts'
 import Budget from './pages/Budget'
 import Compare from './pages/Compare'
+import Goals from './pages/Goals'
 import Investments from './pages/Investments'
 import Overview from './pages/Overview'
 import Projection from './pages/Projection'
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/projecao" element={<Projection />} />
         <Route path="/orcamento" element={<Budget />} />
         <Route path="/revisao" element={<Review />} />
+        <Route path="/metas" element={<Goals />} />
         <Route path="/gastos" element={<Spending />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

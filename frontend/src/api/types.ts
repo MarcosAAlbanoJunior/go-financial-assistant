@@ -183,3 +183,49 @@ export interface Review {
   matrix: ReviewRow[]
   candidates: ReviewCandidate[]
 }
+
+export type GoalKind = 'SAVE' | 'CUT' | 'RESERVE'
+
+export interface Goal {
+  id: string
+  kind: GoalKind
+  name: string
+  /** SAVE: mês-alvo (AAAA-MM). */
+  targetDate: string | null
+  /** CUT */
+  category: string
+  categoryLabel: string
+  cutPercent: number
+  /** CUT: média mensal da categoria antes da meta. */
+  baseline: number
+  /** RESERVE */
+  reserveMonths: number
+  /** SAVE e RESERVE: patrimônio; CUT: gasto da categoria no mês atual. */
+  current: number
+  /** SAVE: valor; RESERVE: meses x fixas; CUT: teto mensal. */
+  target: number
+  done: boolean
+  monthsLeft: number
+  perMonth: number
+  /** Sobra média projetada até a data; nulo sem histórico para projetar. */
+  surplus: number | null
+  fits: boolean | null
+  /** Quantos meses de despesas fixas o patrimônio cobre. */
+  coverage: number
+  history: { month: string; total: number; hit: boolean }[]
+}
+
+export interface Goals {
+  wealth: number
+  goals: Goal[]
+}
+
+export interface GoalInput {
+  kind: GoalKind
+  name: string
+  targetAmount?: number
+  targetDate?: string
+  category?: string
+  cutPercent?: number
+  reserveMonths?: number
+}
