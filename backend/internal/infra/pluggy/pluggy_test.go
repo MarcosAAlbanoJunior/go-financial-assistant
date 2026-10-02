@@ -62,9 +62,10 @@ func TestToExternal(t *testing.T) {
 func TestToExternal_Details(t *testing.T) {
 	card := tx("DEBIT", "Shopping", 100)
 	card.CreditCardMetadata = &struct {
-		InstallmentNumber int `json:"installmentNumber"`
-		TotalInstallments int `json:"totalInstallments"`
-	}{2, 3}
+		InstallmentNumber int    `json:"installmentNumber"`
+		TotalInstallments int    `json:"totalInstallments"`
+		BillForecastDate  string `json:"billForecastDate"`
+	}{2, 3, ""}
 	got, _ := toExternal("CREDIT", card)
 	if got.Description != "Loja (2/3)" || got.PaymentMethod != domain.PaymentMethodCreditCard {
 		t.Errorf("parcela/cartão: %q %s", got.Description, got.PaymentMethod)
@@ -478,5 +479,28 @@ func TestFetchItem_SkipsOwnTransfers(t *testing.T) {
 	got, err := c.FetchItem(context.Background(), "item", time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
 	if err != nil || len(got.Transactions) != 2 {
 		t.Fatalf("transações que não são transferências não podem sumir: %d %v", len(got.Transactions), err)
+	}
+}
+
+// Parcela vai para o mês da fatura (billForecastDate), no dia da compra; sem previsão, fica na data da compra.
+func TestToExternal_InstallmentDate(t *testing.T) {
+	mk := func(forecast string) transaction {
+		var tr transaction
+		json.Unmarshal([]byte(`{"id":"p1","date":"2026-06-05T03:00:00.000Z","description":"OTICA","amount":143.08,"type":"DEBIT","status":"PENDING",
+			"creditCardMetadata":{"installmentNumber":6,"totalInstallments":12,"billForecastDate":"`+forecast+`"}}`), &tr) //nolint:errcheck
+		return tr
+	}
+	for forecast, want := range map[string]string{"2026-12": "2026-12-05", "2027-02": "2027-02-05", "": "2026-06-05", "lixo": "2026-06-05"} {
+		got, ok := toExternal("CREDIT", mk(forecast))
+		if !ok || got.Date.Format("2006-01-02") != want || !got.Installment {
+			t.Errorf("forecast %q: data %v (quer %s), parcela=%v", forecast, got.Date, want, got.Installment)
+		}
+	}
+	if got := installmentDate(time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC), "2026-02"); got.Format("2006-01-02") != "2026-02-28" {
+		t.Errorf("dia 31 em fevereiro deve ir para o último dia: %v", got)
+	}
+	plain, _ := toExternal("CREDIT", tx("DEBIT", "Shopping", 10))
+	if plain.Installment {
+		t.Error("compra à vista não é parcela")
 	}
 }

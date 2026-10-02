@@ -89,8 +89,11 @@ func toExternal(accountType string, t transaction) (ports.ExternalTransaction, b
 	if description == "" {
 		description = t.DescriptionRaw
 	}
+	installment := false
 	if m := t.CreditCardMetadata; m != nil && m.TotalInstallments > 1 {
 		description = fmt.Sprintf("%s (%d/%d)", description, m.InstallmentNumber, m.TotalInstallments)
+		installment = true
+		date = installmentDate(date, m.BillForecastDate)
 	}
 
 	ext := ports.ExternalTransaction{
@@ -102,6 +105,7 @@ func toExternal(accountType string, t transaction) (ports.ExternalTransaction, b
 		Category:      domain.CategoryOther,
 		PaymentMethod: paymentMethod(isCard, t),
 		Pending:       t.Status == "PENDING",
+		Installment:   installment,
 	}
 
 	switch {
@@ -132,6 +136,18 @@ func toExternal(accountType string, t transaction) (ports.ExternalTransaction, b
 		}
 	}
 	return ext, true
+}
+
+// installmentDate leva a parcela para o mês da fatura em que ela cai (billForecastDate, "AAAA-MM"), mantendo o dia da
+// compra. O Pluggy datava todas as parcelas no dia da compra: o gasto de 12 meses caía inteiro no mês da compra e os
+// meses seguintes ficavam sem a parcela. Sem a previsão da fatura, a data da compra fica como está.
+func installmentDate(purchase time.Time, forecast string) time.Time {
+	m, err := time.Parse("2006-01", forecast)
+	if err != nil {
+		return purchase
+	}
+	last := time.Date(m.Year(), m.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	return time.Date(m.Year(), m.Month(), min(purchase.Day(), last), 0, 0, 0, 0, time.UTC)
 }
 
 // categoryFromDescription aplica descriptionRules; sem correspondência devolve OTHER.
