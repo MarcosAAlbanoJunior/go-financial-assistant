@@ -70,7 +70,11 @@ func (a *api) coachInput(ctx context.Context, month time.Time) (coachInput, erro
 	if err != nil {
 		return coachInput{}, err
 	}
-	in := coachInput{context: usecase.BuildCoachContext(rev, formatMonth(month), totals[0], goals, past), candidates: usecase.CoachCandidates(rev), goals: goals}
+	savings, err := a.buildSavings(ctx)
+	if err != nil {
+		return coachInput{}, err
+	}
+	in := coachInput{context: usecase.BuildCoachContext(rev, formatMonth(month), totals[0], goals, past, savings), candidates: usecase.CoachCandidates(rev), goals: goals}
 	if in.payload, err = json.Marshal(in.context); err != nil {
 		return coachInput{}, err
 	}

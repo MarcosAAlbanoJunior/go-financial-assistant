@@ -258,6 +258,8 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 | `PUT /api/expense-rules` | corrige a classe de uma conta (`FIXED`, `VARIABLE` ou `AUTO`); só JSON na mesma origem |
 | `GET /api/review?month=` | revisão do mês: matriz categoria × 6 meses e sugestões de corte (aumentos, fixas, gasto formiga, duplicatas, contas novas) com a economia em R$/mês e R$/ano |
 | `PUT /api/review-dismissals` | dispensa (ou restaura) uma sugestão da revisão; só JSON na mesma origem |
+| `GET /api/savings` | economia realizada: as contas que você marcou como canceladas, conferidas mês a mês (cobrança sumiu, voltou ou aguardando), com o total acumulado e o ritmo por mês e por ano |
+| `PUT /api/savings/decisions` | marca (ou desfaz) "cancelei" numa sugestão fixa, gasto formiga ou conta nova; só JSON na mesma origem |
 | `GET /api/goals` | metas com o andamento calculado na hora: patrimônio (contas correntes + investimentos), projeção e gastos por categoria |
 | `POST /api/goals`, `DELETE /api/goals/{id}` | cria (juntar valor até uma data, reduzir uma categoria, reserva de N meses; máx. 20) ou apaga uma meta; só JSON na mesma origem |
 | `GET /api/coach/preview?month=` | o que o Coach enviaria ao Gemini (mesmo JSON, com hash), sem enviar nada |
