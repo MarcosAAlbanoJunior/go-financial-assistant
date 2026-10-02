@@ -610,3 +610,53 @@ func TestCoachAnalyses_SaveAnswerListDelete(t *testing.T) {
 		t.Error("apagar de novo")
 	}
 }
+
+func TestReview_Decisions(t *testing.T) {
+	repo, pg := newTestRepo(t)
+	ctx := context.Background()
+	t.Cleanup(func() {
+		pg.Pool.Exec(ctx, `DELETE FROM review_decisions WHERE key LIKE 'zzteste%'`)
+		pg.Pool.Exec(ctx, `DELETE FROM review_dismissals WHERE key LIKE 'zzteste%'`)
+	})
+
+	d := ports.Decision{Kind: "FIXED", Key: "zzteste streaming", Label: "ZZTeste Streaming", Category: "ENTERTAINMENT", Month: mar1999, Monthly: 39.9}
+	if err := repo.SetDecision(ctx, d); err != nil {
+		t.Fatal(err)
+	}
+	d.Monthly = 44.9 // decidir de novo atualiza, sem duplicar
+	if err := repo.SetDecision(ctx, d); err != nil {
+		t.Fatal(err)
+	}
+
+	all, err := repo.Decisions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mine []ports.Decision
+	for _, x := range all {
+		if x.Key == d.Key {
+			mine = append(mine, x)
+		}
+	}
+	if len(mine) != 1 || mine[0].Monthly != 44.9 || !mine[0].Month.Equal(mar1999) || mine[0].Label != "ZZTeste Streaming" || mine[0].Category != "ENTERTAINMENT" {
+		t.Fatalf("decisão gravada uma vez, com o último valor: %+v", mine)
+	}
+	dismissals, _ := repo.Dismissals(ctx)
+	if !slices.Contains(dismissals, ports.Dismissal{Kind: "FIXED", Key: d.Key}) {
+		t.Error("decidir também dispensa a sugestão")
+	}
+
+	if err := repo.DeleteDecision(ctx, "FIXED", d.Key); err != nil {
+		t.Fatal(err)
+	}
+	all, _ = repo.Decisions(ctx)
+	dismissals, _ = repo.Dismissals(ctx)
+	if slices.ContainsFunc(all, func(x ports.Decision) bool { return x.Key == d.Key }) || slices.Contains(dismissals, ports.Dismissal{Kind: "FIXED", Key: d.Key}) {
+		t.Error("desfazer apaga a decisão e traz a sugestão de volta")
+	}
+
+	// O banco recusa tipos que não são recorrentes.
+	if err := repo.SetDecision(ctx, ports.Decision{Kind: "DUPLICATE", Key: "zzteste dup", Label: "x", Category: "OTHER", Month: mar1999, Monthly: 10}); err == nil {
+		t.Error("DUPLICATE não aceita decisão")
+	}
+}
