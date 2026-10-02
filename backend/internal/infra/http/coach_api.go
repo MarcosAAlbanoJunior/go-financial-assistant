@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 	"net/http"
 	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
@@ -57,7 +59,7 @@ type coachInput struct {
 	payload    []byte
 	hash       string
 	context    usecase.CoachContext
-	candidates []usecase.Candidate
+	candidates []review.Candidate
 	goals      []planning.GoalProgress
 }
 

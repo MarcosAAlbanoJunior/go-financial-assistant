@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -42,7 +44,7 @@ func (i *Insights) WeeklyDigest(ctx context.Context, today time.Time) (string, e
 	if err != nil || len(totals) != 1 {
 		return "", fmt.Errorf("totais do mês indisponíveis: %w", err)
 	}
-	review, err := i.Review(ctx, month)
+	rv, err := i.Review(ctx, month)
 	if err != nil {
 		return "", err
 	}
@@ -54,28 +56,28 @@ func (i *Insights) WeeklyDigest(ctx context.Context, today time.Time) (string, e
 	if err != nil {
 		return "", err
 	}
-	return FormatDigest(today, totals[0], review, goals, savings), nil
+	return FormatDigest(today, totals[0], rv, goals, savings), nil
 }
 
 // FormatDigest escreve o resumo em texto simples (sem Markdown, já que nomes de contas vêm do banco).
-func FormatDigest(today time.Time, totals domain.MonthTotals, review Review, goals []planning.GoalProgress, savings []DecisionResult) string {
+func FormatDigest(today time.Time, totals domain.MonthTotals, rv review.Review, goals []planning.GoalProgress, savings []review.DecisionResult) string {
 	var alerts []string
 	add := func(format string, args ...any) { alerts = append(alerts, "• "+fmt.Sprintf(format, args...)) }
 
 	for _, d := range savings {
-		if d.Status == SavingReturned {
+		if d.Status == review.SavingReturned {
 			add("A cobrança voltou: %s (você tinha marcado como cancelada; foram %s neste mês).", cleanDigestLabel(d.Decision.Label), FormatBRL(d.Returned))
 		}
 	}
 	newCount := 0
-	for _, c := range review.Candidates {
+	for _, c := range rv.Candidates {
 		if c.Dismissed {
 			continue
 		}
 		switch {
-		case c.Kind == ReviewDuplicate:
+		case c.Kind == review.ReviewDuplicate:
 			add("Possível cobrança duplicada: %s (%d vezes de %s em poucos dias).", cleanDigestLabel(c.Label), c.Count, FormatBRL(c.Amount))
-		case c.Kind == ReviewNew && newCount < maxDigestNew:
+		case c.Kind == review.ReviewNew && newCount < maxDigestNew:
 			newCount++
 			add("Conta nova neste mês: %s (%s).", cleanDigestLabel(c.Label), FormatBRL(c.Amount))
 		}
@@ -98,7 +100,7 @@ func FormatDigest(today time.Time, totals domain.MonthTotals, review Review, goa
 	var b strings.Builder
 	fmt.Fprintf(&b, "Resumo semanal — %s\n\n", today.Format("02/01/2006"))
 	fmt.Fprintf(&b, "Mês até agora: despesas %s · receitas %s\n", FormatBRL(totals.Expense), FormatBRL(totals.Income))
-	if realized, perMonth := SavingsTotals(savings); realized > 0 {
+	if realized, perMonth := review.SavingsTotals(savings); realized > 0 {
 		fmt.Fprintf(&b, "Economia realizada com o que você cancelou: %s (%s por mês).\n", FormatBRL(realized), FormatBRL(perMonth))
 	}
 	b.WriteString("\n")

@@ -7,6 +7,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/review"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/planning"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
@@ -56,7 +58,7 @@ type CoachRecord struct {
 
 // NewCoachRecord liga a resposta validada aos números dos detectores. candidates e goals são os mesmos
 // que geraram os IDs "s1".. e "m1".. do contexto.
-func NewCoachRecord(advice ports.CoachAdvice, candidates []Candidate, goals []planning.GoalProgress) CoachRecord {
+func NewCoachRecord(advice ports.CoachAdvice, candidates []review.Candidate, goals []planning.GoalProgress) CoachRecord {
 	r := CoachRecord{Summary: advice.Summary, Actions: []CoachRecordAction{}, Goals: []CoachRecordGoal{}, Questions: []string{}}
 	r.Questions = append(r.Questions, advice.Questions...)
 	for _, a := range advice.Actions {
