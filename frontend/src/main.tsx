@@ -3,9 +3,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import App from './App'
-import { ApiError } from './api/client'
 import './index.css'
-import { applyStoredTheme } from './lib/theme'
+import { applyStoredTheme } from './shared/lib/theme'
+import { ApiError } from './shared/api/request'
 
 applyStoredTheme()
 

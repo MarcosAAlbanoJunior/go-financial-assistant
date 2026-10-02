@@ -1,0 +1,17 @@
+/* Coach */
+.coach-list, .coach-names { margin: 8px 0; padding-left: 20px; font-size: 0.9375rem; color: var(--text-secondary); }
+.coach-names li { overflow-wrap: anywhere; }
+.coach-sub { margin: 12px 0 4px; font-size: 0.9375rem; font-weight: 600; }
+.coach-json { margin-top: 8px; font-size: 0.8125rem; }
+.coach-json pre { max-height: 320px; overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); white-space: pre-wrap; overflow-wrap: anywhere; }
+.coach-summary { margin: 0; }
+.coach-question { display: flex; gap: 6px; align-items: flex-start; font-weight: 600; }
+.coach-question svg { flex: none; margin-top: 3px; color: var(--accent); }
+.coach-analysis { margin-top: 16px; }
+.coach-analysis .bill-head .btn-small { margin-left: auto; }
+.coach-answer { margin: 4px 0; }
+.coach-answer textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); color: var(--text-primary); font: inherit; resize: vertical; }
+.coach-answer .form-actions { align-items: center; margin-top: 4px; }
+.coach-general { margin: 8px 0; }
+.coach-older { margin-top: 12px; }
+.coach-older summary { cursor: pointer; color: var(--text-secondary); font-size: 0.875rem; }

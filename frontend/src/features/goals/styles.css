@@ -1,0 +1,8 @@
+/* Metas */
+.goal-status { display: flex; gap: 6px; align-items: flex-start; margin: 4px 0; font-size: 0.875rem; color: var(--text-primary); }
+.goal-status svg { flex: none; margin-top: 3px; }
+.goal-ok svg { color: var(--accent); }
+.goal-warning svg { color: var(--warning); }
+.goal-critical svg { color: var(--critical); }
+.goal-history { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0; padding: 0; list-style: none; font-size: 0.8125rem; color: var(--text-secondary); }
+.goal-history li { display: inline-flex; align-items: center; gap: 4px; }
