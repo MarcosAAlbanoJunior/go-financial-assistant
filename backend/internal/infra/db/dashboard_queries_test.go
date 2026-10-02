@@ -28,7 +28,7 @@ type seedEntry struct {
 	accountID *uuid.UUID
 }
 
-func seed(t *testing.T, repo *PostgresPurchaseRepository, pg *DB, e seedEntry) {
+func seed(t *testing.T, repo *testRepo, pg *DB, e seedEntry) {
 	t.Helper()
 	var (
 		p   *domain.Purchase

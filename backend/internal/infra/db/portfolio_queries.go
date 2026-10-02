@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *PostgresPurchaseRepository) Positions(ctx context.Context) ([]domain.Position, error) {
+func (r *PortfolioRepo) Positions(ctx context.Context) ([]domain.Position, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id, type, subtype, name, balance, amount, updated_at
 		FROM investments
@@ -30,7 +30,7 @@ func (r *PostgresPurchaseRepository) Positions(ctx context.Context) ([]domain.Po
 	return result, nil
 }
 
-func (r *PostgresPurchaseRepository) PortfolioHistory(ctx context.Context, from, to time.Time) ([]domain.PortfolioMonth, error) {
+func (r *PortfolioRepo) PortfolioHistory(ctx context.Context, from, to time.Time) ([]domain.PortfolioMonth, error) {
 	// A partir do mês da primeira sincronização o saldo é exato: soma do último saldo gravado de
 	// cada posição até o fim do mês (NULL se ainda não havia registro).
 	// Antes disso é estimado, por posição: saldo do primeiro registro menos o que foi aplicado

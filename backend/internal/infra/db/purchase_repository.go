@@ -56,15 +56,16 @@ func (m purchaseModel) toDomain() domain.Purchase {
 	}
 }
 
-type PostgresPurchaseRepository struct {
+// LedgerRepo guarda os lançamentos (compras e pagamentos), as contas e investimentos do Open Finance e as transferências próprias.
+type LedgerRepo struct {
 	db *DB
 }
 
 func NewPurchaseRepository(db *DB) ports.PurchaseRepository {
-	return &PostgresPurchaseRepository{db: db}
+	return &LedgerRepo{db: db}
 }
 
-func (r *PostgresPurchaseRepository) Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error {
+func (r *LedgerRepo) Save(ctx context.Context, purchase *domain.Purchase, payments []domain.Payment) error {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("erro ao iniciar transação: %w", err)
@@ -116,7 +117,7 @@ func insertPurchase(ctx context.Context, tx pgx.Tx, purchase *domain.Purchase) e
 	return nil
 }
 
-func (r *PostgresPurchaseRepository) Update(ctx context.Context, purchase *domain.Purchase) error {
+func (r *LedgerRepo) Update(ctx context.Context, purchase *domain.Purchase) error {
 	query := `
 		UPDATE purchases
 		SET is_active = $2, cancelled_at = $3, cancellation_reason = $4
@@ -131,7 +132,7 @@ func (r *PostgresPurchaseRepository) Update(ctx context.Context, purchase *domai
 	return nil
 }
 
-func (r *PostgresPurchaseRepository) FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error) {
+func (r *LedgerRepo) FindIncomeTotalByMonth(ctx context.Context, month time.Time) (float64, error) {
 	query := `
 		SELECT COALESCE(SUM(pay.amount), 0)
 		FROM payments pay
@@ -147,7 +148,7 @@ func (r *PostgresPurchaseRepository) FindIncomeTotalByMonth(ctx context.Context,
 	return total, nil
 }
 
-func (r *PostgresPurchaseRepository) FindTransferNetByMonth(ctx context.Context, month time.Time) (applied float64, redeemed float64, err error) {
+func (r *LedgerRepo) FindTransferNetByMonth(ctx context.Context, month time.Time) (applied float64, redeemed float64, err error) {
 	query := `
 		SELECT
 			COALESCE(SUM(CASE WHEN p.transfer_direction = 'OUT' THEN pay.amount ELSE 0 END), 0) AS applied,
@@ -164,7 +165,7 @@ func (r *PostgresPurchaseRepository) FindTransferNetByMonth(ctx context.Context,
 	return applied, redeemed, nil
 }
 
-func (r *PostgresPurchaseRepository) SavePayment(ctx context.Context, payment *domain.Payment) error {
+func (r *LedgerRepo) SavePayment(ctx context.Context, payment *domain.Payment) error {
 	query := `
 		INSERT INTO payments
 			(id, purchase_id, amount, status, installment_number, due_date, reference_month, paid_at, created_at)
