@@ -123,6 +123,7 @@ type PortfolioMonth struct {
 // no banco; um mês é identificado pelo seu primeiro dia.
 type DashboardReader interface {
 	BudgetReader
+	ReviewReader
 
 	// MonthlyTotals devolve uma linha por mês de from a to (inclusive), com zeros nos meses vazios.
 	MonthlyTotals(ctx context.Context, from, to time.Time) ([]MonthTotals, error)
@@ -183,4 +184,38 @@ type BudgetReader interface {
 	KnownInstallments(ctx context.Context, from, to time.Time) (map[time.Time]float64, error)
 	// SetExpenseRule grava a correção manual; class vazio apaga e volta à detecção automática.
 	SetExpenseRule(ctx context.Context, key string, class ExpenseClass) error
+}
+
+// CategoryMonth soma as despesas de uma categoria em um mês.
+type CategoryMonth struct {
+	Category string
+	Month    time.Time
+	Total    float64
+}
+
+// ExpensePayment é uma despesa individual, com a descrição normalizada em Key.
+type ExpensePayment struct {
+	Key           string
+	Label         string // descrição de exemplo, como veio do banco
+	Category      string
+	PaymentMethod string
+	Date          time.Time
+	Amount        float64
+}
+
+// Dismissal é uma sugestão da revisão que a pessoa dispensou.
+type Dismissal struct {
+	Kind string
+	Key  string
+}
+
+// ReviewReader lê e grava o que a tela de revisão precisa.
+type ReviewReader interface {
+	// CategoryMonths soma as despesas por categoria e mês, de from a to (primeiros dias dos meses).
+	CategoryMonths(ctx context.Context, from, to time.Time) ([]CategoryMonth, error)
+	// ExpensePayments devolve cada despesa dos meses de from a to (primeiros dias dos meses), da mais antiga para a mais nova.
+	ExpensePayments(ctx context.Context, from, to time.Time) ([]ExpensePayment, error)
+	Dismissals(ctx context.Context) ([]Dismissal, error)
+	// SetDismissal dispensa a sugestão; dismissed falso a traz de volta.
+	SetDismissal(ctx context.Context, d Dismissal, dismissed bool) error
 }
