@@ -47,16 +47,16 @@ func (uc *AnalyzeExpense) processQuery(ctx context.Context, analysis *ports.Expe
 
 	netInvested := applied - redeemed
 	return &ExpenseOutput{
-		Type:            "QUERY",
-		QueryMonth:      formatMonthPT(targetMonth),
-		QueryTotal:      total,
-		QueryCategories: categories,
-		QueryIncome:     incomeTotal,
-		QueryBalance:    incomeTotal - total,
-		QueryApplied:    applied,
-		QueryRedeemed:   redeemed,
+		Type:             "QUERY",
+		QueryMonth:       formatMonthPT(targetMonth),
+		QueryTotal:       total,
+		QueryCategories:  categories,
+		QueryIncome:      incomeTotal,
+		QueryBalance:     incomeTotal - total,
+		QueryApplied:     applied,
+		QueryRedeemed:    redeemed,
 		QueryNetInvested: netInvested,
-		QueryInAccount:  (incomeTotal - total) - netInvested,
+		QueryInAccount:   (incomeTotal - total) - netInvested,
 	}, nil
 }
 

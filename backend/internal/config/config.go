@@ -194,7 +194,7 @@ func loadOpenFinance(cfg *Config, errs *[]error) {
 	}
 
 	if cfg.PluggyClientID == "" || cfg.PluggyClientSecret == "" || itemsRaw == "" {
-		*errs = append(*errs, errors.New("Open Finance incompleto: PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET e PLUGGY_ITEM_IDS são obrigatórias juntas"))
+		*errs = append(*errs, errors.New("configuração do Open Finance incompleta: PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET e PLUGGY_ITEM_IDS são obrigatórias juntas"))
 		return
 	}
 

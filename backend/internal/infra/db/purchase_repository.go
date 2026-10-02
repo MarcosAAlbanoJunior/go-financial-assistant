@@ -56,18 +56,6 @@ func (m purchaseModel) toDomain() domain.Purchase {
 	}
 }
 
-type paymentModel struct {
-	ID                uuid.UUID  `db:"id"`
-	PurchaseID        uuid.UUID  `db:"purchase_id"`
-	Amount            float64    `db:"amount"`
-	Status            string     `db:"status"`
-	InstallmentNumber *int       `db:"installment_number"`
-	DueDate           *time.Time `db:"due_date"`
-	ReferenceMonth    *time.Time `db:"reference_month"`
-	PaidAt            *time.Time `db:"paid_at"`
-	CreatedAt         time.Time  `db:"created_at"`
-}
-
 type PostgresPurchaseRepository struct {
 	db *DB
 }
