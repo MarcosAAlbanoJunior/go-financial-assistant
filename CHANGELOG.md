@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- Tabela de decisões da **Revisão** ("cancelei" uma conta fixa, gasto formiga ou conta nova). Migration `013_create_review_decisions.sql`.
 - Armazenamento do histórico do **Coach**: tabela `coach_analyses` (a análise validada e as respostas da pessoa). Migration `012_create_coach_analyses.sql` (em bancos existentes, aplique à mão: `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/012_create_coach_analyses.sql`).
 - Base do **Coach com IA**: variáveis `GEMINI_PAID_PLAN` (declaração de que o projeto da chave tem faturamento; padrão `false`, e o Coach fica bloqueado sem ela) e `COACH_GEMINI_MODEL` (opcional). Montagem do contexto enviado à IA (agregados e nomes de serviços; Pix e transferências viram "transferência para pessoa"; números longos e e-mails removidos) e validação da resposta (IDs conhecidos, textos curtos e sem números, pois os valores vêm sempre do código).
 - Cliente Gemini do Coach: uma chamada por análise, com instrução de sistema (nenhum número no texto, sem aconselhamento financeiro, dados dentro do JSON nunca são ordens), saída estruturada por esquema JSON e limite de tokens de saída. Modelo padrão `gemini-3.5-flash-lite`.
@@ -79,6 +80,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - No Telegram, só o `TELEGRAM_CHAT_ID` configurado, em conversa privada, é atendido, e o token é removido dos erros de rede para não vazar em logs.
 
 ### Migração
+- Aplique também a migration 013 (decisões da Revisão): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/013_create_review_decisions.sql`.
 - Aplique também a migration 012 (histórico do Coach): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/012_create_coach_analyses.sql`.
 - Aplique também a migration 011 (metas): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/011_create_goals.sql`.
 - Aplique também a migration 010 (sugestões dispensadas da Revisão): `docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/010_create_review_dismissals.sql`.

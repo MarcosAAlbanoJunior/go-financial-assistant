@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ type fakeReader struct {
 	known          map[string]time.Time
 	ruleClass      ports.ExpenseClass
 	catMonths      []ports.CategoryMonth
+	decisions      []ports.Decision
 	analyses       []ports.CoachAnalysis
 	goals          []ports.Goal
 	created        []ports.Goal
@@ -163,6 +165,17 @@ func (f *fakeReader) DeleteCoachAnalysis(_ context.Context, id uuid.UUID) (bool,
 		}
 	}
 	return false, f.err
+}
+func (f *fakeReader) Decisions(context.Context) ([]ports.Decision, error) { return f.decisions, f.err }
+func (f *fakeReader) SetDecision(_ context.Context, d ports.Decision) error {
+	f.decisions = append(f.decisions, d)
+	f.dismissed = append(f.dismissed, ports.Dismissal{Kind: d.Kind, Key: d.Key})
+	return f.err
+}
+func (f *fakeReader) DeleteDecision(_ context.Context, kind, key string) error {
+	f.decisions = slices.DeleteFunc(f.decisions, func(d ports.Decision) bool { return d.Kind == kind && d.Key == key })
+	f.dismissed = slices.DeleteFunc(f.dismissed, func(d ports.Dismissal) bool { return d.Kind == kind && d.Key == key })
+	return f.err
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
 
