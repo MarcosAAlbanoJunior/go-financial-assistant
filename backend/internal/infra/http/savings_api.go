@@ -1,8 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
-	"mime"
 	"net/http"
 	"slices"
 	"time"
@@ -48,17 +46,16 @@ func (a *api) savings(w http.ResponseWriter, r *http.Request) {
 // setDecision registra (ou desfaz) o "cancelei" de uma sugestão. O servidor lê nome, categoria e custo mensal
 // da própria sugestão do mês: o cliente só diz qual é.
 func (a *api) setDecision(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	var body struct {
 		Kind    string `json:"kind"`
 		Key     string `json:"key"`
 		Month   string `json:"month"`
 		Decided *bool  `json:"decided"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRuleBody)).Decode(&body); err != nil || body.Decided == nil {
+	if !decodeJSON(w, r, maxRuleBody, &body) {
+		return
+	}
+	if body.Decided == nil {
 		writeError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
@@ -103,5 +100,5 @@ func (a *api) setDecision(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) registerSavings(rt routes) {
 	rt.mux.Handle("GET /api/savings", rt.protected(a.savings))
-	rt.mux.Handle("PUT /api/savings/decisions", rt.protected(a.setDecision))
+	rt.mux.Handle("PUT /api/savings/decisions", rt.protected(jsonOnly(a.setDecision)))
 }

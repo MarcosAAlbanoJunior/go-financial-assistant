@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"mime"
 	"net/http"
 	"slices"
 	"time"
@@ -82,16 +81,11 @@ func (a *api) categorize(w http.ResponseWriter, r *http.Request) {
 
 // setCategoryRule classifica uma conta: reclassifica as despesas dela que estavam em Outros e vale para as próximas.
 func (a *api) setCategoryRule(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	var body struct {
 		Key      string `json:"key"`
 		Category string `json:"category"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRuleBody)).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "corpo inválido")
+	if !decodeJSON(w, r, maxRuleBody, &body) {
 		return
 	}
 	if !ruleKeyRE.MatchString(body.Key) {
@@ -113,15 +107,10 @@ func (a *api) setCategoryRule(w http.ResponseWriter, r *http.Request) {
 // suggestCategories pede à IA categorias para as contas da prévia. Nada é gravado: a pessoa revisa e aplica.
 // Mesmas travas do Coach: plano pago declarado, só o que a prévia mostrou (hash) e uma análise por vez.
 func (a *api) suggestCategories(w http.ResponseWriter, r *http.Request) {
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" || !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "requisição não permitida")
-		return
-	}
 	var body struct {
 		Hash string `json:"hash"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCoachBody)).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "corpo inválido")
+	if !decodeJSON(w, r, maxCoachBody, &body) {
 		return
 	}
 	if !a.coach.enabled() {
@@ -168,6 +157,6 @@ func (a *api) suggestCategories(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) registerCategorize(rt routes) {
 	rt.mux.Handle("GET /api/categorize", rt.protected(a.categorize))
-	rt.mux.Handle("PUT /api/categorize/rules", rt.protected(a.setCategoryRule))
-	rt.mux.Handle("POST /api/categorize/suggest", newIPRateLimiter(3, time.Minute).middleware(rt.protected(a.suggestCategories)))
+	rt.mux.Handle("PUT /api/categorize/rules", rt.protected(jsonOnly(a.setCategoryRule)))
+	rt.mux.Handle("POST /api/categorize/suggest", newIPRateLimiter(3, time.Minute).middleware(rt.protected(jsonOnly(a.suggestCategories))))
 }

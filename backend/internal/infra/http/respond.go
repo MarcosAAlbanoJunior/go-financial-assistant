@@ -26,3 +26,24 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
+
+// apiError é um erro que já sabe o status e a mensagem a devolver ao cliente (validação do corpo, regra de negócio).
+// Qualquer outro erro vira 500 genérico em respondErr, sem vazar detalhes internos.
+type apiError struct {
+	status int
+	msg    string
+}
+
+func (e *apiError) Error() string { return e.msg }
+
+func badRequest(msg string) *apiError { return &apiError{http.StatusBadRequest, msg} }
+
+// respondErr responde um apiError como ele é e qualquer outro erro como falha interna (registrada no log).
+func (a *api) respondErr(w http.ResponseWriter, what string, err error) {
+	var ae *apiError
+	if errors.As(err, &ae) {
+		writeError(w, ae.status, ae.msg)
+		return
+	}
+	a.fail(w, what, err)
+}
