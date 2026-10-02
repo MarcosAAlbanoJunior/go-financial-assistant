@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"context"
@@ -67,7 +67,7 @@ func TestExecuteText_AmountNil(t *testing.T) {
 }
 
 func TestExecuteText_RepoSaveError(t *testing.T) {
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, _ *domain.Purchase, _ []domain.Payment) error {
 			return errors.New("db down")
 		},
@@ -163,7 +163,7 @@ func TestExecuteImage_RawInputFormat(t *testing.T) {
 	analysis.Description = nil
 
 	var capturedRawInput string
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, p *domain.Purchase, _ []domain.Payment) error {
 			capturedRawInput = p.RawInput
 			return nil

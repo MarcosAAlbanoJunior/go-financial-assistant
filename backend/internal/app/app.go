@@ -9,6 +9,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/config"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/db"
@@ -32,10 +36,10 @@ type app struct {
 
 	gemini         *gemini.Client
 	ledger         ports.PurchaseRepository
-	analyzeExpense *usecase.AnalyzeExpense
-	exportCSV      *usecase.ExportCSV
+	analyzeExpense *ledger.AnalyzeExpense
+	exportCSV      *ledger.ExportCSV
 	insights       *usecase.Insights
-	syncer         *usecase.SyncOpenFinance
+	syncer         *openfinance.SyncOpenFinance
 	server         *httpserver.Server
 	settingsDeps   *httpserver.SettingsDeps
 }
@@ -87,8 +91,8 @@ func (a *app) buildServices() error {
 	a.settings.OnChange(func() { a.gemini.SetCoachModel(a.settings.Get("COACH_GEMINI_MODEL")) })
 
 	a.ledger = db.NewPurchaseRepository(a.db)
-	a.analyzeExpense = usecase.NewAnalyzeExpense(a.ledger, a.gemini, a.logger)
-	a.exportCSV = usecase.NewExportCSV(a.ledger)
+	a.analyzeExpense = ledger.NewAnalyzeExpense(a.ledger, a.gemini, a.logger)
+	a.exportCSV = ledger.NewExportCSV(a.ledger)
 	a.insights = usecase.NewInsights(db.NewDashboardReader(a.db))
 
 	if err := a.analyzeExpense.GenerateRecurringExpenses(a.ctx); err != nil {

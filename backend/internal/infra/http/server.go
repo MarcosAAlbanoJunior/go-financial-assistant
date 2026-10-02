@@ -9,10 +9,11 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 // WhatsAppConfig reúne o que as rotas do canal WhatsApp (Evolution API) precisam.
@@ -66,7 +67,7 @@ func NewServer(port int, logger *slog.Logger) *Server {
 
 // MountWhatsApp registra o webhook da Evolution API e o endpoint de QR code.
 // syncer pode ser nil quando o Open Finance não está configurado.
-func (s *Server) MountWhatsApp(cfg WhatsAppConfig, client EvolutionClient, analyzeExpense usecase.ExpenseAnalyzer, csvExporter usecase.CSVExporter, syncer chat.Syncer) {
+func (s *Server) MountWhatsApp(cfg WhatsAppConfig, client EvolutionClient, analyzeExpense ledger.ExpenseAnalyzer, csvExporter ledger.CSVExporter, syncer chat.Syncer) {
 	handler := newWebhookHandler(cfg, client, analyzeExpense, csvExporter, s.logger)
 	handler.chat.SetSyncer(syncer)
 	qrHandler := &qrcodeHandler{secret: cfg.AdminSecret, qrProvider: client}

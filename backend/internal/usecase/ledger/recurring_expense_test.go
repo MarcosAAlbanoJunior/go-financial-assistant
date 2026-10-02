@@ -1,4 +1,4 @@
-package usecase
+package ledger
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func TestExecuteText_Recurring_Success(t *testing.T) {
 
 	var savedPurchase *domain.Purchase
 	var savedPayments []domain.Payment
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, p *domain.Purchase, pmts []domain.Payment) error {
 			savedPurchase = p
 			savedPayments = pmts
@@ -74,7 +74,7 @@ func TestExecuteText_Recurring_GeneratesFirstPayment(t *testing.T) {
 	}
 
 	var savedPayments []domain.Payment
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, _ *domain.Purchase, pmts []domain.Payment) error {
 			savedPayments = pmts
 			return nil
@@ -127,7 +127,7 @@ func TestExecuteText_Recurring_DefaultDayOfMonth(t *testing.T) {
 	}
 
 	var savedPurchase *domain.Purchase
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		saveFn: func(_ context.Context, p *domain.Purchase, _ []domain.Payment) error {
 			savedPurchase = p
 			return nil
@@ -172,7 +172,7 @@ func TestExecuteText_CancelRecurring_Success(t *testing.T) {
 	}
 
 	var updated *domain.Purchase
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findByDescriptionFn: func(_ context.Context, _ string) ([]domain.Purchase, error) {
 			return []domain.Purchase{existing}, nil
 		},
@@ -216,7 +216,7 @@ func TestExecuteText_CancelRecurring_NotFound(t *testing.T) {
 		CancelInfo: &ports.CancelInfo{Description: "ServicoInexistente"},
 	}
 
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findByDescriptionFn: func(_ context.Context, _ string) ([]domain.Purchase, error) {
 			return []domain.Purchase{}, nil
 		},
@@ -267,7 +267,7 @@ func TestExecuteText_CancelRecurring_UsesDescriptionFieldAsFallback(t *testing.T
 		RawInput:      "Spotify todo mês",
 	}
 
-	repo := &mockPurchaseRepo{
+	repo := &mockLedger{
 		findByDescriptionFn: func(_ context.Context, _ string) ([]domain.Purchase, error) {
 			return []domain.Purchase{existing}, nil
 		},

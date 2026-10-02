@@ -1,4 +1,4 @@
-package usecase
+package openfinance
 
 import (
 	"context"
@@ -48,14 +48,14 @@ func extTx(id string, kind domain.PurchaseKind) ports.ExternalTransaction {
 	}
 }
 
-func newSync(repo *mockPurchaseRepo, p *mockProvider, items ...string) *SyncOpenFinance {
+func newSync(repo *mockStore, p *mockProvider, items ...string) *SyncOpenFinance {
 	return NewSyncOpenFinance(repo, p, items, 60, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func TestSync_InsertsNewTransactions(t *testing.T) {
 	var purchases []*domain.Purchase
 	var payments []*domain.Payment
-	repo := &mockPurchaseRepo{saveExternalFn: func(_ context.Context, pu *domain.Purchase, pa *domain.Payment) error {
+	repo := &mockStore{saveExternalFn: func(_ context.Context, pu *domain.Purchase, pa *domain.Payment) error {
 		purchases, payments = append(purchases, pu), append(payments, pa)
 		return nil
 	}}
@@ -87,7 +87,7 @@ func TestSync_InsertsNewTransactions(t *testing.T) {
 
 func TestSync_PendingCardTransactionStaysPending(t *testing.T) {
 	var got *domain.Payment
-	repo := &mockPurchaseRepo{saveExternalFn: func(_ context.Context, _ *domain.Purchase, pa *domain.Payment) error { got = pa; return nil }}
+	repo := &mockStore{saveExternalFn: func(_ context.Context, _ *domain.Purchase, pa *domain.Payment) error { got = pa; return nil }}
 	tx := extTx("t1", domain.KindExpense)
 	tx.Pending = true
 	prov := &mockProvider{byItem: map[string][]ports.ExternalTransaction{"item": {tx}}}
@@ -100,7 +100,7 @@ func TestSync_PendingCardTransactionStaysPending(t *testing.T) {
 
 func TestSync_IsIdempotent(t *testing.T) {
 	saved := 0
-	repo := &mockPurchaseRepo{
+	repo := &mockStore{
 		refreshExternalFn: func(context.Context, ports.ExternalTransaction, uuid.UUID) (bool, error) { return true, nil },
 		saveExternalFn:    func(context.Context, *domain.Purchase, *domain.Payment) error { saved++; return nil },
 	}
@@ -114,7 +114,7 @@ func TestSync_IsIdempotent(t *testing.T) {
 
 func TestSync_ReconcilesWithManualEntry(t *testing.T) {
 	saved := 0
-	repo := &mockPurchaseRepo{
+	repo := &mockStore{
 		reconcileExternalFn: func(context.Context, ports.ExternalTransaction, uuid.UUID) (bool, error) { return true, nil },
 		saveExternalFn:      func(context.Context, *domain.Purchase, *domain.Payment) error { saved++; return nil },
 	}
@@ -127,7 +127,7 @@ func TestSync_ReconcilesWithManualEntry(t *testing.T) {
 }
 
 func TestSync_FailingItemDoesNotStopOthers(t *testing.T) {
-	repo := &mockPurchaseRepo{}
+	repo := &mockStore{}
 	prov := &mockProvider{
 		byItem: map[string][]ports.ExternalTransaction{"ok": {extTx("t1", domain.KindExpense)}},
 		errs:   map[string]error{"bad": errors.New("pluggy fora do ar")},
@@ -144,7 +144,7 @@ func TestSync_FailingItemDoesNotStopOthers(t *testing.T) {
 
 func TestSync_FailingTransactionDoesNotStopOthers(t *testing.T) {
 	calls := 0
-	repo := &mockPurchaseRepo{saveExternalFn: func(context.Context, *domain.Purchase, *domain.Payment) error {
+	repo := &mockStore{saveExternalFn: func(context.Context, *domain.Purchase, *domain.Payment) error {
 		calls++
 		if calls == 1 {
 			return errors.New("db error")
@@ -161,7 +161,7 @@ func TestSync_FailingTransactionDoesNotStopOthers(t *testing.T) {
 
 func TestSync_RejectsConcurrentRuns(t *testing.T) {
 	prov := &mockProvider{block: make(chan struct{})}
-	s := newSync(&mockPurchaseRepo{}, prov, "item")
+	s := newSync(&mockStore{}, prov, "item")
 
 	done := make(chan struct{})
 	go func() { s.Sync(context.Background()); close(done) }()
@@ -179,7 +179,7 @@ func TestSync_LinksPaymentToAccount(t *testing.T) {
 	var upserted ports.ExternalAccount
 	var saved *domain.Payment
 	var linkedTo, reconciledTo uuid.UUID
-	repo := &mockPurchaseRepo{
+	repo := &mockStore{
 		upsertAccountFn: func(_ context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
 			upserted = a
 			return accountID, nil
@@ -212,7 +212,7 @@ func TestSync_LinksPaymentToAccount(t *testing.T) {
 
 func TestSync_AccountFailureSkipsItsTransactions(t *testing.T) {
 	saved := 0
-	repo := &mockPurchaseRepo{
+	repo := &mockStore{
 		upsertAccountFn: func(context.Context, ports.ExternalAccount) (uuid.UUID, error) {
 			return uuid.Nil, errors.New("db error")
 		},
@@ -228,7 +228,7 @@ func TestSync_AccountFailureSkipsItsTransactions(t *testing.T) {
 func TestSync_SavesInvestmentsIndependentlyOfTransactions(t *testing.T) {
 	var gotItem string
 	var gotPositions []ports.ExternalInvestment
-	repo := &mockPurchaseRepo{saveInvestmentsFn: func(_ context.Context, item string, p []ports.ExternalInvestment, _ time.Time) error {
+	repo := &mockStore{saveInvestmentsFn: func(_ context.Context, item string, p []ports.ExternalInvestment, _ time.Time) error {
 		gotItem, gotPositions = item, p
 		return nil
 	}}
@@ -248,7 +248,7 @@ func TestSync_SavesInvestmentsIndependentlyOfTransactions(t *testing.T) {
 
 func TestSync_InvestmentFailureIsNotAnError(t *testing.T) {
 	saved := false
-	repo := &mockPurchaseRepo{saveInvestmentsFn: func(context.Context, string, []ports.ExternalInvestment, time.Time) error {
+	repo := &mockStore{saveInvestmentsFn: func(context.Context, string, []ports.ExternalInvestment, time.Time) error {
 		saved = true
 		return nil
 	}}
@@ -279,7 +279,7 @@ func TestSync_SavesInstitutionAndLogo(t *testing.T) {
 	instID := uuid.New()
 	var linked *uuid.UUID
 	var savedLogo []byte
-	repo := &mockPurchaseRepo{
+	repo := &mockStore{
 		upsertInstitutionFn: func(context.Context, string, ports.ExternalInstitution) (uuid.UUID, bool, error) {
 			return instID, true, nil
 		},
@@ -307,7 +307,7 @@ func TestSync_SavesInstitutionAndLogo(t *testing.T) {
 func TestSync_LogoFailureDoesNotBreakSync(t *testing.T) {
 	var saved bool
 	var savedData []byte
-	repo := &mockPurchaseRepo{
+	repo := &mockStore{
 		upsertInstitutionFn: func(context.Context, string, ports.ExternalInstitution) (uuid.UUID, bool, error) {
 			return uuid.New(), true, nil
 		},
@@ -330,7 +330,7 @@ func TestSync_LogoFailureDoesNotBreakSync(t *testing.T) {
 }
 
 func TestSync_SkipsLogoWhenNotNeeded(t *testing.T) {
-	repo := &mockPurchaseRepo{} // needsLogo = false
+	repo := &mockStore{} // needsLogo = false
 	logos := &mockLogos{}
 	prov := &mockProvider{institution: &ports.ExternalInstitution{Name: "Banco", ImageURL: "https://x/y.png"}}
 	s := newSync(repo, prov, "item")
@@ -342,7 +342,7 @@ func TestSync_SkipsLogoWhenNotNeeded(t *testing.T) {
 
 func TestSync_InstitutionErrorIsNotFatal(t *testing.T) {
 	var got *uuid.UUID
-	repo := &mockPurchaseRepo{
+	repo := &mockStore{
 		upsertInstitutionFn: func(context.Context, string, ports.ExternalInstitution) (uuid.UUID, bool, error) {
 			return uuid.Nil, false, errors.New("db")
 		},
@@ -358,7 +358,7 @@ func TestSync_InstitutionErrorIsNotFatal(t *testing.T) {
 }
 
 func TestSync_NotConfiguredUntilItemsAreSet(t *testing.T) {
-	s := newSync(&mockPurchaseRepo{}, &mockProvider{}) // sem itens
+	s := newSync(&mockStore{}, &mockProvider{}) // sem itens
 	if _, err := s.Sync(context.Background()); !errors.Is(err, ErrNotConfigured) {
 		t.Fatalf("esperava ErrNotConfigured, got %v", err)
 	}
@@ -371,7 +371,7 @@ func TestSync_NotConfiguredUntilItemsAreSet(t *testing.T) {
 // Com o relógio fixo, a janela da sincronização é exata (sem depender da hora em que o teste roda).
 func TestSync_WindowFollowsClock(t *testing.T) {
 	prov := &mockProvider{}
-	s := newSync(&mockPurchaseRepo{}, prov, "item")
+	s := newSync(&mockStore{}, prov, "item")
 	s.SetClock(domain.FixedClock{T: time.Date(2026, 10, 2, 15, 0, 0, 0, time.UTC)})
 	if _, err := s.Sync(context.Background()); err != nil {
 		t.Fatal(err)

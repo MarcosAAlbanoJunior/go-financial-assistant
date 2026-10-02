@@ -3,15 +3,16 @@ package app
 import (
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/logo"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/pluggy"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 // startSync liga o Open Finance, que se liga e desliga com o app rodando: sem credenciais a sincronização apenas espera.
 func (a *app) startSync() error {
 	client := pluggy.NewClient(a.cfg.PluggyClientID, a.cfg.PluggyClientSecret)
-	a.syncer = usecase.NewSyncOpenFinance(a.ledger, client, nil, a.cfg.OpenFinanceLookbackDays, a.logger)
+	a.syncer = openfinance.NewSyncOpenFinance(a.ledger, client, nil, a.cfg.OpenFinanceLookbackDays, a.logger)
 	a.syncer.SetLogoFetcher(logo.New())
 	go a.runSync(client, a.onChange())
 	return nil

@@ -10,34 +10,34 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
 )
 
 type mockAnalyzer struct {
-	executeTextFn     func(ctx context.Context, input usecase.TextInput) (*usecase.ExpenseOutput, error)
-	executeImageFn    func(ctx context.Context, input usecase.ImageInput) (*usecase.ExpenseOutput, error)
-	executeDocumentFn func(ctx context.Context, input usecase.DocumentInput) (*usecase.StatementOutput, error)
+	executeTextFn     func(ctx context.Context, input ledger.TextInput) (*ledger.ExpenseOutput, error)
+	executeImageFn    func(ctx context.Context, input ledger.ImageInput) (*ledger.ExpenseOutput, error)
+	executeDocumentFn func(ctx context.Context, input ledger.DocumentInput) (*ledger.StatementOutput, error)
 }
 
-func (m *mockAnalyzer) ExecuteText(ctx context.Context, input usecase.TextInput) (*usecase.ExpenseOutput, error) {
+func (m *mockAnalyzer) ExecuteText(ctx context.Context, input ledger.TextInput) (*ledger.ExpenseOutput, error) {
 	if m.executeTextFn != nil {
 		return m.executeTextFn(ctx, input)
 	}
 	return defaultOutput(), nil
 }
 
-func (m *mockAnalyzer) ExecuteImage(ctx context.Context, input usecase.ImageInput) (*usecase.ExpenseOutput, error) {
+func (m *mockAnalyzer) ExecuteImage(ctx context.Context, input ledger.ImageInput) (*ledger.ExpenseOutput, error) {
 	return m.executeImageFn(ctx, input)
 }
 
-func (m *mockAnalyzer) ExecuteDocument(ctx context.Context, input usecase.DocumentInput) (*usecase.StatementOutput, error) {
+func (m *mockAnalyzer) ExecuteDocument(ctx context.Context, input ledger.DocumentInput) (*ledger.StatementOutput, error) {
 	if m.executeDocumentFn != nil {
 		return m.executeDocumentFn(ctx, input)
 	}
-	return &usecase.StatementOutput{}, nil
+	return &ledger.StatementOutput{}, nil
 }
 
-func (m *mockAnalyzer) SavePendingTransaction(ctx context.Context, tx usecase.PendingTransaction) error {
+func (m *mockAnalyzer) SavePendingTransaction(ctx context.Context, tx ledger.PendingTransaction) error {
 	return nil
 }
 
@@ -73,10 +73,10 @@ func (m *mockMessenger) FetchConnectionState(context.Context) (string, error) { 
 func (m *mockMessenger) FetchConnectCode(context.Context) (string, string, error) { return "", "", nil }
 
 type mockCSVExporter struct {
-	executeFn func(ctx context.Context, month time.Time) ([]byte, string, *usecase.ExportSummary, error)
+	executeFn func(ctx context.Context, month time.Time) ([]byte, string, *ledger.ExportSummary, error)
 }
 
-func (m *mockCSVExporter) Execute(ctx context.Context, month time.Time) ([]byte, string, *usecase.ExportSummary, error) {
+func (m *mockCSVExporter) Execute(ctx context.Context, month time.Time) ([]byte, string, *ledger.ExportSummary, error) {
 	if m.executeFn != nil {
 		return m.executeFn(ctx, month)
 	}
@@ -85,15 +85,15 @@ func (m *mockCSVExporter) Execute(ctx context.Context, month time.Time) ([]byte,
 
 var silentLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
-func defaultOutput() *usecase.ExpenseOutput {
-	return &usecase.ExpenseOutput{
+func defaultOutput() *ledger.ExpenseOutput {
+	return &ledger.ExpenseOutput{
 		ID: "uuid-1", Amount: 50.0, Description: "Almoço",
 		Category: "FOOD", Payment: "PIX", Confidence: 0.95,
 	}
 }
 
-func newHandler(analyzer usecase.ExpenseAnalyzer, messenger *mockMessenger, exporters ...usecase.CSVExporter) *webhookHandler {
-	var exporter usecase.CSVExporter = &mockCSVExporter{}
+func newHandler(analyzer ledger.ExpenseAnalyzer, messenger *mockMessenger, exporters ...ledger.CSVExporter) *webhookHandler {
+	var exporter ledger.CSVExporter = &mockCSVExporter{}
 	if len(exporters) > 0 && exporters[0] != nil {
 		exporter = exporters[0]
 	}
