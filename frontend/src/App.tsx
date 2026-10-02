@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Accounts from './pages/Accounts'
 import Budget from './pages/Budget'
 import Coach from './pages/Coach'
+import Categorize from './pages/Categorize'
 import Compare from './pages/Compare'
 import Goals from './pages/Goals'
 import Investments from './pages/Investments'
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/metas" element={<Goals />} />
         <Route path="/coach" element={<Coach />} />
         <Route path="/gastos" element={<Spending />} />
+        <Route path="/classificar" element={<Categorize />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
