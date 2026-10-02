@@ -6,9 +6,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/insights"
+
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
 )
 
 // api serve as rotas JSON de leitura do dashboard sob /api.
@@ -18,7 +19,7 @@ type api struct {
 	logger   *slog.Logger
 	now      func() time.Time
 	coach    *coachService
-	insights *usecase.Insights
+	insights *insights.Insights
 	syncer   chat.Syncer   // nil sem Open Finance
 	settings *SettingsDeps // nil sem a página de configurações
 
@@ -36,7 +37,7 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	if err != nil {
 		return err
 	}
-	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: usecase.NewInsights(reader), syncer: s.syncer, settings: s.settings}
+	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: insights.NewInsights(reader), syncer: s.syncer, settings: s.settings}
 
 	// Login com limite apertado contra tentativa de força bruta; o restante, mais folgado.
 	loginLimiter := newIPRateLimiter(5, time.Minute)

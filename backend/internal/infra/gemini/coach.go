@@ -172,7 +172,7 @@ func (c *Client) Categorize(ctx context.Context, contextJSON []byte) ([]ports.Ca
 	return parseCategorizeResponse(resp)
 }
 
-// CategorizeEnum são as categorias que a IA pode devolver (as mesmas de usecase.AICategories).
+// CategorizeEnum são as categorias que a IA pode devolver (as mesmas de coach.AICategories).
 var CategorizeEnum = []string{"FOOD", "MARKET", "TRANSPORT", "HEALTH", "ENTERTAINMENT", "SHOPPING", "HOUSING", "BILLS", "EDUCATION"}
 
 func parseCategorizeResponse(resp *genai.GenerateContentResponse) ([]ports.CategorySuggestion, error) {
