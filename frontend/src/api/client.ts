@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Budget, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Budget, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -124,3 +124,14 @@ export const setDismissal = (kind: ReviewKind, key: string, dismissed: boolean) 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, key, dismissed }),
   })
+
+export const useGoals = () => useQuery({ queryKey: ['goals'], queryFn: () => request<Goals>('/api/goals') })
+
+export const createGoal = (input: GoalInput) =>
+  request('/api/goals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+
+export const deleteGoal = (id: string) => request(`/api/goals/${encodeURIComponent(id)}`, { method: 'DELETE' })
