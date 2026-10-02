@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Budget, CoachPreview, CoachResult, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Budget, CoachAnalysis, CoachPreview, Goals, GoalInput, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -143,10 +143,26 @@ export const useCoachPreview = (month: string) =>
     queryFn: () => request<CoachPreview>(`/api/coach/preview?month=${month}`),
   })
 
-/** Envia ao Gemini o contexto da prévia (o hash garante que é o que a pessoa viu). */
+/** Envia ao Gemini o contexto da prévia (o hash garante que é o que a pessoa viu); a análise já volta gravada. */
 export const analyzeCoach = (month: string, hash: string) =>
-  request<CoachResult>('/api/coach/analyze', {
+  request<CoachAnalysis>('/api/coach/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ month, hash }),
   })
+
+export const useCoachAnalyses = (month: string) =>
+  useQuery({
+    queryKey: ['coach-analyses', month],
+    queryFn: () => request<CoachAnalysis[]>(`/api/coach/analyses?month=${month}`),
+  })
+
+/** Grava a resposta a uma pergunta da IA; vazia, apaga. */
+export const setCoachAnswer = (id: string, key: string, answer: string) =>
+  request(`/api/coach/analyses/${encodeURIComponent(id)}/answers`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, answer }),
+  })
+
+export const deleteCoachAnalysis = (id: string) => request(`/api/coach/analyses/${encodeURIComponent(id)}`, { method: 'DELETE' })
