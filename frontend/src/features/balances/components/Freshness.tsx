@@ -1,5 +1,5 @@
 import { TriangleAlert } from 'lucide-react'
-import { freshnessText } from '../lib/balances'
+import { freshnessText } from '../../../shared/lib/format'
 
 /** Horário da última atualização; "desatualizado" com ícone e texto (nunca só cor). */
 export function Freshness({ updatedAt, stale, now }: { updatedAt: string; stale: boolean; now: Date }) {

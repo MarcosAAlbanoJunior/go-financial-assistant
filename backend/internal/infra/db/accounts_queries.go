@@ -34,14 +34,14 @@ func (r *AccountsRepo) Accounts(ctx context.Context) ([]domain.Account, error) {
 
 func (r *AccountsRepo) Institutions(ctx context.Context) ([]domain.Institution, error) {
 	rows, err := r.db.Pool.Query(ctx, `
-		SELECT id, item_id, name, COALESCE(color, ''), logo IS NOT NULL FROM institutions ORDER BY name
+		SELECT id, item_id, name, COALESCE(color, ''), logo IS NOT NULL, source_updated_at FROM institutions ORDER BY name
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao listar instituições: %w", err)
 	}
 	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.Institution, error) {
 		var i domain.Institution
-		err := row.Scan(&i.ID, &i.ItemID, &i.Name, &i.Color, &i.HasLogo)
+		err := row.Scan(&i.ID, &i.ItemID, &i.Name, &i.Color, &i.HasLogo, &i.SourceUpdatedAt)
 		return i, err
 	})
 	if err != nil {

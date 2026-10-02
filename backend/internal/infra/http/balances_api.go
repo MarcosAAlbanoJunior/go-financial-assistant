@@ -16,6 +16,22 @@ import (
 // syncTimeout dá folga para vários itens do Pluggy; a sincronização não é cortada se a aba for fechada no meio.
 const syncTimeout = 5 * time.Minute
 
+// oldestSourceUpdate é a atualização mais antiga, entre os bancos, que o Pluggy informou (nil se nenhuma). É a idade real dos
+// dados: sincronizar copia o que o Pluggy já tem, e o Meu Pluggy só busca no banco sozinho (cerca de 1x/dia) ou a pedido.
+func (a *api) oldestSourceUpdate(ctx context.Context) *time.Time {
+	insts, err := a.reader.Institutions(ctx)
+	if err != nil {
+		return nil
+	}
+	var oldest *time.Time
+	for _, in := range insts {
+		if in.SourceUpdatedAt != nil && (oldest == nil || in.SourceUpdatedAt.Before(*oldest)) {
+			oldest = in.SourceUpdatedAt
+		}
+	}
+	return oldest
+}
+
 type balanceAccountJSON struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
@@ -158,7 +174,7 @@ func (a *api) syncNow(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"inserted": result.Inserted, "reconciled": result.Reconciled, "existing": result.Existing, "positions": result.Positions,
-		"partial": err != nil,
+		"partial": err != nil, "dataAsOf": a.oldestSourceUpdate(r.Context()),
 	})
 }
 

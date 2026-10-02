@@ -68,7 +68,7 @@ O progresso é calculado na hora. Patrimônio = saldo das contas correntes + inv
 
 - **Total em conta** = soma do saldo das contas `BANK` (negativo entra com sinal). **Participação** do banco = saldo ÷ soma dos saldos positivos (banco negativo não ganha fatia).
 - **Cartão** (nunca somado entre cartões): o valor mostrado é o **saldo devedor** informado pelo banco = limite usado (inclui parcelas futuras; não é a fatura aberta, que o Open Finance não expõe). Uso do limite: ≥ 70% atenção, ≥ 90% crítico. Vencimento em até 3 dias: atenção; data já passada não alerta (o banco mantém o vencimento da fatura paga).
-- **Desatualizado**: mais de 36 h sem atualizar.
+- **Desatualizado**: mais de 36 h desde a última atualização *do Pluggy* (`lastUpdatedAt` do item), não desde a última cópia do app. O Meu Pluggy não permite forçar a atualização pela API; ela acontece sozinha (cerca de 1x/dia) ou a pedido em meu.pluggy.ai.
 - O "aplicado automaticamente" do banco só aparece se for diferente do saldo.
 - O nome e a cor do banco vêm do conector; no Meu Pluggy o conector é sempre o agregador, então vêm do nome das contas (tabela de bancos conhecidos).
 

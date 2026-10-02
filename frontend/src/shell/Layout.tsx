@@ -24,6 +24,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router'
 import { useTheme } from '../shared/lib/theme'
 import { logout } from '../features/auth/api'
+import { SyncControl } from '../shared/components/SyncControl'
 
 interface Item {
   to: string
@@ -89,6 +90,9 @@ export function Layout({ children }: { children: ReactNode }) {
           <Menu size={22} aria-hidden="true" />
         </button>
         <span className="brand">FinAssist</span>
+        <span className="mobilebar-end">
+          <SyncControl compact />
+        </span>
       </header>
 
       {open && <div className="scrim" onClick={() => setOpen(false)} aria-hidden="true" />}
@@ -100,6 +104,8 @@ export function Layout({ children }: { children: ReactNode }) {
             <X size={20} aria-hidden="true" />
           </button>
         </div>
+
+        <SyncControl />
 
         <nav aria-label="Principal" className="side-nav">
           {SECTIONS.map((section, i) => (

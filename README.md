@@ -147,7 +147,7 @@ COMPOSE_PROFILES=whatsapp
 
 Sem isso, `docker compose up` não sobe a Evolution API e o app ficará aguardando por ela. Além disso, as portas do Postgres e do Redis passaram a escutar apenas em `127.0.0.1`.
 
-**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach), a `013` (decisões "cancelei" da Revisão) a `014` (regras de categoria), a `016` e a `017` (configurações salvas no dashboard e o histórico delas) e a `015` (bancos, logos e dados dos cartões; depois, rode uma sincronização):
+**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach), a `013` (decisões "cancelei" da Revisão) a `014` (regras de categoria), a `016` e a `017` (configurações salvas no dashboard e o histórico delas), e a `018` (data de atualização dos dados do banco) e a `015` (bancos, logos e dados dos cartões; depois, rode uma sincronização):
 
 ```bash
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/010_create_review_dismissals.sql
@@ -158,6 +158,7 @@ docker compose exec -T postgres psql -U finassist -d finassist < backend/migrati
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/015_create_institutions.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/016_create_settings.sql
 docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/017_create_settings_audit.sql
+docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/018_institution_source_updated_at.sql
 ```
 
 ### 5. Open Finance (opcional)
