@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"context"
 	"encoding/json"
 	"mime"
 	"net/http"
@@ -25,8 +24,6 @@ const (
 	maxGoalYears     = 10
 	maxReserveMonths = 36
 	maxCutPercent    = 90
-	// A projeção usada nas metas vai até onde as parcelas conhecidas costumam chegar.
-	goalProjectionMonths = 24
 )
 
 // cutCategories são as categorias de despesa que aceitam meta de redução.
@@ -37,50 +34,10 @@ func (a *api) monthStart() time.Time {
 	return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 }
 
-// goalProgress calcula o andamento de todas as metas agora, e o patrimônio (contas correntes + investimentos).
-func (a *api) goalProgress(ctx context.Context) ([]usecase.GoalProgress, float64, error) {
-	now := a.monthStart()
-	goals, err := a.reader.Goals(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-	accounts, err := a.reader.Accounts(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-	positions, err := a.reader.Positions(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-	proj, err := a.buildProjection(ctx, now, goalProjectionMonths)
-	if err != nil {
-		return nil, 0, err
-	}
-	var cats []ports.CategoryMonth
-	if slices.ContainsFunc(goals, func(g ports.Goal) bool { return g.Kind == ports.GoalCut }) {
-		if cats, err = a.reader.CategoryMonths(ctx, now.AddDate(0, -11, 0), now); err != nil {
-			return nil, 0, err
-		}
-	}
-
-	var wealth float64
-	if bank := bankBalance(accounts); bank != nil {
-		wealth = *bank
-	}
-	for _, p := range positions {
-		wealth += p.Balance
-	}
-	out := make([]usecase.GoalProgress, len(goals))
-	for i, g := range goals {
-		out[i] = usecase.BuildGoalProgress(g, wealth, proj, cats, a.now().UTC())
-	}
-	return out, wealth, nil
-}
-
 // goals: as metas com o andamento calculado agora: patrimônio (contas correntes + investimentos),
 // projeção e gastos por categoria.
 func (a *api) goals(w http.ResponseWriter, r *http.Request) {
-	goals, wealth, err := a.goalProgress(r.Context())
+	goals, wealth, err := a.insights.Goals(r.Context(), a.now())
 	if err != nil {
 		a.fail(w, "metas", err)
 		return
