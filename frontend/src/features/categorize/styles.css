@@ -1,0 +1,8 @@
+/* Classificar */
+.classify-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.classify-row { display: grid; grid-template-columns: 1fr minmax(150px, 220px) auto; gap: 12px; align-items: center; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.classify-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.classify-row select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-primary); }
+.classify-row .btn-small { margin-left: 0; }
+@media (max-width: 640px) { .classify-row { grid-template-columns: 1fr; } }
+.classify-name .badge { align-self: flex-start; margin-left: 0; }
