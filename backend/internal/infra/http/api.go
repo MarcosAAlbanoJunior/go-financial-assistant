@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -42,6 +41,7 @@ type api struct {
 	logger   *slog.Logger
 	now      func() time.Time
 	coach    *coachService
+	insights *usecase.Insights
 }
 
 // MountAPI registra a API do dashboard. Tudo, exceto o login, exige sessão.
@@ -54,7 +54,7 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	if err != nil {
 		return err
 	}
-	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid)}
+	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: usecase.NewInsights(reader)}
 
 	// Login com limite apertado contra tentativa de força bruta; o restante, mais folgado.
 	loginLimiter := newIPRateLimiter(5, time.Minute)
@@ -156,25 +156,10 @@ func (a *api) summary(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, "resumo", err)
 		return
 	}
-	bank := bankBalance(accounts)
+	bank := usecase.BankBalance(accounts)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"month": formatMonth(month), "current": toTotalsJSON(totals[1]), "previous": toTotalsJSON(totals[0]), "bankBalance": bank,
 	})
-}
-
-// bankBalance soma o saldo das contas correntes; nil quando não há conta sincronizada ("em conta" é desconhecido, não zero).
-func bankBalance(accounts []ports.Account) *float64 {
-	var bank *float64
-	for _, acc := range accounts {
-		if acc.Type == "BANK" {
-			sum := acc.Balance
-			if bank != nil {
-				sum += *bank
-			}
-			bank = &sum
-		}
-	}
-	return bank
 }
 
 func (a *api) timeseries(w http.ResponseWriter, r *http.Request) {
@@ -285,34 +270,12 @@ func (a *api) projection(w http.ResponseWriter, r *http.Request) {
 	now := a.now().UTC()
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	p, err := a.buildProjection(r.Context(), start, months)
+	p, err := a.insights.Projection(r.Context(), start, months)
 	if err != nil {
 		a.fail(w, "projeção", err)
 		return
 	}
 	a.writeProjection(w, p)
-}
-
-// buildProjection projeta `months` meses a partir de start (primeiro dia do mês atual).
-func (a *api) buildProjection(ctx context.Context, start time.Time, months int) (usecase.Projection, error) {
-	from, to := start.AddDate(0, -budgetMonths, 0), start.AddDate(0, -1, 0)
-	rows, err := a.reader.ExpenseKeyMonths(ctx, from, to)
-	if err != nil {
-		return usecase.Projection{}, err
-	}
-	rules, err := a.reader.ExpenseRules(ctx)
-	if err != nil {
-		return usecase.Projection{}, err
-	}
-	incomes, err := a.reader.IncomePayments(ctx, from, to)
-	if err != nil {
-		return usecase.Projection{}, err
-	}
-	known, err := a.reader.KnownInstallments(ctx, start, start.AddDate(0, months-1, 0))
-	if err != nil {
-		return usecase.Projection{}, err
-	}
-	return usecase.BuildProjection(rows, rules, incomes, known, start, months), nil
 }
 
 func (a *api) writeProjection(w http.ResponseWriter, p usecase.Projection) {
@@ -377,38 +340,13 @@ func (a *api) setExpenseRule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// buildReview roda os detectores da revisão sobre o mês to (primeiro dia).
-func (a *api) buildReview(ctx context.Context, to time.Time) (usecase.Review, error) {
-	cats, err := a.reader.CategoryMonths(ctx, to.AddDate(0, -(usecase.ReviewMatrixMonths-1), 0), to)
-	if err != nil {
-		return usecase.Review{}, err
-	}
-	keyRows, err := a.reader.ExpenseKeyMonths(ctx, to.AddDate(0, -(budgetMonths-1), 0), to)
-	if err != nil {
-		return usecase.Review{}, err
-	}
-	rules, err := a.reader.ExpenseRules(ctx)
-	if err != nil {
-		return usecase.Review{}, err
-	}
-	payments, err := a.reader.ExpensePayments(ctx, to, to)
-	if err != nil {
-		return usecase.Review{}, err
-	}
-	dismissed, err := a.reader.Dismissals(ctx)
-	if err != nil {
-		return usecase.Review{}, err
-	}
-	return usecase.BuildReview(cats, keyRows, rules, payments, dismissed, to), nil
-}
-
 // review: matriz categoria x mês e sugestões de corte do mês, calculadas pelos detectores (sem IA).
 func (a *api) review(w http.ResponseWriter, r *http.Request) {
 	to, ok := a.monthParam(w, r, "month", true)
 	if !ok {
 		return
 	}
-	rev, err := a.buildReview(r.Context(), to)
+	rev, err := a.insights.Review(r.Context(), to)
 	if err != nil {
 		a.fail(w, "revisão", err)
 		return

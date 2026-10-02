@@ -54,7 +54,7 @@ type coachInput struct {
 }
 
 func (a *api) coachInput(ctx context.Context, month time.Time) (coachInput, error) {
-	rev, err := a.buildReview(ctx, month)
+	rev, err := a.insights.Review(ctx, month)
 	if err != nil {
 		return coachInput{}, err
 	}
@@ -62,7 +62,7 @@ func (a *api) coachInput(ctx context.Context, month time.Time) (coachInput, erro
 	if err != nil || len(totals) != 1 {
 		return coachInput{}, errors.Join(err, errors.New("totais do mês indisponíveis"))
 	}
-	goals, _, err := a.goalProgress(ctx)
+	goals, _, err := a.insights.Goals(ctx, a.now())
 	if err != nil {
 		return coachInput{}, err
 	}
@@ -70,7 +70,7 @@ func (a *api) coachInput(ctx context.Context, month time.Time) (coachInput, erro
 	if err != nil {
 		return coachInput{}, err
 	}
-	savings, err := a.buildSavings(ctx)
+	savings, err := a.insights.Savings(ctx, a.monthStart())
 	if err != nil {
 		return coachInput{}, err
 	}
