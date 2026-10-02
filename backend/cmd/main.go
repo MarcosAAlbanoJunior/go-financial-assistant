@@ -20,6 +20,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/evolution"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/gemini"
 	httpserver "github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/http"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/logo"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/pluggy"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/telegram"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase"
@@ -68,6 +69,7 @@ func main() {
 	if cfg.OpenFinanceEnabled() {
 		sync := usecase.NewSyncOpenFinance(purchaseRepo, pluggy.NewClient(cfg.PluggyClientID, cfg.PluggyClientSecret),
 			cfg.PluggyItemIDs, cfg.OpenFinanceLookbackDays, logger)
+		sync.SetLogoFetcher(logo.New())
 		syncer = sync
 		go runOpenFinanceSync(ctx, sync, cfg.OpenFinanceSyncInterval)
 		slog.Info("Open Finance ativo", "items", len(cfg.PluggyItemIDs), "interval", cfg.OpenFinanceSyncInterval.String())
@@ -78,6 +80,7 @@ func main() {
 	server := httpserver.NewServer(cfg.Port, logger)
 	geminiClient.CoachModel = cfg.CoachModel
 	server.SetCoach(geminiClient, cfg.GeminiPaidPlan)
+	server.SetSyncer(syncer)
 	if cfg.DashboardPassword != "" {
 		if err := server.MountAPI(cfg.DashboardPassword, dashboardReader); err != nil {
 			slog.Error("failed to mount dashboard API", "error", err)
@@ -104,6 +107,7 @@ func main() {
 		handler := chat.NewHandler(analyzeExpense, exportCSV, tg, owner, logger)
 		handler.SetSyncer(syncer)
 		handler.SetDigester(insights)
+		handler.SetBalancer(insights)
 		go telegram.NewBot(tg, cfg.TelegramChatID, handler, logger).Run(ctx)
 	default:
 		evolutionClient := evolution.NewClient(cfg.EvolutionAPIURL, cfg.EvolutionInstance, cfg.EvolutionAPIKey)

@@ -21,6 +21,7 @@ type mockProvider struct {
 
 	positions    []ports.ExternalInvestment
 	positionsErr error
+	institution  *ports.ExternalInstitution
 }
 
 func (m *mockProvider) FetchItem(_ context.Context, itemID string, from time.Time) (ports.ItemData, error) {
@@ -29,6 +30,7 @@ func (m *mockProvider) FetchItem(_ context.Context, itemID string, from time.Tim
 		<-m.block
 	}
 	return ports.ItemData{
+		Institution:  m.institution,
 		Accounts:     []ports.ExternalAccount{{ID: "acc", ItemID: itemID, Type: "BANK", Name: "Conta"}},
 		Transactions: m.byItem[itemID],
 	}, m.errs[itemID]
@@ -258,5 +260,99 @@ func TestSync_InvestmentFailureIsNotAnError(t *testing.T) {
 	res, err := newSync(repo, prov, "item").Sync(context.Background())
 	if err != nil || res.Inserted != 1 || saved || res.Positions != 0 {
 		t.Errorf("sem investimentos não é falha e não deve gravar nada: %+v saved=%v err=%v", res, saved, err)
+	}
+}
+
+type mockLogos struct {
+	data  []byte
+	mime  string
+	err   error
+	calls int
+}
+
+func (m *mockLogos) Fetch(context.Context, string) ([]byte, string, error) {
+	m.calls++
+	return m.data, m.mime, m.err
+}
+
+func TestSync_SavesInstitutionAndLogo(t *testing.T) {
+	instID := uuid.New()
+	var linked *uuid.UUID
+	var savedLogo []byte
+	repo := &mockPurchaseRepo{
+		upsertInstitutionFn: func(context.Context, string, ports.ExternalInstitution) (uuid.UUID, bool, error) {
+			return instID, true, nil
+		},
+		upsertAccountFn: func(_ context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
+			linked = a.InstitutionID
+			return uuid.New(), nil
+		},
+		saveLogoFn: func(_ context.Context, _ uuid.UUID, data []byte, _ string) error { savedLogo = data; return nil },
+	}
+	prov := &mockProvider{institution: &ports.ExternalInstitution{Name: "Itaú", Color: "ec7000", ImageURL: "https://x/logo.png"}}
+	s := newSync(repo, prov, "item")
+	s.SetLogoFetcher(&mockLogos{data: []byte("png"), mime: "image/png"})
+
+	if _, err := s.Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if linked == nil || *linked != instID {
+		t.Errorf("a conta deveria apontar para a instituição, got %v", linked)
+	}
+	if string(savedLogo) != "png" {
+		t.Errorf("logo deveria ser gravado, got %q", savedLogo)
+	}
+}
+
+func TestSync_LogoFailureDoesNotBreakSync(t *testing.T) {
+	var saved bool
+	var savedData []byte
+	repo := &mockPurchaseRepo{
+		upsertInstitutionFn: func(context.Context, string, ports.ExternalInstitution) (uuid.UUID, bool, error) {
+			return uuid.New(), true, nil
+		},
+		saveLogoFn: func(_ context.Context, _ uuid.UUID, d []byte, _ string) error { saved, savedData = true, d; return nil },
+	}
+	prov := &mockProvider{
+		institution: &ports.ExternalInstitution{Name: "Banco", ImageURL: "https://10.0.0.1/x.png"},
+		byItem:      map[string][]ports.ExternalTransaction{"item": {extTx("t1", domain.KindExpense)}},
+	}
+	s := newSync(repo, prov, "item")
+	s.SetLogoFetcher(&mockLogos{err: errors.New("bloqueado")})
+
+	res, err := s.Sync(context.Background())
+	if err != nil || res.Inserted != 1 {
+		t.Fatalf("a falha do logo não pode derrubar o sync: %+v, %v", res, err)
+	}
+	if !saved || savedData != nil {
+		t.Error("deveria registrar a tentativa (dados nulos) para não repetir a cada sync")
+	}
+}
+
+func TestSync_SkipsLogoWhenNotNeeded(t *testing.T) {
+	repo := &mockPurchaseRepo{} // needsLogo = false
+	logos := &mockLogos{}
+	prov := &mockProvider{institution: &ports.ExternalInstitution{Name: "Banco", ImageURL: "https://x/y.png"}}
+	s := newSync(repo, prov, "item")
+	s.SetLogoFetcher(logos)
+	if _, err := s.Sync(context.Background()); err != nil || logos.calls != 0 {
+		t.Fatalf("não deveria buscar o logo: calls=%d err=%v", logos.calls, err)
+	}
+}
+
+func TestSync_InstitutionErrorIsNotFatal(t *testing.T) {
+	var got *uuid.UUID
+	repo := &mockPurchaseRepo{
+		upsertInstitutionFn: func(context.Context, string, ports.ExternalInstitution) (uuid.UUID, bool, error) {
+			return uuid.Nil, false, errors.New("db")
+		},
+		upsertAccountFn: func(_ context.Context, a ports.ExternalAccount) (uuid.UUID, error) {
+			got = a.InstitutionID
+			return uuid.New(), nil
+		},
+	}
+	prov := &mockProvider{institution: &ports.ExternalInstitution{Name: "Banco"}}
+	if _, err := newSync(repo, prov, "item").Sync(context.Background()); err != nil || got != nil {
+		t.Fatalf("err=%v institution=%v", err, got)
 	}
 }

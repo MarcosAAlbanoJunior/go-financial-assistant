@@ -30,8 +30,12 @@ type SyncOpenFinance struct {
 	itemIDs      []string
 	lookbackDays int
 	logger       *slog.Logger
+	logos        ports.LogoFetcher // opcional: sem ele, o painel usa o monograma
 	mu           sync.Mutex
 }
+
+// SetLogoFetcher liga o cache de logos dos bancos.
+func (s *SyncOpenFinance) SetLogoFetcher(f ports.LogoFetcher) { s.logos = f }
 
 func NewSyncOpenFinance(repo ports.PurchaseRepository, provider ports.OpenFinanceProvider, itemIDs []string, lookbackDays int, logger *slog.Logger) *SyncOpenFinance {
 	return &SyncOpenFinance{repo: repo, provider: provider, itemIDs: itemIDs, lookbackDays: lookbackDays, logger: logger}
@@ -58,8 +62,11 @@ func (s *SyncOpenFinance) Sync(ctx context.Context) (SyncResult, error) {
 			continue
 		}
 
+		institutionID := s.syncInstitution(ctx, itemID, data.Institution)
+
 		accountIDs := make(map[string]uuid.UUID, len(data.Accounts))
 		for _, acc := range data.Accounts {
+			acc.InstitutionID = institutionID
 			id, err := s.repo.UpsertAccount(ctx, acc)
 			if err != nil {
 				s.logger.Error("erro ao salvar conta", "account_id", acc.ID, "error", err)
@@ -82,6 +89,31 @@ func (s *SyncOpenFinance) Sync(ctx context.Context) (SyncResult, error) {
 		}
 	}
 	return result, errors.Join(errs...)
+}
+
+// syncInstitution grava o banco do item e, quando preciso, busca o logo. É só enfeite: qualquer
+// falha aqui (inclusive de um imageUrl malicioso) é registrada e a sincronização segue sem logo.
+func (s *SyncOpenFinance) syncInstitution(ctx context.Context, itemID string, inst *ports.ExternalInstitution) *uuid.UUID {
+	if inst == nil {
+		return nil
+	}
+	id, needsLogo, err := s.repo.UpsertInstitution(ctx, itemID, *inst)
+	if err != nil {
+		s.logger.Error("erro ao salvar instituição", "error", err)
+		return nil
+	}
+	if needsLogo && s.logos != nil && inst.ImageURL != "" {
+		data, mime, err := s.logos.Fetch(ctx, inst.ImageURL)
+		if err != nil {
+			// Só o erro: a URL é de terceiros e não deve ir para o log.
+			s.logger.Warn("logo da instituição não baixado", "institution", inst.Name, "error", err)
+			data, mime = nil, ""
+		}
+		if err := s.repo.SaveInstitutionLogo(ctx, id, data, mime); err != nil {
+			s.logger.Error("erro ao salvar logo", "error", err)
+		}
+	}
+	return &id
 }
 
 // syncInvestments atualiza as posições do item. É independente das transações: um item pode

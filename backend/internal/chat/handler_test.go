@@ -347,3 +347,56 @@ func TestHandle_SummaryQuestionStillGoesToAssistant(t *testing.T) {
 		t.Errorf("resumos=%d texto=%q", d.n, a.textSeen)
 	}
 }
+
+type mockBalancer struct {
+	text string
+	err  error
+	n    int
+}
+
+func (m *mockBalancer) BalancesText(context.Context, time.Time) (string, error) {
+	m.n++
+	return m.text, m.err
+}
+
+func TestHandle_BalancesCommand(t *testing.T) {
+	for _, cmd := range []string{"/saldos", "Saldos", "  /SALDOS ", "painel"} {
+		a := &mockAnalyzer{}
+		h, msgr := newTestHandler(a, &mockExporter{})
+		b := &mockBalancer{text: "💰 *Seus saldos*"}
+		h.SetBalancer(b)
+		if out, err := h.Handle(context.Background(), Message{Text: cmd}); out != nil || err != nil {
+			t.Fatalf("%q: esperava (nil, nil), got %v, %v", cmd, out, err)
+		}
+		if b.n != 1 || a.textSeen != "" || msgr.texts[len(msgr.texts)-1] != b.text {
+			t.Errorf("%q: deveria responder os saldos sem passar pelo Gemini (chamadas=%d, texto=%q, respostas=%v)", cmd, b.n, a.textSeen, msgr.texts)
+		}
+	}
+}
+
+func TestHandle_BalancesCommand_NotAvailableAndErrors(t *testing.T) {
+	h, msgr := newTestHandler(&mockAnalyzer{}, &mockExporter{})
+	h.Handle(context.Background(), Message{Text: "/saldos"})
+	if len(msgr.texts) != 1 || !strings.Contains(msgr.texts[0], "não está disponível") {
+		t.Errorf("sem painel configurado: %v", msgr.texts)
+	}
+
+	h, msgr = newTestHandler(&mockAnalyzer{}, &mockExporter{})
+	h.SetBalancer(&mockBalancer{err: errors.New("banco: senha errada")})
+	h.Handle(context.Background(), Message{Text: "/saldos"})
+	if last := msgr.texts[len(msgr.texts)-1]; !strings.Contains(last, "Não consegui") || strings.Contains(last, "senha") {
+		t.Errorf("erro sem detalhes internos: %q", last)
+	}
+}
+
+// Perguntas sobre saldo continuam indo ao assistente; só a palavra sozinha é comando.
+func TestHandle_BalanceQuestionStillGoesToAssistant(t *testing.T) {
+	a := &mockAnalyzer{}
+	h, _ := newTestHandler(a, &mockExporter{})
+	b := &mockBalancer{}
+	h.SetBalancer(b)
+	h.Handle(context.Background(), Message{Text: "qual o saldo do itau?"})
+	if b.n != 0 || a.textSeen != "qual o saldo do itau?" {
+		t.Errorf("chamadas=%d texto=%q", b.n, a.textSeen)
+	}
+}
