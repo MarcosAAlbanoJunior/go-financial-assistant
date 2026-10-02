@@ -312,7 +312,7 @@ func TestAccountToExternal_BankDataAndMissingFields(t *testing.T) {
 
 func TestInstitution(t *testing.T) {
 	respond := map[string]string{
-		"ok":     `{"connector":{"name":"  Banco   Itaú ","imageUrl":"https://cdn/logo.svg","primaryColor":"#EC7000"}}`,
+		"ok":     `{"lastUpdatedAt":"2026-10-02T17:42:22.972Z","connector":{"name":"  Banco   Itaú ","imageUrl":"https://cdn/logo.svg","primaryColor":"#EC7000"}}`,
 		"badc":   `{"connector":{"name":"Banco","primaryColor":"url(javascript:alert(1))"}}`,
 		"noname": `{"connector":{"imageUrl":"https://x"}}`,
 	}
@@ -334,6 +334,9 @@ func TestInstitution(t *testing.T) {
 	got := c.institution(context.Background(), "ok")
 	if got == nil || got.Name != "Banco Itaú" || got.Color != "ec7000" || got.ImageURL != "https://cdn/logo.svg" {
 		t.Errorf("instituição inesperada: %+v", got)
+	}
+	if got.UpdatedAt == nil || got.UpdatedAt.Format("2006-01-02T15:04") != "2026-10-02T17:42" {
+		t.Errorf("lastUpdatedAt do item: %v", got.UpdatedAt)
 	}
 	if got := c.institution(context.Background(), "badc"); got == nil || got.Color != "" {
 		t.Errorf("cor inválida deve ser descartada: %+v", got)

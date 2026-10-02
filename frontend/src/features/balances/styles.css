@@ -3,9 +3,6 @@
 .bal-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .bal-top .page-title { margin-right: auto; }
 .bal-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
-.bal-sync-msg { flex-basis: 100%; font-size: 0.875rem; margin: 0; }
-.bal-spin { animation: bal-spin 1s linear infinite; }
-@keyframes bal-spin { to { transform: rotate(360deg); } }
 .bal-money { font-variant-numeric: tabular-nums; }
 .bal-muted { color: var(--text-muted); }
 
