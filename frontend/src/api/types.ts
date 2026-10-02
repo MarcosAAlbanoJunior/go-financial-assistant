@@ -149,3 +149,37 @@ export interface TransactionPage {
   page: number
   limit: number
 }
+
+export type ReviewKind = 'INCREASE' | 'FIXED' | 'ANT' | 'DUPLICATE' | 'NEW'
+
+export interface ReviewRow {
+  category: string
+  categoryLabel: string
+  /** Total de cada mês de `months` (do mais antigo para o mais novo). */
+  values: number[]
+}
+
+export interface ReviewCandidate {
+  kind: ReviewKind
+  /** Conta (descrição normalizada) ou, nos aumentos, a categoria. */
+  key: string
+  label: string
+  category: string
+  categoryLabel: string
+  /** Economia estimada por mês (nas avulsas, o valor de uma vez só). */
+  monthly: number
+  /** Economia em 12 meses; nula nas avulsas (duplicata e conta nova). */
+  annual: number | null
+  amount: number
+  baseline: number
+  count: number
+  months: number
+  dismissed: boolean
+}
+
+export interface Review {
+  month: string
+  months: string[]
+  matrix: ReviewRow[]
+  candidates: ReviewCandidate[]
+}

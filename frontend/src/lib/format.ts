@@ -8,9 +8,13 @@ const brlCompact = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 })
+const brlWhole = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 const percent = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 0 })
 
 export const formatBRL = (value: number) => brl.format(value)
+
+/** Sem centavos, para células apertadas. */
+export const formatBRLWhole = (value: number) => brlWhole.format(value)
 
 /** Para eixos de gráfico, ex.: "R$ 1,2 mil". */
 export const formatBRLCompact = (value: number) => brlCompact.format(value)

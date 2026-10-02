@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { Account, Budget, Projection, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
+import type { Account, Budget, Projection, Review, ReviewKind, InvestmentMonth, Portfolio, PortfolioMonth, BreakdownBy, BreakdownItem, Summary, Totals, TransactionGroup, TransactionPage } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -108,4 +108,19 @@ export const useProjection = (months: number) =>
     queryKey: ['projection', months],
     queryFn: () => request<Projection>(`/api/projection?months=${months}`),
     placeholderData: keepPreviousData,
+  })
+
+export const useReview = (month: string) =>
+  useQuery({
+    queryKey: ['review', month],
+    queryFn: () => request<Review>(`/api/review?month=${month}`),
+    placeholderData: keepPreviousData,
+  })
+
+/** Dispensa (ou traz de volta) uma sugestão da revisão. */
+export const setDismissal = (kind: ReviewKind, key: string, dismissed: boolean) =>
+  request('/api/review-dismissals', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, key, dismissed }),
   })
