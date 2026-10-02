@@ -395,14 +395,24 @@ func (r *PostgresPurchaseRepository) TransactionGroups(ctx context.Context, f po
 	return result, rows.Err()
 }
 
-// expenseKey normaliza a descrição para reconhecer a mesma conta em meses diferentes: minúsculas,
-// só letras (some número, data, parcela e pontuação) e espaços compactados.
-const expenseKey = `BTRIM(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(p.description), '[^a-zà-ÿ ]+', ' ', 'g'), '\s+', ' ', 'g'))`
+// expenseKeyBase normaliza a descrição: minúsculas, só letras (some número, data, parcela e pontuação) e espaços compactados.
+const expenseKeyBase = `BTRIM(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(p.description), '[^a-zà-ÿ ]+', ' ', 'g'), '\s+', ' ', 'g'))`
+
+// debitPrefix é o início das compras no débito do Itaú ("DEBITO VISA ELECTRON BRASIL 20/09 NETFLIX..."): esconde o
+// comércio, que ainda chega com grafias diferentes a cada mês (NETFLIX.COM, NETFLIX ENTRETENIME).
+const debitPrefix = `debito visa electron brasil`
+
+// expenseKey reconhece a mesma conta em meses diferentes. Nas compras no débito do Itaú, a chave é o prefixo mais a primeira
+// palavra do comércio, para as grafias do mesmo comércio caírem na mesma conta.
+const expenseKey = `(CASE WHEN ` + expenseKeyBase + ` ~ '^` + debitPrefix + ` ' THEN 'debito ' || SPLIT_PART(BTRIM(REGEXP_REPLACE(` + expenseKeyBase + `, '^` + debitPrefix + `', '')), ' ', 1) ELSE ` + expenseKeyBase + ` END)`
+
+// cleanDescription tira o prefixo e a data das compras no débito do Itaú, para o nome mostrado ser o do comércio.
+const cleanDescription = `REGEXP_REPLACE(p.description, '^DEBITO VISA ELECTRON BRASIL +[0-9]{2}/[0-9]{2} +', '', 'i')`
 
 func (r *PostgresPurchaseRepository) ExpenseKeyMonths(ctx context.Context, from, to time.Time) ([]ports.ExpenseKeyMonth, error) {
 	query := `
 		SELECT ` + expenseKey + ` AS key,
-		       (ARRAY_AGG(p.description ORDER BY pay.created_at DESC))[1] AS label,
+		       (ARRAY_AGG(` + cleanDescription + ` ORDER BY pay.created_at DESC))[1] AS label,
 		       (ARRAY_AGG(p.category ORDER BY pay.created_at DESC))[1] AS category,
 		       ` + paymentMonth + ` AS month,
 		       SUM(pay.amount), COUNT(*),
@@ -498,7 +508,8 @@ func (r *PostgresPurchaseRepository) KnownInstallments(ctx context.Context, from
 
 func (r *PostgresPurchaseRepository) IncomePayments(ctx context.Context, from, to time.Time) ([]ports.IncomePayment, error) {
 	query := `
-		SELECT ` + expenseKey + ` AS key, p.description, ` + paymentMonth + ` AS month, pay.amount
+		SELECT CASE WHEN p.category = 'SALARY' THEN 'salario' ELSE ` + expenseKey + ` END AS key,
+		       CASE WHEN p.category = 'SALARY' THEN 'Salário' ELSE p.description END, ` + paymentMonth + ` AS month, pay.amount
 		FROM payments pay
 		JOIN purchases p ON p.id = pay.purchase_id
 		WHERE p.kind = 'INCOME' AND pay.status != 'CANCELLED' AND p.description IS NOT NULL
@@ -552,7 +563,7 @@ func (r *PostgresPurchaseRepository) CategoryMonths(ctx context.Context, from, t
 
 func (r *PostgresPurchaseRepository) ExpensePayments(ctx context.Context, from, to time.Time) ([]ports.ExpensePayment, error) {
 	query := `
-		SELECT ` + expenseKey + ` AS key, p.description, p.category, p.payment_method, ` + txDate + ` AS day, pay.amount
+		SELECT ` + expenseKey + ` AS key, ` + cleanDescription + `, p.category, p.payment_method, ` + txDate + ` AS day, pay.amount
 		FROM payments pay
 		JOIN purchases p ON p.id = pay.purchase_id
 		WHERE p.kind = 'EXPENSE' AND pay.status != 'CANCELLED' AND p.description IS NOT NULL
@@ -781,7 +792,7 @@ func (r *PostgresPurchaseRepository) UncategorizedExpenses(ctx context.Context, 
 	query := `
 		WITH g AS (
 			SELECT ` + expenseKey + ` AS key,
-			       (ARRAY_AGG(p.description ORDER BY pay.created_at DESC))[1] AS label,
+			       (ARRAY_AGG(` + cleanDescription + ` ORDER BY pay.created_at DESC))[1] AS label,
 			       COUNT(*) AS n, SUM(pay.amount) AS total, MAX(` + txDate + `) AS last
 			FROM payments pay
 			JOIN purchases p ON p.id = pay.purchase_id

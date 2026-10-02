@@ -433,12 +433,13 @@ func TestBudget_IncomePayments(t *testing.T) {
 	}
 	var mine []ports.IncomePayment
 	for _, p := range got {
-		if p.Key == "zzsal rio empresa" || p.Key == "zzsalário empresa" {
+		// Todo salário vira uma fonte só, mesmo que a descrição mude de um mês para o outro (empresa, "REMUNERACAO/SALARIO"...).
+		if p.Key == "salario" && p.Month.Year() == 1999 {
 			mine = append(mine, p)
 		}
 	}
-	if len(mine) != 3 {
-		t.Fatalf("3 recebimentos da mesma fonte (chave sem números), despesa e cancelado de fora: %+v", got)
+	if len(mine) != 3 || mine[0].Label != "Salário" {
+		t.Fatalf("3 recebimentos de salário numa fonte só, despesa e cancelado de fora: %+v", got)
 	}
 	if mine[0].Amount != 9000 || mine[0].Month.Month() != time.March || mine[2].Month.Month() != time.April {
 		t.Errorf("ordenado por mês e valor, com o valor de cada pagamento: %+v", mine)

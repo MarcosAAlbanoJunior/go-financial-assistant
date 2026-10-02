@@ -61,6 +61,7 @@ type Config struct {
 	PluggyItemIDs           []string
 	OpenFinanceSyncInterval time.Duration
 	OpenFinanceLookbackDays int
+	OwnNames                []string // seus nomes, para ignorar Pix e transferências entre contas suas
 }
 
 func (c *Config) OpenFinanceEnabled() bool { return c.PluggyClientID != "" }
@@ -207,6 +208,12 @@ func loadOpenFinance(cfg *Config, errs *[]error) {
 			continue
 		}
 		cfg.PluggyItemIDs = append(cfg.PluggyItemIDs, id)
+	}
+
+	for _, name := range strings.Split(getEnv("OWN_NAMES", ""), ",") {
+		if name = strings.Join(strings.Fields(name), " "); name != "" {
+			cfg.OwnNames = append(cfg.OwnNames, name)
+		}
 	}
 
 	hours, err := strconv.Atoi(getEnv("SYNC_INTERVAL_HOURS", "6"))

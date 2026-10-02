@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Não lançado]
 
 ### Adicionado
+- `OWN_NAMES`: seus nomes como aparecem nos Pix e transferências. Pix, TED e DOC com o seu próprio nome são entre contas suas e deixam de entrar como gasto ou renda (ficavam em despesas e na renda da projeção). Vale para as próximas sincronizações; o que já foi gravado precisa ser cancelado à mão (veja o README).
+- Aviso de **mês em andamento** na Visão geral, Comparações, Revisão, Orçamento e Coach; na Visão geral a variação contra o mês anterior some enquanto o mês não fecha.
+
+### Corrigido
+- Projeção: todo salário vira uma fonte só (a descrição mudava de mês a mês e o salário caía em "Outras entradas").
+- Compras no débito do Itaú ("DEBITO VISA ELECTRON BRASIL 20/09 NETFLIX...") agora são reconhecidas pelo comércio, e o nome mostrado não traz o prefixo.
+- Painel: aplicado automático igual ao saldo não aparece mais; o app usa o fuso de `DIGEST_TIMEZONE`.
 - **Painel de saldos** (nova página inicial, `/`): total em conta com a barra de participação por banco, e por banco a conta corrente e cada cartão separado (fatura, limite usado, disponível, vencimento, alertas com ícone e texto). Cores de marca nas fatias só quando cada par vizinho passa em ΔE ≥ 15 (OKLab); senão usa a série do app. Ocultar valores, sincronizar, tabela alternativa, esqueleto de carga e tema claro/escuro. "Contas e cartões" redireciona para o Painel; a Visão geral passou a `/visao-geral`.
 - API: `GET /api/balances`, `GET /api/institutions/{id}/logo` (com CSP restritivo e nosniff) e `POST /api/sync`. O `item_id` do Pluggy nunca sai.
 - Comando `/saldos` no Telegram, com o mesmo cálculo do painel (`usecase.Balances`).

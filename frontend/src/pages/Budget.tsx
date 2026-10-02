@@ -30,7 +30,7 @@ export default function Budget() {
   return (
     <>
       <h1 className="page-title">Orçamento de {formatMonthTitle(month)}</h1>
-      <MonthFilter month={month} now={now} onChange={setMonth} />
+      <MonthFilter month={month} now={now} onChange={setMonth} warnPartial />
 
       <QueryState query={budget}>
         {(b) => {

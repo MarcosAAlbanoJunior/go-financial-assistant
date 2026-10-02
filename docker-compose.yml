@@ -129,6 +129,7 @@ services:
       PLUGGY_ITEM_IDS: ${PLUGGY_ITEM_IDS:-}
       SYNC_INTERVAL_HOURS: ${SYNC_INTERVAL_HOURS:-6}
       SYNC_LOOKBACK_DAYS: ${SYNC_LOOKBACK_DAYS:-60}
+      OWN_NAMES: ${OWN_NAMES:-}
     depends_on:
       postgres:
         condition: service_healthy
