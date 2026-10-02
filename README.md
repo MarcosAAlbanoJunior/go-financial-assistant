@@ -221,7 +221,7 @@ O container escuta só em `127.0.0.1`. Para acessar de outro dispositivo, ponha 
 
 ## API do dashboard
 
-Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas e dispensar sugestões da revisão), que alimenta o front-end. Sem a variável, a API nem é montada.
+Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas, dispensar sugestões da revisão e criar ou apagar metas), que alimenta o front-end. Sem a variável, a API nem é montada.
 
 - **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`) devolve um cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
 - **Proteção contra CSRF:** o login e o logout exigem JSON e recusam requisições cujo `Origin` não seja o próprio host, além do `SameSite=Strict`.
@@ -241,6 +241,8 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 | `PUT /api/expense-rules` | corrige a classe de uma conta (`FIXED`, `VARIABLE` ou `AUTO`); só JSON na mesma origem |
 | `GET /api/review?month=` | revisão do mês: matriz categoria × 6 meses e sugestões de corte (aumentos, fixas, gasto formiga, duplicatas, contas novas) com a economia em R$/mês e R$/ano |
 | `PUT /api/review-dismissals` | dispensa (ou restaura) uma sugestão da revisão; só JSON na mesma origem |
+| `GET /api/goals` | metas com o andamento calculado na hora: patrimônio (contas correntes + investimentos), projeção e gastos por categoria |
+| `POST /api/goals`, `DELETE /api/goals/{id}` | cria (juntar valor até uma data, reduzir uma categoria, reserva de N meses; máx. 20) ou apaga uma meta; só JSON na mesma origem |
 | `GET /api/portfolio` | posições de investimento (saldo real do Open Finance), total e total por tipo |
 | `GET /api/portfolio/history?from=&to=` | saldo total ao fim de cada mês (existe a partir da primeira sincronização) |
 

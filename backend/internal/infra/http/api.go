@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -71,6 +72,9 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	s.mux.Handle("GET /api/budget", protected(a.budget))
 	s.mux.Handle("GET /api/projection", protected(a.projection))
 	s.mux.Handle("PUT /api/expense-rules", protected(a.setExpenseRule))
+	s.mux.Handle("GET /api/goals", protected(a.goals))
+	s.mux.Handle("POST /api/goals", protected(a.createGoal))
+	s.mux.Handle("DELETE /api/goals/{id}", protected(a.deleteGoal))
 	s.mux.Handle("GET /api/review", protected(a.review))
 	s.mux.Handle("PUT /api/review-dismissals", protected(a.setDismissal))
 	s.mux.Handle("GET /api/portfolio", protected(a.portfolio))
@@ -140,7 +144,15 @@ func (a *api) summary(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, "resumo", err)
 		return
 	}
-	var bank *float64 // nil quando não há conta sincronizada: "em conta" é desconhecido, não zero
+	bank := bankBalance(accounts)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"month": formatMonth(month), "current": toTotalsJSON(totals[1]), "previous": toTotalsJSON(totals[0]), "bankBalance": bank,
+	})
+}
+
+// bankBalance soma o saldo das contas correntes; nil quando não há conta sincronizada ("em conta" é desconhecido, não zero).
+func bankBalance(accounts []ports.Account) *float64 {
+	var bank *float64
 	for _, acc := range accounts {
 		if acc.Type == "BANK" {
 			sum := acc.Balance
@@ -150,9 +162,7 @@ func (a *api) summary(w http.ResponseWriter, r *http.Request) {
 			bank = &sum
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"month": formatMonth(month), "current": toTotalsJSON(totals[1]), "previous": toTotalsJSON(totals[0]), "bankBalance": bank,
-	})
+	return bank
 }
 
 func (a *api) timeseries(w http.ResponseWriter, r *http.Request) {
@@ -263,21 +273,34 @@ func (a *api) projection(w http.ResponseWriter, r *http.Request) {
 	now := a.now().UTC()
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	rows, err := a.reader.ExpenseKeyMonths(r.Context(), start.AddDate(0, -budgetMonths, 0), start.AddDate(0, -1, 0))
-	if err == nil {
-		var rules map[string]ports.ExpenseClass
-		if rules, err = a.reader.ExpenseRules(r.Context()); err == nil {
-			var incomes []ports.IncomePayment
-			if incomes, err = a.reader.IncomePayments(r.Context(), start.AddDate(0, -budgetMonths, 0), start.AddDate(0, -1, 0)); err == nil {
-				var known map[time.Time]float64
-				if known, err = a.reader.KnownInstallments(r.Context(), start, start.AddDate(0, months-1, 0)); err == nil {
-					a.writeProjection(w, usecase.BuildProjection(rows, rules, incomes, known, start, months))
-					return
-				}
-			}
-		}
+	p, err := a.buildProjection(r.Context(), start, months)
+	if err != nil {
+		a.fail(w, "projeção", err)
+		return
 	}
-	a.fail(w, "projeção", err)
+	a.writeProjection(w, p)
+}
+
+// buildProjection projeta `months` meses a partir de start (primeiro dia do mês atual).
+func (a *api) buildProjection(ctx context.Context, start time.Time, months int) (usecase.Projection, error) {
+	from, to := start.AddDate(0, -budgetMonths, 0), start.AddDate(0, -1, 0)
+	rows, err := a.reader.ExpenseKeyMonths(ctx, from, to)
+	if err != nil {
+		return usecase.Projection{}, err
+	}
+	rules, err := a.reader.ExpenseRules(ctx)
+	if err != nil {
+		return usecase.Projection{}, err
+	}
+	incomes, err := a.reader.IncomePayments(ctx, from, to)
+	if err != nil {
+		return usecase.Projection{}, err
+	}
+	known, err := a.reader.KnownInstallments(ctx, start, start.AddDate(0, months-1, 0))
+	if err != nil {
+		return usecase.Projection{}, err
+	}
+	return usecase.BuildProjection(rows, rules, incomes, known, start, months), nil
 }
 
 func (a *api) writeProjection(w http.ResponseWriter, p usecase.Projection) {
