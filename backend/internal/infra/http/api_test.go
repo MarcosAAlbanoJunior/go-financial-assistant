@@ -18,18 +18,23 @@ import (
 const testPassword = "senha-de-teste-123"
 
 type fakeReader struct {
-	monthly   []ports.MonthTotals
-	accounts  []ports.Account
-	positions []ports.Position
-	filter    ports.TransactionFilter
-	by        ports.BreakdownDimension
-	groupBy   ports.GroupBy
-	from, to  time.Time
-	rules     map[string]ports.ExpenseClass
-	ruleKey   string
-	known     map[string]time.Time
-	ruleClass ports.ExpenseClass
-	err       error
+	monthly        []ports.MonthTotals
+	accounts       []ports.Account
+	positions      []ports.Position
+	filter         ports.TransactionFilter
+	by             ports.BreakdownDimension
+	groupBy        ports.GroupBy
+	from, to       time.Time
+	rules          map[string]ports.ExpenseClass
+	ruleKey        string
+	known          map[string]time.Time
+	ruleClass      ports.ExpenseClass
+	catMonths      []ports.CategoryMonth
+	payments       []ports.ExpensePayment
+	dismissed      []ports.Dismissal
+	setDismissed   ports.Dismissal
+	setDismissedTo bool
+	err            error
 }
 
 func (f *fakeReader) MonthlyTotals(_ context.Context, from, to time.Time) ([]ports.MonthTotals, error) {
@@ -88,6 +93,20 @@ func (f *fakeReader) ExpenseRules(context.Context) (map[string]ports.ExpenseClas
 }
 func (f *fakeReader) SetExpenseRule(_ context.Context, key string, class ports.ExpenseClass) error {
 	f.ruleKey, f.ruleClass = key, class
+	return f.err
+}
+func (f *fakeReader) CategoryMonths(_ context.Context, from, to time.Time) ([]ports.CategoryMonth, error) {
+	f.from, f.to = from, to
+	return f.catMonths, f.err
+}
+func (f *fakeReader) ExpensePayments(context.Context, time.Time, time.Time) ([]ports.ExpensePayment, error) {
+	return f.payments, f.err
+}
+func (f *fakeReader) Dismissals(context.Context) ([]ports.Dismissal, error) {
+	return f.dismissed, f.err
+}
+func (f *fakeReader) SetDismissal(_ context.Context, d ports.Dismissal, dismissed bool) error {
+	f.setDismissed, f.setDismissedTo = d, dismissed
 	return f.err
 }
 func (f *fakeReader) Accounts(context.Context) ([]ports.Account, error) { return f.accounts, f.err }
