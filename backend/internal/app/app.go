@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/insights"
@@ -44,6 +45,10 @@ type app struct {
 	server         *httpserver.Server
 	settingsDeps   *httpserver.SettingsDeps
 	secondFactor   *httpserver.SecondFactor
+
+	channel           channelSwitch // por onde o app fala com o dono; liga sem reiniciar
+	channelConfigured atomic.Bool   // há canal configurado (ambiente ou setup), no ar ou não
+	channelStarted    atomic.Bool   // o canal já foi ligado neste processo (no boot ou pelo setup)
 }
 
 // Run monta e executa o app até o contexto ser cancelado. Devolve erro só para falhas de inicialização ou do servidor.
@@ -66,14 +71,14 @@ func Run(ctx context.Context, cancel context.CancelFunc, logger *slog.Logger) er
 		}
 	}
 
-	messenger, owner, err := a.startChannel()
+	err := a.startChannel()
 	if errors.Is(err, context.Canceled) {
 		return nil // encerrado enquanto esperava o WhatsApp conectar
 	}
 	if err != nil {
 		return fmt.Errorf("canal: %w", err)
 	}
-	a.startJobs(messenger, owner)
+	a.startJobs()
 
 	logger.Info("starting go-financial-assistant", "port", a.cfg.Port)
 	if err := a.server.Start(ctx); err != nil {
@@ -89,8 +94,17 @@ func (a *app) buildServices() error {
 	if a.gemini, err = gemini.NewClient(a.ctx, a.cfg.GeminiAPIKey); err != nil {
 		return fmt.Errorf("cliente do Gemini: %w", err)
 	}
+	if !a.gemini.Ready() {
+		a.logger.Warn("IA desligada (sem GEMINI_API_KEY): o chat atende os comandos e o dashboard funciona; configure a chave em Configurações → IA")
+	}
 	a.gemini.SetCoachModel(a.settings.Get("COACH_GEMINI_MODEL"))
-	a.settings.OnChange(func() { a.gemini.SetCoachModel(a.settings.Get("COACH_GEMINI_MODEL")) })
+	// A chave e o modelo valem sem reiniciar.
+	a.settings.OnChange(func() {
+		a.gemini.SetCoachModel(a.settings.Get("COACH_GEMINI_MODEL"))
+		if err := a.gemini.SetAPIKey(a.ctx, a.settings.Get("GEMINI_API_KEY")); err != nil {
+			a.logger.Error("chave do Gemini não aplicada", "error", err)
+		}
+	})
 
 	a.ledger = db.NewPurchaseRepository(a.db)
 	a.analyzeExpense = ledger.NewAnalyzeExpense(a.ledger, a.gemini, a.logger)
