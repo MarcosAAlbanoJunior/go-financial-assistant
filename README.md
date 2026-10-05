@@ -213,7 +213,7 @@ O front-end (React + TypeScript + Vite) fica em `frontend/` e é servido por um 
 
 1. Defina `DASHBOARD_PASSWORD` no `.env` (mínimo de 12 caracteres).
 2. `docker compose up -d --build` e abra **http://localhost:8080** (mude a porta com `WEB_PORT`).
-3. Entre com a senha. Telas: Painel (saldos por banco e cartão), Visão geral, Gastos, Comparações, Transações, Classificar, Orçamento, Revisão, Metas, Coach, Projeção, Investimentos e **Configurações** (edição no navegador do que antes só existia no `.env`, com segredos cifrados).
+3. Entre com a senha e o **código que chega no seu chat** (segundo fator; `DASHBOARD_2FA=off` desliga, por exemplo se você perder o acesso ao chat). Telas: Painel (saldos por banco e cartão), Visão geral, Gastos, Comparações, Transações, Classificar, Orçamento, Revisão, Metas, Coach, Projeção, Investimentos e **Configurações** (edição no navegador do que antes só existia no `.env`, com segredos cifrados).
 
 Detalhes de cada tela, segurança e desenvolvimento em [docs/dashboard.md](docs/dashboard.md). O container escuta só em `127.0.0.1`; para acessar de outro dispositivo, ponha na frente um proxy com **HTTPS** (a API e o dashboard devem ficar na mesma origem).
 
