@@ -1,6 +1,6 @@
 # Spec: Setup inicial pelo navegador
 
-- **Status:** aprovada para implementar (decisões na seção 12).
+- **Status:** implementada (decisões na seção 12). Veja "Resultado" ao fim.
 - **Origem:** conversa de 05/10/2026. Hoje subir o app exige preencher um `.env` longo (senha, canal, Gemini, Pluggy...) sem guia, e o app nem sobe se faltar algo obrigatório.
 - **Depende de:** [autenticacao-otp.md](autenticacao-otp.md) (código no chat), já implementada.
 
@@ -195,3 +195,19 @@ Cada passo com `go test ./...`, `go vet ./...`, golangci-lint, `npx tsc -b`, `np
 1. **Concluir liga o canal na hora, sem reiniciar** (seção 7.1). O custo é um passo a mais no plano (o canal trocável), que também fecha a brecha do "canal não subiu, entra só com senha".
 2. **Gemini é opcional**, fora do setup: aparece só nos próximos passos. Há caminhos sem IA.
 3. **Só Telegram** na primeira versão. WhatsApp continua pelo `.env`; entra no setup numa versão futura (Evolution, QR code na tela, código pelo WhatsApp).
+
+## 13. Resultado
+
+Implementada como descrita. Diferenças e descobertas:
+
+- **A espera do `/start` é puxada pela tela**, não uma goroutine do servidor: cada `POST /api/setup/telegram/poll` faz um `getUpdates` sem espera a partir do offset salvo no rascunho. Não sobra nada rodando se a pessoa fecha a aba, e "parar a espera" ao concluir é um `RWMutex` (consultas em andamento terminam antes de o bot começar a ler o Telegram). Ao colar o token, o offset começa depois da última mensagem que o bot já tinha, então um `/start` antigo não conta.
+- **"Sim, sou eu" é um passo próprio** (`accept`), que manda o código; "mandar outro código" é repetir o `accept` (mesmo intervalo de 1 minuto do OTP). "Não sou eu" também cancela um código já enviado.
+- **A senha nova fica no rascunho** (`setup_draft.password_hash`) e só vai para `dashboard_owner` na conclusão: uma senha salva no meio nunca vale para entrar, nem num setup reaberto que foi abandonado.
+- **Conclusão em dois cadeados:** o `sync.Mutex` do processo e, no banco, a checagem otimista do dono (`UPDATE ... WHERE setup_completed_at IS NOT DISTINCT FROM $esperado`), que também cobre dois processos. Testado com 4 confirmações simultâneas (uma liga, as outras recebem erro) e no banco real.
+- **Canal no `.env` sem senha** (quem tinha a API desligada): o setup só pede a senha e conclui mantendo o canal (`POST /api/setup/keep`); não deixa ligar outro bot por cima (seriam dois). Na reabertura dá para manter o canal de antes ou ligar outro bot, e o canal de antes não sobe no boot enquanto o setup estiver reaberto.
+- **`CHANNEL` é uma configuração interna** do catálogo (`Internal`): o setup grava, a página de Configurações não mostra, não altera nem restaura. O canal da página passa a vir dela, então o Telegram aparece logo depois do setup, sem pedir reinício (`settings.Service.Adopt`).
+- **A chave do Gemini vale sem reiniciar** (o cliente troca a chave com o app rodando). Sem ela, o chat responde como ligar e o Coach/Classificar mostram "configure a chave" no lugar do aviso do plano pago.
+- **Telegram que volta sozinho:** primeira tentativa no boot e depois em 5 s, 10 s, 20 s... até 5 min entre tentativas.
+- **`make init`** está em `scripts/init.sh`. Se o `.env` já usa `APP_SECRET_KEY` (variável), ele não cria o arquivo de chave: trocar a chave tornaria ilegíveis os segredos salvos.
+- **Proxy do Vite:** a forma curta `'/api': 'http://...'` liga `changeOrigin` e o modo de desenvolvimento recusava as escritas (403 na checagem de mesma origem). Corrigido junto.
+- Código: `internal/setup` (estado e regras), `internal/infra/db/setup_repository.go`, `internal/infra/http/setup_api.go` e `setup_session.go`, `internal/app/switch.go`, `setup.go`, `channel.go` e `retry.go`, `internal/auth/password.go` (argon2id), `frontend/src/features/setup`, migration `019_create_dashboard_owner.sql` e ADR 0008.
