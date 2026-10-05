@@ -1,6 +1,6 @@
 # Spec: Segundo fator por código no chat (OTP)
 
-- **Status:** proposta, aguardando revisão.
+- **Status:** implementada. Veja "Resultado" ao fim.
 - **Origem:** conversa de 05/10/2026. A senha sozinha é o único portão do dashboard; se vazar ou for adivinhada, abre tudo (saldos, transações, segredos cifrados).
 - **Natureza:** funcionalidade nova de segurança. Muda o login e a confirmação das Configurações; o resto da API não muda.
 
@@ -42,11 +42,11 @@ POST /api/login/code   { code }                → código certo: emite o cookie
 | Uso | único; depois de usado ou expirado o desafio some |
 | Tentativas erradas | 3 por desafio; na terceira o desafio morre e é preciso errar/acertar a senha de novo |
 | Reenvio | permitido 60 s depois do envio; o código novo invalida o anterior |
-| Teto de envios | 5 por hora no total (não por IP: o app é de uma pessoa só) |
+| Teto de envios | 10 por hora no total, somando login e confirmações (não por IP: o app é de uma pessoa só) |
 | Guarda | só o hash (SHA-256) do código, em memória; comparação em tempo constante |
 | Estado | em memória do processo. Reiniciar o app derruba os desafios, como já derruba as sessões |
 
-Com 8 dígitos (100 milhões de combinações), 3 tentativas por código e 5 códigos por hora, adivinhar o código é inviável.
+Com 8 dígitos (100 milhões de combinações), 3 tentativas por código e 10 códigos por hora, adivinhar o código é inviável.
 
 ### Falha ao enviar
 
@@ -119,7 +119,7 @@ Cada passo termina com `go test ./...`, `go vet ./...`, `npx tsc -b`, `npx oxlin
 - 3 códigos errados: desafio morto, novo login exige a senha de novo.
 - Código expirado: recusado.
 - Canal fora do ar: 503 e nenhuma sessão.
-- 6º envio na mesma hora: 429.
+- 11º envio na mesma hora: 429.
 - `DASHBOARD_2FA=off` ou sem canal: login só com senha, como hoje.
 - Configurações: salvar segredo sem código: recusado; com código: salvo; trocar o ID do Telegram manda o código ao ID antigo.
 
@@ -128,3 +128,16 @@ Cada passo termina com `go test ./...`, `go vet ./...`, `npx tsc -b`, `npx oxlin
 1. **Confirmação sem senha.** A seção 5 troca a senha pelo código. Se preferir os dois (senha **e** código), é só somar; o custo é um passo a mais a cada mudança sensível.
 2. **Tamanho do código.** 8 dígitos por padrão; 6 é mais cômodo de digitar e ainda seguro com 3 tentativas.
 3. **Duração da sessão.** Os 7 dias atuais continuam. Com o 2FA, dá para ser mais generoso (30 dias) ou mais curto (1 dia), conforme o quanto a pessoa quer digitar o código.
+
+## 10. Resultado
+
+Implementada como descrita, com os padrões da seção 9 (só código na confirmação, 8 dígitos, sessão de 7 dias). Diferenças e descobertas:
+
+- **Teto de 10 envios por hora** em vez de 5: login e confirmações dividem o teto, e configurar vários segredos seguidos esgotaria 5 rápido.
+- **Sem cookie `fa_confirm`:** o desafio de confirmação é preso ao próprio cookie de sessão, então não precisa de outro. Há no máximo um desafio vivo por tipo (login, confirmação); pedir de novo substitui o anterior.
+- **Reenviar no login** é repetir `POST /api/login` com a senha (o front guarda a senha em memória durante os dois passos).
+- **"Código vai ao canal antigo"** sai de graça: o canal e o dono são lidos ao subir e mudar qualquer um deles pede reinício. O envio usa sempre o canal em execução.
+- **Canal pronto** = o canal subiu (`messenger != nil`). O token errado do Telegram ou o WhatsApp sem conexão na subida deixam o `auto` só com senha, com `WARN` no log e aviso nas Configurações.
+- **Aviso de login concluído** vai em todo login, com ou sem segundo fator.
+- `GET /api/settings` também devolve `secondFactor`, porque a página de Configurações não pode importar `features/auth` (regra de arquitetura do front).
+- Código: `internal/auth` (desafios), `internal/infra/http/second_factor.go` e `auth_api.go`, `internal/app/jobs.go` (envio), `frontend/src/features/auth` e `features/settings/components/ConfirmDialog.tsx`.
