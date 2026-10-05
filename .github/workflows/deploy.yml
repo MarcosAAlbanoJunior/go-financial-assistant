@@ -1,0 +1,28 @@
+name: Deploy
+
+# Depois que o CI da main passa, pede o deploy ao repo de infra (privado), que entra na VPS por SSH.
+# Sem o segredo INFRA_DEPLOY_TOKEN (forks, outras instalações), não faz nada.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  trigger:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.repository == 'MarcosAAlbanoJunior/go-financial-assistant'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispara o deploy
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_DEPLOY_TOKEN }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::INFRA_DEPLOY_TOKEN não configurado: deploy pulado"
+            exit 0
+          fi
+          gh workflow run deploy-finassist.yml -R MarcosAAlbanoJunior/vps-private-infra -f ref="$SHA"
+          echo "Deploy de $SHA pedido ao vps-private-infra"
