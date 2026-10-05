@@ -5,8 +5,6 @@ import { keepChannel, type SetupStatus } from '../api'
 import { setupErrorMessage } from '../lib/setup'
 import { TelegramSetup } from './TelegramSetup'
 
-const WHATSAPP_README = 'https://github.com/MarcosAAlbanoJunior/go-financial-assistant#whatsapp-pelo-env'
-
 interface Props {
   status: SetupStatus
   onEditPassword: () => void
@@ -14,7 +12,7 @@ interface Props {
   onFinished: (bot: string) => void
 }
 
-/** Passo 3: o canal de conversa. Nesta versão, só Telegram; um canal que já está no .env pode ser mantido. */
+/** Passo 3: o canal de conversa (Telegram). Um canal que já está no .env pode ser mantido. */
 export function ChannelStep({ status, onEditPassword, onChanged, onFinished }: Props) {
   const channel = status.channel ?? { configured: false, canReplace: true }
   // Reaberto com canal: a pessoa escolhe manter o de antes ou configurar outro bot.
@@ -53,13 +51,6 @@ export function ChannelStep({ status, onEditPassword, onChanged, onFinished }: P
       {channel.canReplace && replace && (
         <>
           <h2 className="chart-title">Canal de conversa: Telegram</h2>
-          <p className="tile-note">
-            Prefere WhatsApp? Nesta versão ele é configurado pelo .env:{' '}
-            <a href={WHATSAPP_README} target="_blank" rel="noreferrer">
-              veja como no README
-            </a>
-            .
-          </p>
           <TelegramSetup status={status} onChanged={onChanged} onFinished={onFinished} />
           {channel.configured && !status.telegram?.bot && (
             <button type="button" className="btn" onClick={() => setReplace(false)}>
