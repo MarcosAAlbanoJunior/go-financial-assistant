@@ -1,51 +1,64 @@
-# Go Financial Assistant
+# FinAssist — seu assistente financeiro pessoal
 
-Assistente financeiro pessoal via **WhatsApp ou Telegram** (você escolhe o canal). Envie mensagens de texto, fotos de recibos ou extratos bancários em PDF para registrar despesas, entradas e transferências automaticamente. O assistente utiliza IA (Google Gemini, opcional) para interpretar as transações e armazená-las em um banco de dados PostgreSQL. A instalação é guiada pelo navegador: `make init`, `docker compose up -d` e o resto na tela.
+Conecte seus bancos pelo **Open Finance**, converse com o seu próprio **bot no Telegram** e acompanhe tudo num **dashboard** no navegador. Roda no seu computador ou servidor, com os seus dados no seu banco de dados.
 
-## Como funciona
+```
+  Seus bancos ──► Meu Pluggy (Open Finance) ──┐
+                                              ├──► FinAssist ──► Dashboard (navegador)
+  Você no Telegram ("gastei 45 no almoço") ───┘          └────► Bot no Telegram (saldos, resumo, avisos)
+```
 
-No WhatsApp você envia a mensagem para **si mesmo**; no Telegram você conversa com o **seu próprio bot**. Texto descrevendo um gasto, uma foto de recibo ou o PDF do extrato bancário — e o assistente registra as transações automaticamente.
+- **Open Finance:** transações, saldos, cartões e investimentos chegam sozinhos, sem digitar nada.
+- **Telegram:** registre gastos em linguagem natural, mande foto de recibo ou o PDF do extrato, peça saldos e o resumo da semana.
+- **Dashboard:** painel de saldos, gastos por categoria, orçamento, metas, revisão de gastos com sugestões de corte, projeção e investimentos.
+- **Instalação guiada:** três comandos e o resto é feito no navegador.
 
-**Exemplos de mensagens:**
-- `"gastei 45 reais no almoço no pix"`
-- `"netflix 55 reais todo mês todo dia 15"`
-- `"cancelar netflix"`
-- `"recebi 6000 reais de salário"`
-- `"coloquei 2000 no cofrinho"`
-- `"quanto gastei em março?"`
-- `"exportar meus gastos de março"`
-- Foto de um recibo ou nota fiscal
-- PDF do extrato bancário (Itaú e outros)
+## Sumário
 
-O assistente classifica cada transação em três categorias:
+1. [O que dá para fazer](#o-que-dá-para-fazer)
+2. [Instalação](#instalação)
+3. [Passo 1: o setup no navegador (senha e Telegram)](#passo-1-o-setup-no-navegador-senha-e-telegram)
+4. [Passo 2: conectar os seus bancos (Open Finance)](#passo-2-conectar-os-seus-bancos-open-finance)
+5. [Passo 3: ligar a IA (opcional)](#passo-3-ligar-a-ia-opcional)
+6. [Passo 4: ajustes finos](#passo-4-ajustes-finos)
+7. [Usando no dia a dia](#usando-no-dia-a-dia)
+8. [A página Configurações](#a-página-configurações)
+9. [Segurança](#segurança)
+10. [Recuperar o acesso](#recuperar-o-acesso)
+11. [Backup e restauração](#backup-e-restauração)
+12. [Atualizando uma instalação existente](#atualizando-uma-instalação-existente)
+13. [Comandos úteis e documentação](#comandos-úteis-e-documentação)
 
-| Tipo | Descrição | Exemplo |
-|------|-----------|---------|
-| **Despesa** | Gasto real de dinheiro | Almoço, Netflix, conta de luz |
-| **Entrada** | Dinheiro recebido | Salário, freelance, reembolso |
-| **Transferência** | Movimentação entre contas próprias | Aplicação no cofrinho, resgate de CDB |
+## O que dá para fazer
 
-Transferências são excluídas dos totais de despesas e entradas — evitando que aplicações no cofrinho distorçam o resumo financeiro.
+| No dashboard | O que mostra |
+| --- | --- |
+| **Painel** (página inicial) | Total em conta, cada banco com a conta corrente e os cartões (fatura, limite usado, vencimento) e alertas de limite e vencimento |
+| **Visão geral** | Receitas, despesas e saldo do mês, comparação com o mês anterior e os últimos 12 meses |
+| **Transações** | Tudo o que entrou e saiu, por categoria, por dia ou em lista, com filtros e busca |
+| **Gastos** | Despesas do mês por categoria, forma de pagamento e conta |
+| **Classificar** | As contas que ficaram em "Outros" (geralmente Pix): escolha a categoria uma vez e as próximas já chegam certas |
+| **Orçamento** | Despesas em fixas, parceladas e variáveis, e quanto da renda já está comprometido |
+| **Revisão** | Mapa de calor por categoria e sugestões de corte (assinaturas, gasto formiga, cobranças duplicadas, aumentos), com a economia por ano |
+| **Metas** | Juntar um valor até uma data, reduzir uma categoria ou manter uma reserva de N meses |
+| **Coach** | A IA comenta a revisão e as metas e sugere prioridades (opcional, veja o [Passo 3](#passo-3-ligar-a-ia-opcional)) |
+| **Projeção** | Os próximos 6, 12 ou 24 meses e um simulador de financiamento |
+| **Comparações** | Um mês contra o outro, por categoria |
+| **Investimentos** | Patrimônio investido por tipo e produto e a evolução do saldo |
 
-## Tecnologias
+| No Telegram | O que acontece |
+| --- | --- |
+| `/saldos` | Painel de saldos em texto: total, bancos, cartões e vencimentos |
+| `/resumo` | Resumo da semana: total do mês, cobranças duplicadas, contas novas, metas em risco |
+| `/sync` | Busca agora as transações novas dos seus bancos |
+| `gastei 45 reais no almoço no pix` | Registra a despesa (precisa da IA) |
+| Foto de recibo ou PDF do extrato | Lê e registra as transações (precisa da IA) |
+| Toda segunda às 9h | O resumo semanal chega sozinho (dia e hora configuráveis) |
+| Dia 1 de cada mês | A planilha CSV do mês anterior chega sozinha |
 
-- **Go** — aplicação principal
-- **Google Gemini** — análise e interpretação das mensagens
-- **Evolution API** — integração com WhatsApp (somente no canal WhatsApp)
-- **Telegram Bot API** — integração com Telegram (somente no canal Telegram)
-- **PostgreSQL** — armazenamento das despesas
-- **Redis** — cache da Evolution API (somente no canal WhatsApp)
-- **Docker / Docker Compose** — infraestrutura
+## Instalação
 
-## Pré-requisitos
-
-- [Docker](https://www.docker.com/) com Docker Compose (e `make` e `openssl`, para o `make init`)
-- Conta no Telegram (ou no WhatsApp, configurado pelo `.env`)
-- Opcional: chave de API do [Google Gemini](https://aistudio.google.com/app/apikey), para entender mensagens livres, recibos e extratos
-
-## Configuração
-
-### Começo rápido (3 comandos)
+**Você precisa de:** [Docker](https://docs.docker.com/get-docker/) com Docker Compose, `make` e `openssl` (já vêm na maioria dos Linux e no macOS) e uma conta no Telegram.
 
 ```bash
 git clone https://github.com/MarcosAAlbanoJunior/go-financial-assistant.git && cd go-financial-assistant
@@ -53,302 +66,316 @@ make init
 docker compose up -d
 ```
 
-Abra **http://localhost:8080** e cole o token que o `make init` gravou no `.env` (linha `SETUP_TOKEN`). O resto é no navegador, sem editar o `.env` e sem reiniciar nada.
+Pronto: abra **http://localhost:8080**.
 
-O `make init` nunca sobrescreve o que já existe: cria o `.env` a partir do `.env.example`, a chave mestra em `secrets/app_secret_key` (preenchendo `APP_SECRET_KEY_FILE`) e um `SETUP_TOKEN` aleatório de 32 caracteres. Sem o `make`, faça à mão:
+O `make init` prepara o arquivo `.env` com o mínimo necessário e nunca sobrescreve nada que já exista:
+
+```
+$ make init
+criado .env a partir do .env.example
+criado secrets/app_secret_key (chave mestra, fora do git)
+APP_SECRET_KEY_FILE=/run/secrets/app_secret_key gravada no .env
+SETUP_TOKEN gerado no .env
+
+Pronto. Agora:
+  1. docker compose up -d
+  2. abra http://localhost:8080
+  3. cole o token do arquivo .env (linha SETUP_TOKEN)
+```
+
+<details>
+<summary>Sem o <code>make</code>? Faça à mão</summary>
 
 ```bash
 cp .env.example .env
 mkdir -p secrets && (umask 077 && openssl rand -base64 32 > secrets/app_secret_key)
-# no .env: APP_SECRET_KEY_FILE=/run/secrets/app_secret_key
-# no .env: SETUP_TOKEN=<o resultado de: openssl rand -hex 16>
+openssl rand -hex 16   # copie o resultado
 ```
 
-### O setup no navegador
+No `.env`, preencha `APP_SECRET_KEY_FILE=/run/secrets/app_secret_key` e `SETUP_TOKEN=` com o valor copiado. Depois, `docker compose up -d`.
+</details>
 
-Uma tela por passo, com o que fazer fora do app em lista numerada. Cada passo é salvo ao avançar: fechar no meio e voltar depois retoma do mesmo ponto (pedindo o token de novo).
+## Passo 1: o setup no navegador (senha e Telegram)
 
-1. **Token:** prova que o servidor é seu. O token só existe no `.env`; colado num campo (nunca na URL), com limite de 5 tentativas por minuto.
-2. **Senha do dashboard** (mínimo de 12 caracteres), guardada só como hash argon2id. Ela só passa a valer quando o setup termina.
-3. **Telegram:**
-   - crie o bot no [@BotFather](https://t.me/BotFather) e cole o token (o app confere na hora);
-   - abra o seu bot pelo botão da tela e mande `/start`: o app descobre a sua conta sozinho, sem `@userinfobot`, e pergunta se é você (se outra pessoa mandar antes, "não sou eu" descarta);
-   - digite o código de 6 dígitos que chega no chat.
-4. **Pronto:** o bot já responde (sem reiniciar) e você entra direto no dashboard. A tela mostra os próximos passos opcionais, cada um levando ao grupo certo das Configurações: Gemini, Open Finance, seus nomes nos extratos e o resumo semanal.
+Ao abrir http://localhost:8080 pela primeira vez, aparece **Configurar o FinAssist**, com uma barra de progresso de 4 passos. Pode fechar no meio: tudo é salvo a cada passo e você continua de onde parou.
 
-Depois do setup, o `SETUP_TOKEN` pode ser apagado do `.env` (ou ficar: ele não abre mais nada) e o login pede a senha e um código no chat.
+### 1.1 Token de setup
 
-**Sem o Gemini** o app funciona: o chat atende os comandos (`/saldos`, `/resumo`, `/sync`), o dashboard funciona inteiro e o que precisa de IA (mensagens livres, recibos, extratos, Coach) explica como ligar. Colocar a chave em Configurações → IA vale na hora.
+Abra o arquivo `.env` na pasta do projeto e copie o valor da linha `SETUP_TOKEN=` (só o que vem depois do `=`). Cole na tela.
 
-### Recuperar o acesso
+> **Por que isso?** Só quem tem acesso ao servidor tem o token. Assim, ninguém que encontre a página antes de você consegue virar dono do app.
 
-- **Perdeu a senha ou o chat:** coloque `SETUP_REOPEN=true` no `.env` e reinicie (`docker compose up -d`). O setup reabre com o mesmo `SETUP_TOKEN` para redefinir a senha e/ou o canal (manter o de antes ou ligar outro bot), sem mexer nos dados. Ao terminar, remova `SETUP_REOPEN` (enquanto estiver lá, nada mais acontece).
-- **Emergência com o canal fora do ar:** `DASHBOARD_2FA=off` faz o login pedir só a senha. Com o canal configurado e fora do ar (token errado, Telegram fora), o login responde "não foi possível enviar o código" em vez de aceitar só a senha, e o app tenta ligar o canal de novo sozinho (a cada 5 s, até 5 min entre tentativas).
+### 1.2 Senha do dashboard
 
-### Alternativa: tudo pelo `.env`
+Escolha uma senha com pelo menos 12 caracteres (uma frase com espaços é ótima). O login vai pedir essa senha **e** um código que chega no seu Telegram.
 
-Quem prefere (ou já tinha) o `.env` completo não vê o setup: com a senha (`DASHBOARD_PASSWORD`) e o canal no ambiente, o app sobe direto no login, como antes. O valor salvo pelo setup ou pela página Configurações vale mais que o do ambiente ([ADR 0004](docs/decisoes/0004-precedencia-das-configuracoes.md)).
+### 1.3 Criar o seu bot no Telegram
 
-A variável `CHANNEL` define por onde você conversa com o assistente. **Só um canal fica ativo por vez.**
+O FinAssist conversa com você por um bot que é só seu. Para criar o bot:
 
-| `CHANNEL` | Containers que sobem | `COMPOSE_PROFILES` |
+1. No Telegram, abra o [@BotFather](https://t.me/BotFather) (o bot oficial que cria bots) e toque em **Iniciar**.
+2. Mande `/newbot`.
+3. Ele pede um **nome** (aparece nas conversas, ex.: `Minhas Finanças`) e depois um **usuário** terminado em `bot` (ex.: `minhas_financas_bot`).
+4. Ele responde com o **token** do bot:
+
+```
+Você:      /newbot
+BotFather: Alright, a new bot. How are we going to call it? Please choose a name for your bot.
+Você:      Minhas Finanças
+BotFather: Good. Now let's choose a username for your bot. It must end in `bot`.
+Você:      minhas_financas_bot
+BotFather: Done! Congratulations on your new bot. You will find it at t.me/minhas_financas_bot.
+           Use this token to access the HTTP API:
+           123456789:AAH4r9xYzExemploDeTokenNaoUseEste
+```
+
+Copie o token (a linha `123456789:AA...`) e cole na tela do setup. O app confere na hora e mostra **Bot @minhas_financas_bot encontrado ✓**.
+
+> **Trate o token como uma senha:** quem tem o token controla o bot. Ele fica guardado cifrado no banco.
+
+### 1.4 Mandar /start (o app descobre quem é você)
+
+Você não precisa descobrir o seu ID do Telegram. A tela mostra o botão **Abrir t.me/minhas_financas_bot**:
+
+1. Toque no botão (no celular ou no computador) para abrir o seu bot.
+2. Toque em **Iniciar** (ou mande `/start`).
+
+Em segundos, a tela mostra:
+
+> Recebemos a mensagem de **Maria Silva** (@maria). É você?
+
+Responda **Sim, sou eu**. Se aparecer o nome de outra pessoa (alguém achou o seu bot antes), responda **Não, não sou eu** e mande `/start` de novo.
+
+### 1.5 Confirmar com o código
+
+O bot manda um código de 6 dígitos para você no Telegram:
+
+```
+🔑 Código para confirmar este chat no setup do FinAssist: 482913
+Vale 5 minutos. Se não foi você que está configurando o app, ignore esta mensagem.
+```
+
+Digite o código na tela. **Pronto!** O bot já está respondendo e você entra direto no dashboard. A tela final mostra os próximos passos opcionais, cada um com um link para o lugar certo em Configurações.
+
+> Mande `/saldos` ao bot para testar. Só a sua conta é atendida: mensagens de qualquer outra pessoa (ou de grupos) são ignoradas.
+
+## Passo 2: conectar os seus bancos (Open Finance)
+
+O FinAssist usa o [Meu Pluggy](https://meu.pluggy.ai), um serviço de Open Finance **gratuito para uso pessoal** (até 5 conexões do mesmo titular). Você autoriza o compartilhamento no app do seu próprio banco, como em qualquer Open Finance; o FinAssist só **lê** os dados e nunca movimenta dinheiro.
+
+Você vai precisar de três coisas do Pluggy: **Client ID**, **Client Secret** e o **Item ID** de cada banco.
+
+### 2.1 Conectar os bancos no Meu Pluggy
+
+1. Crie a sua conta em [meu.pluggy.ai](https://meu.pluggy.ai).
+2. Conecte cada banco: escolha o banco, e o próprio app do banco abre para você autorizar o compartilhamento.
+
+### 2.2 Criar a aplicação no Dashboard do Pluggy (Client ID e Client Secret)
+
+1. Crie uma conta no [Dashboard do Pluggy](https://dashboard.pluggy.ai) (é outro site, para desenvolvedores).
+2. Crie uma **aplicação de desenvolvimento**. Ela mostra o **Client ID** e o **Client Secret**: guarde os dois.
+
+### 2.3 Ligar o Meu Pluggy à aplicação (Item IDs)
+
+1. No Dashboard, habilite o conector **MeuPluggy**.
+2. Na aplicação **Demo**, vincule o seu Meu Pluggy (login com a sua conta do Meu Pluggy). Faça isso **uma vez por banco** (não por conta).
+3. Ainda na Demo, no menu de três pontos de cada conexão, copie o **itemId**. Ele tem este formato: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`.
+
+### 2.4 Colar no FinAssist
+
+No dashboard, abra **Configurações** (no fim do menu lateral) e vá ao grupo **Open Finance (Meu Pluggy)**:
+
+| Campo | O que colar |
+| --- | --- |
+| Client ID | o Client ID da aplicação |
+| Client Secret | o Client Secret (fica cifrado e nunca mais aparece na tela) |
+| Item IDs dos bancos | os itemIds, separados por vírgula |
+
+1. Clique em **Salvar**. Como são dados sensíveis, o app manda um código de confirmação no seu Telegram: digite-o na janela que aparece.
+2. Clique em **Testar conexão**. O esperado é: *"Tudo certo: credenciais aceitas e 2 conexão(ões) encontrada(s)."*
+3. Não precisa reiniciar: a primeira sincronização começa sozinha em instantes. Depois, o app sincroniza a cada 6 horas.
+
+Para buscar na hora, use o botão **Sincronizar** do menu lateral ou mande `/sync` no Telegram.
+
+### Bom saber
+
+- **Uma vez por dia:** o Meu Pluggy atualiza os dados cerca de uma vez por dia e não permite forçar a atualização; "Sincronizar" busca o que o Pluggy já tem. O Painel mostra a idade real dos dados de cada banco.
+- **Nada duplica:** sincronizar de novo não repete transações. Se você registrou "gastei 45 no almoço" no Telegram e o Pix chega depois pelo banco, os dois são ligados em vez de contados duas vezes.
+- **Cartão sem dupla contagem:** o pagamento da fatura é ignorado, porque as compras do cartão já entram uma a uma. Parcelas caem no mês da fatura.
+- **Investimentos:** aplicações e resgates viram transferências (não inflam despesas nem renda), e o saldo das posições (CDB, fundos, ações, previdência) aparece em **Investimentos**.
+- **Privacidade:** o app não guarda CPF, nome do titular nem o número completo da conta.
+
+## Passo 3: ligar a IA (opcional)
+
+A IA (Google Gemini) entende o que você escreve no Telegram, lê fotos de recibo e PDFs de extrato, sugere categorias e alimenta o **Coach**. **Sem ela o app funciona:** o Open Finance, o dashboard inteiro e os comandos `/saldos`, `/resumo` e `/sync` não dependem da IA. Se você mandar uma mensagem livre sem a IA ligada, o bot explica como ligar.
+
+1. Entre em [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) com a sua conta Google.
+2. Clique em **Create API key** e copie a chave.
+3. No dashboard: **Configurações → IA (Gemini)** → cole em **Chave da API do Gemini** → **Salvar** (com o código no Telegram) → **Testar conexão**.
+
+Vale na hora, sem reiniciar. Teste mandando ao bot:
+
+```
+Você:  gastei 45 reais no almoço no pix
+Bot:   ✅ Despesa registrada!
+       💰 R$ 45.00
+       📝 Almoço
+       🏷️ Alimentação
+       💳 Pix
+```
+
+**Coach e privacidade.** O Coach envia ao Gemini valores e nomes de estabelecimentos (nunca nomes de pessoas). No plano gratuito, o Google pode usar e revisar esse conteúdo, por isso o Coach só funciona se você marcar **"O projeto da chave tem faturamento (plano pago)"** no mesmo grupo. Antes de cada análise, a tela mostra exatamente o que será enviado. Detalhes em [docs/coach.md](docs/coach.md).
+
+## Passo 4: ajustes finos
+
+Tudo em **Configurações**, valendo na hora:
+
+| Grupo | Ajuste | Para quê |
 | --- | --- | --- |
-| `telegram` | postgres, app, web | _(vazio)_ |
-| `whatsapp` (padrão sem `CHANNEL`) | postgres, redis, evolution, app, web | `whatsapp` |
+| Sincronização | **Seus nomes nos extratos** (ex.: `MARIA DA SILVA, MARIA S SILVA`) | Pix e TED com o seu nome são entre contas suas: deixam de contar como gasto e renda. Ao salvar, o app procura os antigos e pergunta se deve desconsiderá-los |
+| Sincronização | **Dias para trás** = `365` (uma vez) e depois **Sincronizar** | Traz o ano inteiro de histórico (o Pluggy guarda 12 meses). Melhora o Orçamento, a Revisão e a Projeção. Pode voltar a 60 depois |
+| Resumo semanal | Dia, hora e fuso | Quando o resumo chega no Telegram |
 
-Variáveis comuns aos dois canais (todas opcionais; também se configuram na página Configurações):
+Depois, abra **Classificar** e dê categoria às contas que ficaram em "Outros": as próximas sincronizações já chegam classificadas.
 
-| Variável | Descrição |
+## Usando no dia a dia
+
+### No Telegram
+
+Além do que chega pelo banco, você pode registrar o que quiser em linguagem natural (com a IA ligada):
+
+| Você manda | O que acontece |
 | --- | --- |
-| `DASHBOARD_PASSWORD` | Senha do dashboard (mínimo de 12 caracteres), no lugar da definida pelo setup |
-| `GEMINI_API_KEY` | Chave da API do Google Gemini, obtida em [aistudio.google.com](https://aistudio.google.com/app/apikey). Sem ela, o que precisa de IA fica desligado com aviso |
-| `GEMINI_PAID_PLAN` | Padrão `false`. Declare `true` só se o projeto da chave tiver faturamento (serviços pagos): é o que libera o **Coach com IA**, que envia dados financeiros ao Gemini (veja *Coach com IA*) |
-| `DIGEST_ENABLED`, `DIGEST_WEEKDAY`, `DIGEST_HOUR`, `DIGEST_TIMEZONE` | **Resumo semanal** no canal de conversa (padrão: ligado, segunda às 9h, fuso `America/Sao_Paulo`): veja *Resumo semanal*. `DIGEST_ENABLED=false` desliga |
-| `COACH_GEMINI_MODEL` | Troca o modelo do Coach (padrão `gemini-3.5-flash-lite`) |
-| `CHANNEL` | `telegram` ou `whatsapp` |
-| `COMPOSE_PROFILES` | `whatsapp` para subir Evolution API + Redis; vazio para Telegram |
-| `ADMIN_SECRET` | Senha para o endpoint `/admin/qrcode` (somente WhatsApp); defina um valor forte em produção |
+| `gastei 45 reais no almoço no pix` | Despesa |
+| `comprei um tênis de 300 reais em 3x no cartão` | Compra parcelada |
+| `netflix 55 reais todo mês todo dia 15` | Despesa recorrente (lançada sozinha todo mês) |
+| `cancelar netflix` | Para a recorrente |
+| `recebi 6000 reais de salário` | Entrada |
+| `coloquei 2000 no cofrinho` | Transferência entre contas suas (não conta como gasto) |
+| `quanto gastei em março?` | Resumo do mês por categoria |
+| `exportar meus gastos de março` | Planilha CSV na conversa |
+| Foto de recibo ou nota fiscal | Lê e registra a despesa |
+| PDF do extrato do banco | Importa as transações e pergunta sobre as que já existem |
 
-O que fica sempre no ambiente: `DATABASE_URL`, a chave mestra (`APP_SECRET_KEY_FILE` ou `APP_SECRET_KEY`), `SETUP_TOKEN`/`SETUP_REOPEN`, `PORT`/`WEB_PORT`, `DASHBOARD_2FA` e as variáveis do WhatsApp.
+Comandos que funcionam com ou sem IA: `/saldos`, `/resumo` e `/sync`. Mais exemplos em [docs/uso-do-chat.md](docs/uso-do-chat.md).
 
-#### Telegram (pelo .env)
+### No dashboard
 
-1. No Telegram, converse com o [@BotFather](https://t.me/BotFather), envie `/newbot` e siga as instruções. Ele devolve o **token** do bot.
-2. Converse com o [@userinfobot](https://t.me/userinfobot) para descobrir o **seu ID numérico**.
-3. Preencha o `.env`:
+Entre com a senha e o código que chega no Telegram. Cada tela está descrita em [O que dá para fazer](#o-que-dá-para-fazer) e em detalhes em [docs/dashboard.md](docs/dashboard.md). O mês e os filtros ficam na URL, os gráficos têm visão em tabela e o tema claro/escuro segue o sistema.
 
-```env
-CHANNEL=telegram
-COMPOSE_PROFILES=
-TELEGRAM_BOT_TOKEN=123456:token-do-botfather
-TELEGRAM_CHAT_ID=987654321
-```
+## A página Configurações
 
-| Variável | Descrição |
+O que antes ficava no `.env` agora se edita no navegador. Cada campo mostra de onde vem o valor (salvo aqui, `.env` ou padrão) e tem **Voltar ao valor do ambiente ou padrão**.
+
+| Grupo | Campos | Quando vale |
+| --- | --- | --- |
+| Resumo semanal | ligar/desligar, dia, hora, fuso | na hora |
+| Sincronização | intervalo (horas), dias para trás, seus nomes | na hora |
+| Open Finance (Meu Pluggy) | Client ID, Client Secret, Item IDs | na hora |
+| IA (Gemini) | chave, plano pago (Coach), modelo do Coach | na hora |
+| Telegram | token do bot, seu ID | depois de reiniciar (botão **Reiniciar agora** na página) |
+
+- **Segredos** (Client Secret, chave do Gemini, token do bot) ficam cifrados no banco com a chave mestra, que nunca vai para o banco. Depois de salvos, nunca voltam para a tela: só aparece "Configurado".
+- **Mudanças sensíveis** (segredos, bancos conectados, quem fala com o bot) pedem um código novo no Telegram. Assim, uma sessão roubada não basta.
+- **Histórico de alterações** no fim da página, sem os valores, e um aviso no Telegram quando algo sensível muda.
+
+## Segurança
+
+- **Login em dois passos:** senha + código de 6 dígitos no Telegram (vale 5 minutos, uma vez só). Cada login avisa no chat. Ligue também a [verificação em duas etapas](https://telegram.org/faq#q-how-does-2-step-verification-work) da sua conta do Telegram.
+- **Só você fala com o bot:** só a conta confirmada no setup, em conversa privada, é atendida.
+- **Senha guardada com hash** (argon2id), nunca em texto.
+- **Tudo em `127.0.0.1`:** o dashboard e o banco não ficam expostos na rede. Para acessar de outro dispositivo, coloque na frente um proxy com **HTTPS** (Caddy, Traefik, Cloudflare Tunnel...): sem HTTPS, a senha trafega em claro.
+- **O bot não precisa de porta aberta:** ele busca as mensagens no Telegram (long polling), sem webhook nem domínio.
+- **O que fica no `.env`:** só o que não pode morar no banco: a chave mestra, o `SETUP_TOKEN`, portas e `DASHBOARD_2FA`. Mantenha o `.env`, a pasta `secrets/` e os backups fora de repositórios.
+
+Detalhes nas decisões [0003 (segredos)](docs/decisoes/0003-segredos-cifrados.md), [0007 (segundo fator)](docs/decisoes/0007-segundo-fator-no-chat.md) e [0008 (setup)](docs/decisoes/0008-setup-pelo-navegador.md).
+
+## Recuperar o acesso
+
+| Situação | O que fazer |
 | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | Token do bot criado no @BotFather. Trate como senha: quem tem o token controla o bot |
-| `TELEGRAM_CHAT_ID` | Seu ID numérico no Telegram. **Só esse usuário é atendido**, em conversa privada; mensagens de qualquer outra pessoa ou grupo são ignoradas |
+| **Esqueci a senha** ou **perdi o acesso ao chat** | No `.env`, coloque `SETUP_REOPEN=true` e rode `docker compose up -d`. Abra http://localhost:8080/setup, cole o `SETUP_TOKEN` e defina a senha nova e/ou outro bot. Os dados continuam todos lá. Ao terminar, **remova** `SETUP_REOPEN` (ou deixe `false`) |
+| Apaguei o `SETUP_TOKEN` | Rode `make init`: ele gera um novo se a linha estiver vazia |
+| O bot está fora do ar e o login diz "não foi possível enviar o código" | O app tenta religar o bot sozinho (a cada poucos segundos, até 5 minutos entre tentativas). Emergência: `DASHBOARD_2FA=off` no `.env` e `docker compose up -d` faz o login pedir só a senha |
 
-O bot usa _long polling_: não precisa de URL pública, domínio ou HTTPS, e não expõe nenhuma porta além do `/health`.
-
-#### WhatsApp (pelo .env)
-
-Nesta versão o WhatsApp não entra no setup pelo navegador: configure pelo `.env` (o setup só pede a senha e mantém o canal).
-
-```env
-CHANNEL=whatsapp
-COMPOSE_PROFILES=whatsapp
-EVOLUTION_API_KEY=uma-chave-qualquer-para-proteger-a-api
-EVOLUTION_INSTANCE=Financial Assistant
-OWNER_PHONE=5511999999999
-# Opcional: use se a Evolution API entregar seu número em outro formato (bug conhecido)
-ALLOWED_NUMBERS=
-```
-
-| Variável | Descrição |
-| --- | --- |
-| `EVOLUTION_API_KEY` | Chave para proteger a sua instância da Evolution API (pode ser qualquer valor) |
-| `EVOLUTION_INSTANCE` | Nome da instância na Evolution API |
-| `OWNER_PHONE` | Seu número de WhatsApp com código do país e DDD, sem `+` ou espaços (ex: `5511999999999`) |
-| `ALLOWED_NUMBERS` | Opcional: número alternativo caso a Evolution API entregue seu número em formato diferente |
-
-Suba com `docker compose up -d --build && docker compose logs -f app`. Na primeira execução, o assistente cria a instância na Evolution API e exibe um **QR code nos logs do app**. Escaneie com o seu WhatsApp:
-
-> WhatsApp → **Aparelhos conectados** → **Conectar um aparelho** → escaneie o QR code
-
-> Em execuções futuras, se o WhatsApp já estiver conectado, o QR code não será exibido.
-
-### Atualizando uma instalação existente
-
-Nada muda para quem já tem o `.env` completo (senha e canal): não aparece setup e o login é o de antes. O `GEMINI_API_KEY` deixou de ser obrigatório.
-
-Os containers Evolution API e Redis só sobem com o perfil `whatsapp`. Se você usa o WhatsApp, mantenha no `.env`:
-
-```env
-COMPOSE_PROFILES=whatsapp
-```
-
-Sem isso, `docker compose up` não sobe a Evolution API e o app ficará aguardando por ela. As portas do Postgres e do Redis escutam apenas em `127.0.0.1`.
-
-**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` na primeira criação do banco. Em um banco existente, aplique à mão os que faltam, por exemplo a `010` (sugestões dispensadas da tela Revisão) a `011` (metas), a `012` (histórico do Coach), a `013` (decisões "cancelei" da Revisão) a `014` (regras de categoria), a `016` e a `017` (configurações salvas no dashboard e o histórico delas), a `018` (data de atualização dos dados do banco), a `019` (setup pelo navegador e recuperação com `SETUP_REOPEN`) e a `015` (bancos, logos e dados dos cartões; depois, rode uma sincronização):
-
-```bash
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/010_create_review_dismissals.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/011_create_goals.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/012_create_coach_analyses.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/013_create_review_decisions.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/014_create_category_rules.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/015_create_institutions.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/016_create_settings.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/017_create_settings_audit.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/018_institution_source_updated_at.sql
-docker compose exec -T postgres psql -U finassist -d finassist < backend/migrations/019_create_dashboard_owner.sql
-```
-
-Sem a `019` o app sobe normalmente com o `.env` completo (só avisa no log); ela é necessária para usar o setup pelo navegador ou o `SETUP_REOPEN`.
-
-### Open Finance (opcional)
-
-Em vez de registrar tudo à mão, você pode conectar seus bancos pelo **Open Finance** usando o [Meu Pluggy](https://meu.pluggy.ai) (gratuito para uso pessoal, até 5 conexões do mesmo titular). O assistente passa a importar sozinho suas transações; o registro manual **continua funcionando** e é o caminho para dinheiro vivo ou para quem prefere não conectar o banco.
-
-1. Crie sua conta em [meu.pluggy.ai](https://meu.pluggy.ai) e conecte seus bancos (você autoriza o compartilhamento no app do próprio banco).
-2. Crie uma conta no [Dashboard do Pluggy](https://dashboard.pluggy.ai) e uma aplicação de desenvolvimento. Ela fornece o **Client ID** e o **Client Secret**.
-3. No Dashboard, habilite o conector **MeuPluggy** e, na aplicação **Demo**, vincule o seu Meu Pluggy via OAuth. Faça isso **uma vez por banco** (não por conta).
-4. Ainda na Demo, no menu de três pontos de cada conexão, copie o **itemId**.
-5. Preencha o `.env` e reinicie:
-
-```env
-PLUGGY_CLIENT_ID=seu-client-id
-PLUGGY_CLIENT_SECRET=seu-client-secret
-PLUGGY_ITEM_IDS=itemid-do-banco-1,itemid-do-banco-2
-```
-
-| Variável | Descrição |
-| --- | --- |
-| `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET` | Credenciais da aplicação no Dashboard. O app gera e renova a `apiKey` sozinho (ela expira em 2 horas) |
-| `PLUGGY_ITEM_IDS` | `itemId` de cada banco conectado, separados por vírgula. Precisam ser UUIDs |
-| `SYNC_INTERVAL_HOURS` | Intervalo entre sincronizações (padrão `6`) |
-| `SYNC_LOOKBACK_DAYS` | Quantos dias para trás buscar a cada sincronização (padrão `60`, máx. `365`) |
-
-Se algum `PLUGGY_*` estiver preenchido, os três são obrigatórios. Sem nenhum, o Open Finance fica desligado.
-
-**Como funciona**
-- Sincroniza ao subir e a cada `SYNC_INTERVAL_HOURS`. Para forçar agora, envie `/sync` (Telegram) ou `sincronizar` (qualquer canal).
-- É **idempotente**: cada transação tem o ID de origem gravado, então sincronizar de novo não duplica nada.
-- **Conciliação com o manual:** se você registrou "gastei 45 no almoço" e depois o Pix chega pelo banco, o assistente liga os dois em vez de contar duas vezes (mesmo tipo e valor, data com até 3 dias de diferença; recorrentes casam no mesmo mês).
-- **Sem dupla contagem no cartão:** pagamento de fatura e transferência entre contas do mesmo titular são ignorados, porque as compras do cartão já entram uma a uma. Aplicações e resgates de investimento viram **Transferência**.
-- Compras parceladas no cartão chegam parcela a parcela, com a descrição `(2/3)`.
-- **Classificação:** a categoria vem do Pluggy; quando ele não classifica a despesa, palavras da descrição decidem (iFood, posto, farmácia, assinaturas...). Pix para pessoas e o que não for óbvio ficam em "Outros". As regras estão em `backend/internal/infra/pluggy/mapper.go`.
-- **Aplicação automática do Itaú** ("APLIC AUT MAIS") é ignorada: é só o banco varrendo o saldo da conta para um CDB e de volta.
-- **Histórico:** a primeira sincronização busca `SYNC_LOOKBACK_DAYS` dias (padrão 60). Para trazer o ano todo (o Pluggy guarda 12 meses), use `SYNC_LOOKBACK_DAYS=365` uma vez e envie `/sync`; é idempotente e pode voltar ao padrão depois.
-- **Histórico estimado:** o Pluggy não informa saldos passados, então os meses anteriores à primeira sincronização são **estimados** pelas movimentações de cada posição (saldo do primeiro registro menos o aplicado depois, sem contar rendimentos, o que os deixa um pouco acima do real) e aparecem em cinza com um aviso. Da primeira sincronização em diante o saldo é o exato. Depende de o banco entregar as movimentações; o log "investimentos sincronizados" mostra quantas vieram.
-- **Investimentos:** se o banco conectado tiver posições (CDB, fundos, ações, previdência...), o app guarda o saldo líquido de cada uma a cada sincronização (tabela `investments`, mais o saldo diário em `investment_balances`). O Pluggy não informa saldos passados, então o histórico do patrimônio começa na primeira sincronização. Titular, CNPJ do emissor e número da posição são descartados.
-- **Transferências entre contas suas:** defina `OWN_NAMES` (seus nomes como aparecem no extrato, separados por vírgula) e Pix, TED e DOC com esse nome são ignorados nas próximas sincronizações. Para limpar o que já foi gravado, faça um backup (`make backup`) e cancele os lançamentos: `UPDATE payments SET status='CANCELLED' WHERE id IN (SELECT pay.id FROM payments pay JOIN purchases p ON p.id = pay.purchase_id WHERE p.description ~* '^pix (enviado|recebido) SEU NOME *$')`.
-- **Contas e cartões** são guardados na tabela `accounts` (nome, tipo, 4 últimos dígitos, saldo e limite do cartão), e cada transação aponta para a conta de origem. O app **não** guarda CPF, nome do titular nem o número completo da conta. Transações sincronizadas antes dessa tabela ganham a conta na primeira sincronização depois da atualização, desde que estejam dentro de `SYNC_LOOKBACK_DAYS`.
-
-**Limitações**
-- O Meu Pluggy atualiza os dados cerca de **uma vez por dia** e não permite forçar atualização; `/sync` só busca o que o Pluggy já tem.
-- Estornos no cartão não são subtraídos das despesas.
-- O saldo de um cartão é o valor que o Pluggy informa (em geral a fatura atual). Ele só atualiza quando o Pluggy atualiza.
-- Transações alteradas ou removidas depois no banco não são atualizadas aqui.
-- A classificação usa as categorias do Pluggy (mapeamento em `internal/infra/pluggy/mapper.go`); o que não for reconhecido vira "Outros".
-
-## Dashboard (front-end)
-
-O front-end (React + TypeScript + Vite) fica em `frontend/` e é servido por um container nginx que também repassa `/api` ao app (mesma origem, sem CORS).
-
-1. Na primeira vez, o dashboard abre o **setup** (veja *Configuração*): senha e canal definidos no navegador. Quem tem `DASHBOARD_PASSWORD` e o canal no `.env` vai direto ao login.
-2. `docker compose up -d --build` e abra **http://localhost:8080** (mude a porta com `WEB_PORT`).
-3. Entre com a senha e o **código que chega no seu chat** (segundo fator; `DASHBOARD_2FA=off` desliga, por exemplo se você perder o acesso ao chat; para trocar a senha ou o canal, `SETUP_REOPEN`). Telas: Painel (saldos por banco e cartão), Visão geral, Gastos, Comparações, Transações, Classificar, Orçamento, Revisão, Metas, Coach, Projeção, Investimentos e **Configurações** (edição no navegador do que antes só existia no `.env`, com segredos cifrados).
-
-Detalhes de cada tela, segurança e desenvolvimento em [docs/dashboard.md](docs/dashboard.md). O container escuta só em `127.0.0.1`; para acessar de outro dispositivo, ponha na frente um proxy com **HTTPS** (a API e o dashboard devem ficar na mesma origem).
+> Para reabrir o setup **uma segunda vez**, reinicie uma vez com `SETUP_REOPEN=false` e depois com `true`: um `SETUP_REOPEN` esquecido ligado não reabre o setup a cada reinício.
 
 ## Backup e restauração
 
-O serviço `backup` do Docker Compose grava um `pg_dump` completo do banco em `./backups` ao subir e depois a cada 24 horas, guardando os 14 mais recentes (`BACKUP_INTERVAL_HOURS` e `BACKUP_KEEP`). Sem isso, perder o volume do Postgres (um `docker compose down -v`, um disco com problema) apagaria tudo: lançamentos, metas, regras, decisões e o histórico do Coach.
+O serviço `backup` grava uma cópia completa do banco em `./backups` ao subir e a cada 24 horas, guardando as 14 mais recentes (`BACKUP_INTERVAL_HOURS` e `BACKUP_KEEP` no `.env`).
 
-- **Fora do git e privado:** `./backups` está no `.gitignore` e os arquivos ficam com permissão 600. Eles contêm todos os seus dados financeiros em texto: **não os envie a serviços de terceiros sem criptografar** (por exemplo `age` ou `gpg --symmetric arquivo.dump`) e guarde também uma cópia **fora da máquina** (outro disco ou servidor seu): um backup no mesmo disco não protege de perder o disco.
-- **Dono dos arquivos:** o serviço roda com o usuário `1000:1000`; se o seu for outro (`id -u`, `id -g`), defina `BACKUP_UID` e `BACKUP_GID` no `.env` e crie a pasta antes (`mkdir -p backups`).
-- **Backup na hora:** `make backup`.
-- **Restaurar** (substitui os dados atuais): `make restore FILE=backups/finassist-AAAAMMDD-HHMMSS.dump`. Para testar sem risco, restaure num banco à parte: `docker compose exec -T postgres psql -U finassist -d finassist -c "CREATE DATABASE teste"` e depois `docker compose exec -T postgres pg_restore -U finassist -d teste --no-owner < backups/<arquivo>.dump`.
+| Comando | O que faz |
+| --- | --- |
+| `make backup` | Backup na hora |
+| `make restore FILE=backups/finassist-AAAAMMDD-HHMMSS.dump` | Restaura (substitui os dados atuais) |
 
-## Resumo semanal
+- Os arquivos ficam fora do git, com permissão 600, e contêm todos os seus dados financeiros: **criptografe antes de enviar a qualquer serviço** (`age` ou `gpg --symmetric arquivo.dump`) e guarde uma cópia **fora da máquina**.
+- O serviço roda com o usuário `1000:1000`. Se o seu for outro (`id -u`, `id -g`), defina `BACKUP_UID` e `BACKUP_GID` no `.env`.
+- Para testar uma restauração sem risco, restaure num banco à parte: `docker compose exec -T postgres psql -U finassist -d finassist -c "CREATE DATABASE teste"` e `docker compose exec -T postgres pg_restore -U finassist -d teste --no-owner < backups/<arquivo>.dump`.
 
-Toda semana (padrão: segunda às 9h, no fuso configurado) o app manda ao seu chat (Telegram ou WhatsApp) um resumo curto do que merece atenção, **calculado só por código, sem IA e sem enviar nada a terceiros além do próprio canal**: total do mês até agora, possíveis cobranças duplicadas, contas novas do mês, contas que você marcou como canceladas e **voltaram a ser cobradas**, metas de redução que estouram o teto no ritmo atual, metas de juntar que não cabem na sobra projetada e a economia já realizada. Sem nada a avisar, ele diz "Sem alertas esta semana". No Telegram, `/resumo` pede um na hora. `/saldos` mostra o mesmo painel de saldos em texto (total, bancos, cartões e vencimentos). Se o app estiver desligado na hora marcada, aquela semana é pulada. O Telegram (ou o WhatsApp) recebe os nomes das contas em texto, como em qualquer mensagem do bot.
-
-## Coach com IA (opcional)
-
-A tela **Coach** pede ao Google Gemini que interprete a Revisão e as Metas e priorize cortes. Só sugere e pergunta; os números vêm sempre do código; nunca roda em segundo plano. Exige `GEMINI_PAID_PLAN=true` (ou ligar na página Configurações) por causa dos termos do plano gratuito do Google. O que é enviado, o histórico e os limites estão em [docs/coach.md](docs/coach.md).
-
-## API do dashboard
-
-O app expõe uma API JSON sob `/api` (sessão por cookie assinado, escritas só com JSON na mesma origem). Enquanto o app não está configurado, ela só atende o setup (`/api/setup/*`) e o resto responde `409 {"setup": "required"}`. Todas as rotas, autenticação e segurança estão em [docs/api.md](docs/api.md).
-
-## Uso
-
-Envie mensagens para **si mesmo** no WhatsApp ou para o seu bot no Telegram: gastos simples, compras parceladas, despesas recorrentes, entradas, transferências, consulta do mês, extrato em PDF, planilha CSV, recibos e comandos (`/sync`, `/resumo`, `/saldos`). Exemplos de cada um em [docs/uso-do-chat.md](docs/uso-do-chat.md).
-
-## Segurança e gerenciamento remoto
-
-### Gerar QR Code para conectar o WhatsApp (somente canal WhatsApp)
-
-Abra no navegador substituindo pelo IP da sua VPS ou `localhost` se estiver rodando localmente:
-
-```
-http://<IP-DA-VPS-OU-LOCALHOST>:3000/admin/qrcode?token=sua-senha
-```
-
-Se o WhatsApp já estiver conectado, exibe uma mensagem de confirmação. Se não, exibe o QR code para escanear — a página atualiza automaticamente a cada 30 segundos.
-
-**Proteções implementadas (WhatsApp):**
-- Requer `ADMIN_SECRET` configurado (retorna `503` se vazio)
-- Rate limit de 10 requisições por minuto por IP
-- `/webhook` aceita conexões apenas do container Evolution API (verificação por IP via DNS interno do Docker)
-
-**Proteções implementadas (setup pelo navegador):**
-- Só abre com o `SETUP_TOKEN` do `.env` (mínimo de 24 caracteres), colado num campo, comparado em tempo constante e com 5 tentativas por minuto por IP; a sessão do setup (`fa_setup`) é separada da do dashboard e não dá acesso a mais nada
-- Só a conta que mandou `/start` **e** digitou o código enviado a ela vira dona do bot; nada do que foi digitado num passo incompleto vale como configuração
-- Concluído, as rotas do setup respondem `404`; cada passo vai para o histórico de alterações (sem valores). Detalhes na [ADR 0008](docs/decisoes/0008-setup-pelo-navegador.md)
-
-**Proteções implementadas (Telegram):**
-- Apenas o `TELEGRAM_CHAT_ID` configurado, em conversa privada, é atendido; o restante é descartado antes de qualquer processamento
-- O token nunca é registrado em logs: erros de rede do cliente são sanitizados
-- Sem webhook: o bot busca as mensagens (long polling), então nenhuma rota pública é necessária
-- Downloads de anexos limitados a 20 MB (limite da própria Bot API)
-
-## Comandos úteis
+## Atualizando uma instalação existente
 
 ```bash
-# Preparar uma instalação nova (.env, chave mestra e SETUP_TOKEN, sem sobrescrever nada)
-make init
-
-# Subir e acompanhar logs da aplicação
-docker compose up -d --build && docker compose logs -f app
-
-# Ver logs em tempo real
-docker compose logs -f app
-
-# Parar os containers
-docker compose down
-
-# Parar e apagar todos os dados (banco, volumes)
-docker compose down -v
-
-# Acessar o banco de dados
-docker compose exec postgres psql -U finassist -d finassist
+git pull
+docker compose up -d --build
 ```
 
-## Estrutura do projeto
+**Migrations novas:** o Postgres só roda os scripts de `backend/migrations/` quando o banco é criado. Em um banco existente, aplique à mão os que faltam (rodar de novo não estraga nada):
 
-```
-backend/                                    aplicação em Go
-    cmd/                                    entrypoint da aplicação
-    internal/
-        app/                                composição: monta e liga todas as peças
-        config/                             leitura e validação do ambiente
-        chat/                               lógica de conversa independente de canal
-        domain/                             entidades e regras puras; domain/ports: só interfaces
-        usecase/                            casos de uso por contexto: ledger, openfinance, planning, review, coach, balances, insights
-        settings/                           configurações do dashboard (valor salvo > ambiente > padrão), segredos cifrados
-        setup/                              estado do setup pelo navegador e a regra de "configurado"
-        auth/                               segundo fator (códigos no chat) e hash argon2id da senha
-        infra/
-            db/                             repositório PostgreSQL
-            evolution/                      cliente da Evolution API (WhatsApp)
-            gemini/                         cliente do Google Gemini
-            http/                           servidor HTTP e adapter do webhook do WhatsApp
-            pluggy/                         cliente do Open Finance (Meu Pluggy)
-            telegram/                       cliente da Bot API e bot (long polling)
-    migrations/                             scripts SQL de criação do banco
-frontend/                                   dashboard em React + TypeScript (Vite) e nginx
-    src/api/                                cliente da API e hooks de consulta
-    src/lib/                                formatação, meses e tema (com testes)
-    src/components/, src/pages/             telas e componentes
-docker-compose.yml, Makefile, .env.example  na raiz
-docs/                                   arquitetura, regras de cálculo, decisões, API, telas e uso do chat
+```bash
+for f in backend/migrations/01[0-9]_*.sql; do docker compose exec -T postgres psql -q -U finassist -d finassist < "$f"; done
 ```
 
-Camadas e fluxos em [docs/arquitetura.md](docs/arquitetura.md); como contribuir em [CONTRIBUTING.md](CONTRIBUTING.md).
+| Migration | Para quê |
+| --- | --- |
+| `010` a `014` | Revisão, metas, histórico do Coach, decisões "cancelei", regras de categoria |
+| `015` | Bancos, logos e dados dos cartões (depois, rode uma sincronização) |
+| `016`, `017` | Página Configurações e o histórico de alterações |
+| `018` | Idade real dos dados do banco |
+| `019` | Setup no navegador e recuperação com `SETUP_REOPEN` |
+
+**Quem já usava tudo pelo `.env`** (senha em `DASHBOARD_PASSWORD`, Telegram em `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, Pluggy, Gemini) não precisa mudar nada: o app não mostra o setup e o login continua igual. O que for salvo pela página Configurações passa a valer mais que o `.env`. Para poder usar a recuperação com `SETUP_REOPEN`, rode `make init` uma vez (ele só acrescenta o que falta).
+
+<details>
+<summary>Configurar o Telegram pelo <code>.env</code>, sem o setup</summary>
+
+1. Crie o bot no [@BotFather](https://t.me/BotFather) como no [passo 1.3](#13-criar-o-seu-bot-no-telegram).
+2. Descubra o seu ID numérico: abra o [@userinfobot](https://t.me/userinfobot), toque em **Iniciar** e copie o número da linha `Id`.
+3. No `.env`:
+
+```env
+CHANNEL=telegram
+TELEGRAM_BOT_TOKEN=123456789:AAH4r9xYz...
+TELEGRAM_CHAT_ID=987654321
+DASHBOARD_PASSWORD=uma-senha-com-12-ou-mais
+```
+
+4. `docker compose up -d`. O log (`docker compose logs -f app`) mostra `canal Telegram ativo`.
+</details>
+
+## Comandos úteis e documentação
+
+```bash
+make init                      # prepara uma instalação nova (.env, chave mestra e SETUP_TOKEN)
+docker compose up -d --build   # sobe (ou atualiza) tudo
+docker compose logs -f app     # acompanha o log do app
+docker compose down            # para os containers (os dados ficam)
+make backup                    # backup na hora
+make db-shell                  # abre o psql no banco
+```
+
+| Documento | Conteúdo |
+| --- | --- |
+| [docs/dashboard.md](docs/dashboard.md) | Cada tela do dashboard em detalhes |
+| [docs/uso-do-chat.md](docs/uso-do-chat.md) | Exemplos de mensagens para o bot |
+| [docs/coach.md](docs/coach.md) | O que o Coach envia à IA e os limites |
+| [docs/regras-de-calculo.md](docs/regras-de-calculo.md) | Como os números são calculados |
+| [docs/api.md](docs/api.md) | API do dashboard (rotas, autenticação, setup) |
+| [docs/arquitetura.md](docs/arquitetura.md) | Camadas, pacotes e fluxos do código |
+| [docs/decisoes/](docs/decisoes/README.md) | Decisões de arquitetura (ADRs) |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Rodar os testes e contribuir |
+
+**Tecnologias:** Go, PostgreSQL, React + TypeScript (Vite), Telegram Bot API, Meu Pluggy (Open Finance), Google Gemini (opcional), Docker Compose.
 
 ## Licença
 
