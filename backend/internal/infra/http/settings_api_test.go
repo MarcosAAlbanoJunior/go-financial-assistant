@@ -67,6 +67,11 @@ type settingsEnv struct {
 
 func newSettingsAPI(t *testing.T, secretKey string) (*settingsEnv, *Server) {
 	t.Helper()
+	return newSettingsAPIWith(t, secretKey, nil)
+}
+
+func newSettingsAPIWith(t *testing.T, secretKey string, factor *SecondFactor) (*settingsEnv, *Server) {
+	t.Helper()
 	cipher, err := settings.NewCipher(secretKey)
 	if err != nil {
 		t.Fatal(err)
@@ -107,6 +112,7 @@ func newSettingsAPI(t *testing.T, secretKey string) (*settingsEnv, *Server) {
 	}
 	s := NewServer(0, logger)
 	s.SetSettings(e.deps)
+	s.SetSecondFactor(factor)
 	if err := s.MountAPI(testPassword, &fakeReader{}); err != nil {
 		t.Fatal(err)
 	}
@@ -416,6 +422,10 @@ func TestSettingsAPI_ResetSensitiveNeedsPassword(t *testing.T) {
 func TestSettingsAPI_AuditAndNotice(t *testing.T) {
 	e, s := newSettingsAPI(t, goodKey)
 	c := login(t, s)
+	if len(e.notices) != 1 || !strings.Contains(e.notices[0], "Login no dashboard") {
+		t.Fatalf("o login avisa no chat: %v", e.notices)
+	}
+	e.notices = nil
 
 	do(s, "PUT", "/api/settings", `{"values":{"DIGEST_HOUR":"8"}}`, jsonHdr, c)
 	if len(e.notices) != 0 {
@@ -439,6 +449,7 @@ func TestSettingsAPI_AuditAndNotice(t *testing.T) {
 func TestSettingsAPI_WrongPasswordNoticeIsThrottledAndLimited(t *testing.T) {
 	e, s := newSettingsAPI(t, goodKey)
 	c := login(t, s)
+	e.notices = nil
 	bad := `{"values":{"PLUGGY_CLIENT_SECRET":"x"},"password":"errada"}`
 	var last int
 	for i := 0; i < 10; i++ {
