@@ -6,6 +6,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/config"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/db"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/settings"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/setup"
 )
 
 // loadConfig abre o banco primeiro (as configurações salvas no dashboard valem mais que o ambiente) e então carrega a
@@ -52,5 +53,26 @@ func (a *app) loadConfig() error {
 		return ch
 	}
 	a.applyTimezone()
+	a.loadSetup(cipher)
 	return nil
+}
+
+// loadSetup lê o estado do setup pelo navegador. Aberto (sem senha ou sem canal, ou SETUP_REOPEN), o dashboard só
+// serve o setup até ele terminar.
+func (a *app) loadSetup(cipher *settings.Cipher) {
+	a.channelConfigured.Store(a.cfg.ChannelConfigured())
+	a.setup = setup.NewService(db.NewSetupStore(a.db), cipher, setup.Env{
+		Token: a.cfg.SetupToken, Reopen: a.cfg.SetupReopen, EnvPassword: a.cfg.DashboardPassword, ChannelReady: a.channelConfigured.Load,
+	}, a.logger)
+	if err := a.setup.Load(a.ctx); err != nil {
+		a.logger.Warn("dados do setup indisponíveis (a migration 019 foi aplicada?)", "error", err)
+	}
+	if !a.setup.Open() {
+		return
+	}
+	if err := a.setup.TokenProblem(); err != nil {
+		a.logger.Warn("setup pelo navegador aberto, mas ainda não pode começar", "motivo", err.Error())
+		return
+	}
+	a.logger.Info("setup pelo navegador aberto: abra o dashboard e cole o token do .env (linha SETUP_TOKEN)", "reaberto", a.setup.Reopen())
 }

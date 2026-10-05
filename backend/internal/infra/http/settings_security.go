@@ -44,7 +44,7 @@ func (a *api) requestConfirmCode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "segundo fator desligado: confirme com a senha")
 		return
 	}
-	if a.sendCode(w, r, auth.Confirm, a.sessions.id(r), confirmCodeMessage) {
+	if a.sendCode(w, r, auth.Confirm, a.sessions.id(r), confirmCodeMessage, nil) {
 		writeJSON(w, http.StatusOK, map[string]string{"step": "code"})
 	}
 }
@@ -99,6 +99,9 @@ func (a *api) auditLog(w http.ResponseWriter, r *http.Request) {
 		for _, e := range entries {
 			def, _ := settings.Lookup(e.Key)
 			label := def.Label
+			if e.Action == "setup" {
+				label = setupStepLabels[e.Key]
+			}
 			if label == "" {
 				label = e.Key
 			}

@@ -102,7 +102,7 @@ func readyToConfirm(t *testing.T, s *Service) {
 	if err := s.SetBot(ctx, "123:TOKEN", "meu_bot", 10); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SetCandidate(ctx, Candidate{ID: 42, Name: "Dono"}, 11); err != nil {
+	if _, err := s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 42, Name: "Dono"}, 11); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.AcceptCandidate(ctx); err != nil {
@@ -216,7 +216,7 @@ func TestTelegramDraft_Flow(t *testing.T) {
 	s := newTestService(t, store, Env{Token: testToken})
 	ctx := context.Background()
 
-	if _, err := s.SetCandidate(ctx, Candidate{ID: 1}, 5); !errors.Is(err, ErrNoBot) {
+	if _, err := s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 1}, 5); !errors.Is(err, ErrNoBot) {
 		t.Fatalf("sem bot: %v", err)
 	}
 	if err := s.SetBot(ctx, "123:TOKEN", "meu_bot", 10); err != nil {
@@ -229,10 +229,10 @@ func TestTelegramDraft_Flow(t *testing.T) {
 		t.Fatalf("aceitar sem ninguém: %v", err)
 	}
 	// Outra pessoa manda /start primeiro; uma segunda mensagem não troca quem está na tela.
-	if _, err := s.SetCandidate(ctx, Candidate{ID: 7, Name: "Outra Pessoa"}, 11); err != nil {
+	if _, err := s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 7, Name: "Outra Pessoa"}, 11); err != nil {
 		t.Fatal(err)
 	}
-	if d, _ := s.SetCandidate(ctx, Candidate{ID: 8}, 12); d.Candidate.ID != 7 || d.TelegramOffset != 12 {
+	if d, _ := s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 8}, 12); d.Candidate.ID != 7 || d.TelegramOffset != 12 {
 		t.Fatalf("o primeiro fica até a resposta: %+v", d)
 	}
 	if err := s.RejectCandidate(ctx); err != nil {
@@ -242,12 +242,22 @@ func TestTelegramDraft_Flow(t *testing.T) {
 	if st.Draft.Candidate != nil || st.Draft.TelegramOffset != 12 || st.Draft.TelegramToken != "123:TOKEN" {
 		t.Fatalf("\"não sou eu\" descarta e segue esperando depois dela: %+v", st.Draft)
 	}
-	if _, err := s.SetCandidate(ctx, Candidate{ID: 42, Name: "Dono"}, 13); err != nil {
+	if _, err := s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 42, Name: "Dono"}, 13); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.AcceptCandidate(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// Resposta atrasada do bot anterior não vale para o bot novo.
+	if err := s.SetBot(ctx, "999:OUTRO", "outro_bot", 50); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 9}, 99); d.Candidate != nil || d.TelegramOffset != 50 {
+		t.Fatalf("candidato de outro bot: %+v", d)
+	}
+	s.SetBot(ctx, "123:TOKEN", "meu_bot", 13)                             //nolint:errcheck
+	s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 42, Name: "Dono"}, 14) //nolint:errcheck
+	s.AcceptCandidate(ctx)                                                //nolint:errcheck
 	// Trocar de bot descarta o ID recebido.
 	if err := s.SetBot(ctx, "999:OUTRO", "outro_bot", 50); err != nil {
 		t.Fatal(err)
@@ -302,7 +312,7 @@ func TestCompleteTelegram_NeedsEveryStep(t *testing.T) {
 	if _, err := s.CompleteTelegram(ctx); !errors.Is(err, ErrNoCandidate) {
 		t.Fatalf("sem /start: %v", err)
 	}
-	s.SetCandidate(ctx, Candidate{ID: 42}, 11) //nolint:errcheck
+	s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 42}, 11) //nolint:errcheck
 	if _, err := s.CompleteTelegram(ctx); !errors.Is(err, ErrNotAccepted) {
 		t.Fatalf("sem \"sou eu\": %v", err)
 	}
@@ -388,8 +398,8 @@ func TestReopen(t *testing.T) {
 	if err := s.SetBot(ctx, "123:TOKEN", "meu_bot", 0); err != nil {
 		t.Fatal(err)
 	}
-	s.SetCandidate(ctx, Candidate{ID: 42}, 1) //nolint:errcheck
-	s.AcceptCandidate(ctx)                    //nolint:errcheck
+	s.SetCandidate(ctx, "123:TOKEN", Candidate{ID: 42}, 1) //nolint:errcheck
+	s.AcceptCandidate(ctx)                                 //nolint:errcheck
 	if _, err := s.CompleteTelegram(ctx); err != nil {
 		t.Fatal(err)
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/gemini"
 	httpserver "github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/http"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/settings"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/setup"
 )
 
 // app reúne as peças compartilhadas entre as etapas de montagem.
@@ -45,6 +46,7 @@ type app struct {
 	server         *httpserver.Server
 	settingsDeps   *httpserver.SettingsDeps
 	secondFactor   *httpserver.SecondFactor
+	setup          *setup.Service
 
 	channel           channelSwitch // por onde o app fala com o dono; liga sem reiniciar
 	channelConfigured atomic.Bool   // há canal configurado (ambiente ou setup), no ar ou não
