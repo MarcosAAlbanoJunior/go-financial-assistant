@@ -2,13 +2,14 @@
 
 Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas, dispensar sugestões da revisão criar ou apagar metas e o histórico do Coach (análises e respostas)), que alimenta o front-end. Sem a variável, a API nem é montada.
 
-- **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`) devolve um cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
+- **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`). Sem segundo fator, devolve direto o cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
+- **Segundo fator** (`DASHBOARD_2FA=auto`, o padrão, com o canal no ar): a senha certa não abre a sessão. O app manda um código de 8 dígitos ao chat, responde `{"step": "code"}` e prende o desafio ao navegador com o cookie `fa_challenge` (5 min). `POST /api/login/code` com `{"code": "..."}` confere e devolve o cookie de sessão. O código vale 5 minutos e uma vez só; 3 erros matam o desafio (e avisam no chat); pedir outro (repetir o `POST /api/login`) exige 1 minuto de intervalo, com teto de 10 códigos por hora somando login e confirmações. Se o envio ao chat falhar, a resposta é `503` e ninguém entra. Cada login concluído avisa no chat. `GET /api/me` devolve `secondFactor` (ativo ou não). Detalhes e motivos na [ADR 0007](decisoes/0007-segundo-fator-no-chat.md).
 - **Proteção contra CSRF:** o login e o logout exigem JSON e recusam requisições cujo `Origin` não seja o próprio host, além do `SameSite=Strict`.
 - **Rotas** (`month` e `from`/`to` no formato `AAAA-MM`; a janela de `from`/`to` vai de 1 a 60 meses, padrão: últimos 12):
 
 | Rota | Conteúdo |
 | --- | --- |
-| `POST /api/login`, `POST /api/logout`, `GET /api/me` | sessão |
+| `POST /api/login`, `POST /api/login/code`, `POST /api/logout`, `GET /api/me` | sessão |
 | `GET /api/summary?month=` | totais do mês e do mês anterior (receitas, despesas, aplicado, resgatado) e o saldo das contas correntes (`bankBalance`, `null` sem Open Finance) |
 | `GET /api/timeseries?from=&to=` | os mesmos totais, mês a mês |
 | `GET /api/breakdown?month=&by=category\|payment_method\|account` | despesas do mês agrupadas |
@@ -43,9 +44,10 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 
 | Rota | Conteúdo |
 | --- | --- |
-| `GET /api/settings` | configurações do canal ativo, com a origem do valor (salvo, ambiente ou padrão); segredos nunca voltam, só "configurado" |
-| `PUT /api/settings` | salva um lote (tudo ou nada); mudar o que é sensível exige `password` (a senha do dashboard). Ao mudar `OWN_NAMES`, a resposta traz os Pix/TED antigos parecidos |
-| `POST /api/settings/reset/{key}` | volta ao valor do ambiente/padrão (sensíveis exigem `password`) |
+| `GET /api/settings` | configurações do canal ativo, com a origem do valor (salvo, ambiente ou padrão); segredos nunca voltam, só "configurado". `secondFactor` diz como se confirma o que é sensível |
+| `POST /api/settings/confirm` | manda ao chat o código que confirma a próxima alteração sensível desta sessão (`409` sem segundo fator) |
+| `PUT /api/settings` | salva um lote (tudo ou nada); mudar o que é sensível exige `code` (o código de `/api/settings/confirm`, uso único) ou, sem segundo fator, `password` (a senha do dashboard). Ao mudar `OWN_NAMES`, a resposta traz os Pix/TED antigos parecidos |
+| `POST /api/settings/reset/{key}` | volta ao valor do ambiente/padrão (sensíveis exigem `code` ou `password`, como acima) |
 | `GET /api/settings/audit` | últimas alterações (sem valores) |
 | `POST /api/settings/own-transfers/apply` | cancela as transferências entre contas suas encontradas |
 | `POST /api/settings/test/{pluggy\|gemini\|telegram}` | testa a conexão com as credenciais salvas |
