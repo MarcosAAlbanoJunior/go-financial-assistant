@@ -43,6 +43,7 @@ type app struct {
 	syncer         *openfinance.SyncOpenFinance
 	server         *httpserver.Server
 	settingsDeps   *httpserver.SettingsDeps
+	secondFactor   *httpserver.SecondFactor
 }
 
 // Run monta e executa o app até o contexto ser cancelado. Devolve erro só para falhas de inicialização ou do servidor.

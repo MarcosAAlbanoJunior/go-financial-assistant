@@ -29,7 +29,7 @@ type SettingsDeps struct {
 	GeminiPing   func(ctx context.Context, apiKey string) error
 	Restart      func() // pede ao processo que encerre; o Docker (restart: unless-stopped) o sobe de novo
 	Audit        settings.AuditLog
-	// Notify avisa a pessoa no chat (Telegram/WhatsApp) quando algo sensível muda ou a senha é errada. Pode ser nil.
+	// Notify avisa a pessoa no chat (Telegram/WhatsApp) de logins, de algo sensível que mudou e de senha ou código errados. Pode ser nil.
 	Notify func(ctx context.Context, text string)
 }
 
@@ -87,6 +87,7 @@ func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Values   map[string]string `json:"values"`
 		Password string            `json:"password"`
+		Code     string            `json:"code"`
 	}
 	if !decodeJSON(w, r, maxSettingsBody, &body) {
 		return
@@ -105,7 +106,7 @@ func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
 	d := a.settings
 	for k := range body.Values {
 		if def, ok := settings.Lookup(k); ok && def.Sensitive() {
-			if !a.confirmPassword(w, r, body.Password) {
+			if !a.confirmSensitive(w, r, body.Password, body.Code) {
 				return
 			}
 			break
@@ -140,6 +141,7 @@ func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
 func (a *api) resetSetting(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
+		Code     string `json:"code"`
 	}
 	if !decodeJSON(w, r, maxSettingsBody, &body) {
 		return
@@ -150,7 +152,7 @@ func (a *api) resetSetting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "configuração desconhecida")
 		return
 	}
-	if def.Sensitive() && !a.confirmPassword(w, r, body.Password) {
+	if def.Sensitive() && !a.confirmSensitive(w, r, body.Password, body.Code) {
 		return
 	}
 	if err := a.settings.Service.Reset(r.Context(), key); err != nil {
@@ -172,6 +174,7 @@ func (a *api) registerSettings(rt routes, deps *SettingsDeps) {
 	rt.mux.Handle("GET /api/settings", rt.protected(a.getSettings))
 	rt.mux.Handle("PUT /api/settings", writeLimiter.middleware(rt.protected(jsonOnly(a.putSettings))))
 	rt.mux.Handle("POST /api/settings/reset/{key}", writeLimiter.middleware(rt.protected(jsonOnly(a.resetSetting))))
+	rt.mux.Handle("POST /api/settings/confirm", writeLimiter.middleware(rt.protected(jsonOnly(a.requestConfirmCode))))
 	rt.mux.Handle("GET /api/settings/audit", rt.protected(a.auditLog))
 	rt.mux.Handle("POST /api/settings/own-transfers/apply", writeLimiter.middleware(rt.protected(jsonOnly(a.applyOwnTransfers))))
 	rt.mux.Handle("POST /api/settings/test/{target}", newIPRateLimiter(12, time.Minute).middleware(rt.protected(jsonOnly(a.testConnection))))

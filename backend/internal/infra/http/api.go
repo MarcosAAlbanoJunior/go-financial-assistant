@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/auth"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/insights"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
@@ -22,8 +23,11 @@ type api struct {
 	insights *insights.Insights
 	syncer   chat.Syncer   // nil sem Open Finance
 	settings *SettingsDeps // nil sem a página de configurações
+	factor   *SecondFactor // nil = só senha
 
-	confirmLimiter *ipRateLimiter // tentativas de confirmar a senha nas configurações sensíveis
+	challenges *auth.Challenges
+
+	confirmLimiter *ipRateLimiter // tentativas de confirmar (senha ou código) as configurações sensíveis
 	lastFailNotice atomic.Int64
 }
 
@@ -37,7 +41,7 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	if err != nil {
 		return err
 	}
-	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: insights.NewInsights(reader), syncer: s.syncer, settings: s.settings}
+	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: insights.NewInsights(reader), syncer: s.syncer, settings: s.settings, factor: s.factor, challenges: auth.NewChallenges()}
 
 	// Login com limite apertado contra tentativa de força bruta; o restante, mais folgado.
 	loginLimiter := newIPRateLimiter(5, time.Minute)

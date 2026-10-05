@@ -80,6 +80,15 @@ func (s *sessions) valid(r *http.Request) bool {
 	return err == nil && time.Now().Unix() < exp
 }
 
+// id identifica a sessão da requisição (o próprio cookie, já validado por require), para prender a ela o código de confirmação.
+func (s *sessions) id(r *http.Request) string {
+	c, err := r.Cookie(sessionCookie)
+	if err != nil {
+		return ""
+	}
+	return c.Value
+}
+
 // require responde 401 a quem não tem sessão válida.
 func (s *sessions) require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
