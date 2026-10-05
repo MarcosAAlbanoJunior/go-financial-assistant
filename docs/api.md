@@ -1,9 +1,11 @@
 # API do dashboard
 
-Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login, são a correção manual de contas fixas, dispensar sugestões da revisão criar ou apagar metas e o histórico do Coach (análises e respostas)), que alimenta o front-end. Sem a variável, a API nem é montada.
+O app expõe uma API JSON sob `/api`, **somente leitura** (as únicas escritas, além do login e do setup, são a correção manual de contas fixas, dispensar sugestões da revisão criar ou apagar metas e o histórico do Coach (análises e respostas)), que alimenta o front-end. A senha é a definida no setup (hash argon2id no banco) ou, sem ela, a `DASHBOARD_PASSWORD` (mínimo de 12 caracteres).
+
+- **Setup pendente:** enquanto o app não está configurado (sem senha ou sem canal, ou com `SETUP_REOPEN`), só `/api/setup/*` atende; o resto de `/api`, inclusive o login, responde `409 {"error": "configuração inicial pendente", "setup": "required"}` e o front leva para `/setup`. Rotas na seção *Setup* abaixo.
 
 - **Autenticação:** `POST /api/login` com `{"password": "..."}` (`Content-Type: application/json`). Sem segundo fator, devolve direto o cookie de sessão `HttpOnly`, `SameSite=Strict` (e `Secure` atrás de HTTPS) válido por 7 dias. Reiniciar o app encerra as sessões. Todas as outras rotas respondem `401` sem sessão. O login é limitado a 5 tentativas por minuto por IP.
-- **Segundo fator** (`DASHBOARD_2FA=auto`, o padrão, com o canal no ar): a senha certa não abre a sessão. O app manda um código de 6 dígitos ao chat, responde `{"step": "code"}` e prende o desafio ao navegador com o cookie `fa_challenge` (5 min). `POST /api/login/code` com `{"code": "..."}` confere e devolve o cookie de sessão. O código vale 5 minutos e uma vez só; 3 erros matam o desafio (e avisam no chat); pedir outro (repetir o `POST /api/login`) exige 1 minuto de intervalo, com teto de 10 códigos por hora somando login e confirmações. Se o envio ao chat falhar, a resposta é `503` e ninguém entra. Cada login concluído avisa no chat. `GET /api/me` devolve `secondFactor` (ativo ou não). Detalhes e motivos na [ADR 0007](decisoes/0007-segundo-fator-no-chat.md).
+- **Segundo fator** (`DASHBOARD_2FA=auto`, o padrão, com um canal configurado, no ar ou não): a senha certa não abre a sessão. O app manda um código de 6 dígitos ao chat, responde `{"step": "code"}` e prende o desafio ao navegador com o cookie `fa_challenge` (5 min). `POST /api/login/code` com `{"code": "..."}` confere e devolve o cookie de sessão. O código vale 5 minutos e uma vez só; 3 erros matam o desafio (e avisam no chat); pedir outro (repetir o `POST /api/login`) exige 1 minuto de intervalo, com teto de 10 códigos por hora somando login e confirmações. Se o envio ao chat falhar (inclusive com o canal configurado mas fora do ar), a resposta é `503` e ninguém entra; o app tenta ligar o canal de novo em segundo plano. Cada login concluído avisa no chat. `GET /api/me` devolve `secondFactor` (ativo ou não). Detalhes e motivos na [ADR 0007](decisoes/0007-segundo-fator-no-chat.md).
 - **Proteção contra CSRF:** o login e o logout exigem JSON e recusam requisições cujo `Origin` não seja o próprio host, além do `SameSite=Strict`.
 - **Rotas** (`month` e `from`/`to` no formato `AAAA-MM`; a janela de `from`/`to` vai de 1 a 60 meses, padrão: últimos 12):
 
@@ -40,7 +42,25 @@ Com `DASHBOARD_PASSWORD` definida (mínimo de 12 caracteres), o app expõe uma A
 
 - **Segurança:** a porta `3000` do app é publicada só em `127.0.0.1`. Para acessar de outra máquina, ponha um proxy com **HTTPS** na frente (sem HTTPS a senha e o cookie trafegam em claro) e repasse `X-Real-IP` e `X-Forwarded-Proto`, usados pelo rate limit e pelo atributo `Secure` do cookie; esses cabeçalhos só são aceitos de IPs da rede privada.
 
-### Configurações (exigem `DASHBOARD_PASSWORD` e a migration `016`/`017`)
+### Setup (exige a migration `019`; concluído, todas respondem `404`)
+
+Abertas só enquanto o app não está configurado. Os passos usam uma sessão própria, `fa_setup` (`HttpOnly`, `SameSite=Strict`, `Path=/api/setup`, 1 hora, renovada a cada passo), aberta pelo token; ela não dá acesso a nenhuma outra rota. Escritas exigem JSON e mesma origem.
+
+| Rota | Conteúdo |
+| --- | --- |
+| `GET /api/setup/status` | sem sessão de setup: `open`, `reopen`, os mínimos e, se o setup não pode começar, `problem`/`problemKind` (`no-token`, `short-token`, `no-key`, `database`). Com sessão: `password` (`draft`, `fromEnv`, `current`), `channel` (`configured`, `canReplace`) e `telegram` (`bot`, `candidate` com nome e @, `accepted`) |
+| `POST /api/setup/token` | `{"token"}`: confere o `SETUP_TOKEN` em tempo constante e abre a sessão de setup. 5 tentativas por minuto por IP (certas ou erradas; a 6ª é `429`) |
+| `POST /api/setup/password` | `{"password"}` (mínimo de 12): guarda o hash argon2id no rascunho; só vale para entrar ao concluir |
+| `POST /api/setup/telegram/bot` | `{"token"}`: confere com `getMe` e guarda o token cifrado no rascunho; a espera do `/start` começa depois da última mensagem que o bot já tinha. Trocar de bot descarta quem tinha mandado `/start`. `400` token inválido, `409` outro programa lendo o bot (webhook), `502` Telegram fora |
+| `POST /api/setup/telegram/poll` | olha, sem esperar, se chegou a primeira mensagem privada (grupos são ignorados); a tela chama a cada 2 s, por até 5 min |
+| `POST /api/setup/telegram/reject` | "não sou eu": descarta quem mandou (e o código, se já foi) e continua esperando |
+| `POST /api/setup/telegram/accept` | "sim, sou eu": manda o código de 6 dígitos a esse chat (regras do OTP: 5 min, 3 tentativas, 1 min entre envios, teto por hora). Também reenvia |
+| `POST /api/setup/telegram/confirm` | `{"code"}`: confere e conclui numa transação (canal, senha e "concluído"), liga o canal sem reiniciar e devolve o cookie de sessão do dashboard. O canal vem do rascunho confirmado, nunca da requisição; duas conclusões ao mesmo tempo ligam um bot só |
+| `POST /api/setup/keep` | conclui mantendo o canal que já está configurado (no `.env`, ou o de antes ao reabrir) |
+
+Cada passo vai para o histórico de alterações das Configurações (ação `setup`, sem valores).
+
+### Configurações (exigem a migration `016`/`017`)
 
 | Rota | Conteúdo |
 | --- | --- |
