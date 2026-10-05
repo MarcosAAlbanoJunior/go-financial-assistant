@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,43 +12,91 @@ import (
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/chat"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/config"
-	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/evolution"
 	httpserver "github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/http"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/infra/telegram"
 )
 
-// startChannel liga o canal de conversa configurado e devolve por onde mandar mensagens e para quem. Se o canal não
-// puder subir (token do Telegram errado), devolve messenger nil: o dashboard segue no ar para a configuração ser corrigida.
-func (a *app) startChannel() (ports.Messenger, string, error) {
+// Espera entre as tentativas de ligar um canal que não subiu: começa curta e cresce até o teto.
+var (
+	channelRetryFirst = 5 * time.Second
+	channelRetryMax   = 5 * time.Minute
+)
+
+const telegramConnectTimeout = 20 * time.Second
+
+var errChannelStarted = errors.New("o canal de conversa já foi ligado")
+
+// startChannel liga o canal configurado (no ambiente ou pelo setup). Sem canal configurado não liga nada: quem
+// configura é o setup, que liga o canal ao concluir, sem reiniciar.
+func (a *app) startChannel() error {
+	a.channelConfigured.Store(a.cfg.ChannelConfigured())
+	if !a.cfg.ChannelConfigured() {
+		a.logger.Warn("sem canal de conversa: conclua o setup no dashboard para ligar o Telegram")
+		return nil
+	}
+	return a.launchChannel()
+}
+
+// launchChannel liga o canal da configuração. Só uma vez por processo: dois bots fazendo polling com o mesmo token
+// brigam pelas mensagens (o Telegram devolve 409 a um deles).
+func (a *app) launchChannel() error {
+	if !a.channelStarted.CompareAndSwap(false, true) {
+		return errChannelStarted
+	}
 	if a.cfg.Channel == config.ChannelTelegram {
-		return a.startTelegram()
+		a.startTelegram(a.cfg.TelegramBotToken, a.cfg.TelegramChatID, 0)
+		return nil
 	}
 	return a.startWhatsApp()
 }
 
-func (a *app) startTelegram() (ports.Messenger, string, error) {
-	tg := telegram.NewClient(a.cfg.TelegramBotToken)
-	username, err := tg.GetMe(a.ctx)
-	if err != nil {
-		a.logger.Error("falha ao validar TELEGRAM_BOT_TOKEN: o canal fica desligado, corrija o token e reinicie", "error", err)
-		return nil, "", nil
+// startTelegram confere o token e liga o bot. Se o Telegram não responder (token errado, API fora), o canal fica fora do
+// ar, o login responde 503 (o segundo fator continua exigido) e o app tenta de novo em segundo plano.
+func (a *app) startTelegram(token string, chatID, offset int64) {
+	tg := telegram.NewClient(token)
+	connect := func() error {
+		ctx, cancel := context.WithTimeout(a.ctx, telegramConnectTimeout)
+		defer cancel()
+		username, err := tg.GetMe(ctx)
+		if err == nil {
+			a.logger.Info("canal Telegram ativo", "bot", username)
+		}
+		return err
 	}
-	a.logger.Info("canal Telegram ativo", "bot", username)
+	// Tudo montado antes de publicar: quem usa o canal nunca vê um bot pela metade.
+	run := func() {
+		owner := strconv.FormatInt(chatID, 10)
+		handler := chat.NewHandler(a.analyzeExpense, a.exportCSV, tg, owner, a.logger)
+		handler.SetSyncer(a.syncer)
+		handler.SetDigester(a.insights)
+		handler.SetBalancer(a.insights)
+		bot := telegram.NewBot(tg, chatID, handler, a.logger).StartFrom(offset)
+		a.channel.publish(tg, owner)
+		go bot.Run(a.ctx)
+	}
 
-	owner := strconv.FormatInt(a.cfg.TelegramChatID, 10)
-	handler := chat.NewHandler(a.analyzeExpense, a.exportCSV, tg, owner, a.logger)
-	handler.SetSyncer(a.syncer)
-	handler.SetDigester(a.insights)
-	handler.SetBalancer(a.insights)
-	go telegram.NewBot(tg, a.cfg.TelegramChatID, handler, a.logger).Run(a.ctx)
-	return tg, owner, nil
+	err := connect()
+	if err == nil {
+		run()
+		return
+	}
+	a.logger.Error("o Telegram não respondeu: canal fora do ar (o login fica indisponível); tentando de novo em segundo plano",
+		"proxima_tentativa", channelRetryFirst.String(), "error", err)
+	go func() {
+		failed := func(err error, next time.Duration) {
+			a.logger.Error("o Telegram ainda não respondeu", "proxima_tentativa", next.String(), "error", err)
+		}
+		if retryBackoff(a.ctx, channelRetryFirst, channelRetryMax, connect, failed) {
+			run()
+		}
+	}()
 }
 
-func (a *app) startWhatsApp() (ports.Messenger, string, error) {
+func (a *app) startWhatsApp() error {
 	client := evolution.NewClient(a.cfg.EvolutionAPIURL, a.cfg.EvolutionInstance, a.cfg.EvolutionAPIKey)
 	if err := a.connectWhatsApp(client); err != nil {
-		return nil, "", err
+		return err
 	}
 	a.server.MountWhatsApp(httpserver.WhatsAppConfig{
 		OwnerPhone:      a.cfg.OwnerPhone,
@@ -54,7 +104,8 @@ func (a *app) startWhatsApp() (ports.Messenger, string, error) {
 		EvolutionAPIURL: a.cfg.EvolutionAPIURL,
 		AdminSecret:     a.cfg.AdminSecret,
 	}, client, a.analyzeExpense, a.exportCSV, a.syncer)
-	return client, a.cfg.OwnerPhone, nil
+	a.channel.publish(client, a.cfg.OwnerPhone)
+	return nil
 }
 
 // connectWhatsApp aguarda a Evolution API subir e exibe o QR code se o WhatsApp ainda não estiver conectado.
