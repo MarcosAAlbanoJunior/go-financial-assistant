@@ -14,6 +14,7 @@ import { useTransactionFilters } from './lib/useTransactionFilters'
 import { useTransactionGroups, useTransactions } from './api'
 import { useAccounts } from '../../shared/api/accounts'
 import type { TransactionGroup } from './api'
+import { Pager } from '../../shared/components/Pager'
 
 export default function Transactions() {
   const { params, now, month, query, view, update } = useTransactionFilters()
@@ -230,27 +231,5 @@ function SearchBox({ value, onCommit }: { value: string; onCommit: (q: string) =
       <span className="sr-only">Buscar na descrição</span>
       <input type="search" placeholder="Buscar na descrição" maxLength={100} value={text} onChange={(e) => setText(e.target.value)} />
     </label>
-  )
-}
-
-function Pager({ page, limit, total, onPage }: { page: number; limit: number; total: number; onPage: (n: number) => void }) {
-  const pages = Math.max(1, Math.ceil(total / limit))
-  return (
-    <div className="pager">
-      <span>
-        {total} {total === 1 ? 'transação' : 'transações'}
-      </span>
-      <div>
-        <button type="button" className="btn" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          Anterior
-        </button>
-        <span className="pager-pos">
-          {page} de {pages}
-        </span>
-        <button type="button" className="btn" disabled={page >= pages} onClick={() => onPage(page + 1)}>
-          Próxima
-        </button>
-      </div>
-    </div>
   )
 }

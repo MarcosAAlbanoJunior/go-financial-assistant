@@ -3,13 +3,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Bot, Check, ShieldAlert } from 'lucide-react'
 import { useState } from 'react'
 import { QueryState } from '../../shared/components/QueryState'
+import { Pager } from '../../shared/components/Pager'
 import { StatTile } from '../../shared/components/StatTile'
 import { cleanLabel } from '../../shared/lib/labels'
-import { groupSummary, pendingChoices, totalOf, withSuggestions } from './lib/categorize'
+import { groupSummary, pageOf, pendingChoices, totalOf, withSuggestions } from './lib/categorize'
 import { formatBRL } from '../../shared/lib/format'
 import { setCategoryRule, suggestCategories, useCategorize } from './api'
 import { ApiError } from '../../shared/api/request'
 import type { Categorize as CategorizeData } from './api'
+
+const PAGE_SIZE = 10
 
 export default function Categorize() {
   const query = useCategorize()
@@ -20,6 +23,7 @@ export default function Categorize() {
   // O aceite vale para os dados exatos que a pessoa viu (o hash).
   const [agreedHash, setAgreedHash] = useState<string | null>(null)
   const [changed, setChanged] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
 
   const apply = useMutation({
     mutationFn: async (items: { key: string; category: string }[]) => {
@@ -49,6 +53,7 @@ export default function Categorize() {
       <QueryState query={query}>
         {(data) => {
           const pending = pendingChoices(choice, data.groups)
+          const { items, page: current } = pageOf(data.groups, page, PAGE_SIZE)
           return (
             <>
               <div className="tiles">
@@ -79,7 +84,7 @@ export default function Categorize() {
                 <p className="state">Nenhuma conta em Outros sem classificação.</p>
               ) : (
                 <ul className="classify-list section-gap">
-                  {data.groups.map((g) => (
+                  {items.map((g) => (
                     <li key={g.key} className="classify-row">
                       <span className="classify-name">
                         <strong>{cleanLabel(g.label)}</strong>
@@ -114,6 +119,9 @@ export default function Categorize() {
                   ))}
                 </ul>
               )}
+              {data.groups.length > PAGE_SIZE && (
+                <Pager page={current} limit={PAGE_SIZE} total={data.groups.length} onPage={setPage} noun={['conta', 'contas']} />
+              )}
               {pending.length > 1 && (
                 <button
                   type="button"
@@ -121,7 +129,7 @@ export default function Categorize() {
                   disabled={apply.isPending}
                   onClick={() => apply.mutate(pending)}
                 >
-                  <Check size={14} aria-hidden="true" /> Aplicar as {pending.length} escolhas
+                  <Check size={14} aria-hidden="true" /> Aplicar as {pending.length} escolhas{data.groups.length > PAGE_SIZE ? ' (de todas as páginas)' : ''}
                 </button>
               )}
             </>
@@ -155,11 +163,14 @@ function AiCard({
         Vão ao {ai.provider} só os nomes abaixo, com quantidade e total. Pix e transferências nunca vão. A IA só sugere: nada muda até você
         aplicar.
       </p>
-      <ul className="coach-names">
-        {ai.context.contas.map((c) => (
-          <li key={c.id}>{c.nome}</li>
-        ))}
-      </ul>
+      <details className="coach-json">
+        <summary>Ver os {ai.context.contas.length} nomes que seriam enviados</summary>
+        <ul className="coach-names">
+          {ai.context.contas.map((c) => (
+            <li key={c.id}>{c.nome}</li>
+          ))}
+        </ul>
+      </details>
       <details className="coach-json">
         <summary>Ver o JSON exato ({ai.bytes} bytes)</summary>
         <pre>{JSON.stringify(ai.context, null, 2)}</pre>
