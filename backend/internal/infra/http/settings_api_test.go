@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,14 +32,21 @@ func (m *memSettings) SaveSetting(_ context.Context, r settings.Row) error {
 }
 func (m *memSettings) DeleteSetting(_ context.Context, k string) error { delete(m.rows, k); return nil }
 
-type memAudit struct{ entries []settings.AuditEntry }
+type memAudit struct {
+	mu      sync.Mutex
+	entries []settings.AuditEntry
+}
 
 func (m *memAudit) RecordAudit(_ context.Context, e settings.AuditEntry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	e.At = time.Now()
 	m.entries = append([]settings.AuditEntry{e}, m.entries...)
 	return nil
 }
 func (m *memAudit) RecentAudit(_ context.Context, limit int) ([]settings.AuditEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.entries[:min(limit, len(m.entries))], nil
 }
 
@@ -113,7 +121,7 @@ func newSettingsAPIWith(t *testing.T, secretKey string, factor *SecondFactor) (*
 	s := NewServer(0, logger)
 	s.SetSettings(e.deps)
 	s.SetSecondFactor(factor)
-	if err := s.MountAPI(testPassword, &fakeReader{}); err != nil {
+	if err := s.MountAPI(StaticPassword(testPassword), &fakeReader{}); err != nil {
 		t.Fatal(err)
 	}
 	return e, s

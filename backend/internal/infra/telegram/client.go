@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -59,6 +60,17 @@ func (c *Client) do(req *http.Request, op string) ([]byte, error) {
 	return body, nil
 }
 
+// APIError é uma recusa da Bot API (token inválido = 401/404; outro programa lendo as mensagens = 409).
+type APIError struct {
+	Method      string
+	Description string
+	Code        int
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("telegram %s: %s (código %d)", e.Method, e.Description, e.Code)
+}
+
 func (c *Client) call(ctx context.Context, method, contentType string, body io.Reader, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/bot%s/%s", c.baseURL, c.token, method), body)
 	if err != nil {
@@ -76,7 +88,7 @@ func (c *Client) call(ctx context.Context, method, contentType string, body io.R
 		return fmt.Errorf("telegram %s: resposta inválida", method)
 	}
 	if !res.OK {
-		return fmt.Errorf("telegram %s: %s (código %d)", method, res.Description, res.ErrorCode)
+		return &APIError{Method: method, Description: res.Description, Code: res.ErrorCode}
 	}
 	if out == nil {
 		return nil
@@ -181,7 +193,10 @@ type chatInfo struct {
 }
 
 type user struct {
-	ID int64 `json:"id"`
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Username  string `json:"username"`
 }
 
 type photoSize struct {
@@ -202,4 +217,40 @@ func (c *Client) getUpdates(ctx context.Context, offset int64, timeoutSec int) (
 		"allowed_updates": []string{"message"},
 	}, &updates)
 	return updates, err
+}
+
+// Sender é quem mandou uma mensagem privada ao bot.
+type Sender struct {
+	ID       int64
+	Name     string // nome e sobrenome como estão no Telegram
+	Username string // sem @; pode ser vazio
+}
+
+// LatestOffset devolve o offset logo depois da última mensagem já recebida pelo bot, para o setup só considerar o que
+// chegar a partir de agora.
+func (c *Client) LatestOffset(ctx context.Context) (int64, error) {
+	updates, err := c.getUpdates(ctx, -1, 0)
+	if err != nil || len(updates) == 0 {
+		return 0, err
+	}
+	return updates[len(updates)-1].UpdateID + 1, nil
+}
+
+// FirstPrivate procura, a partir de offset e sem esperar, a primeira mensagem de conversa privada (mensagens de grupo são
+// ignoradas). Devolve quem mandou (nil se ninguém) e o offset seguinte ao último update lido. Usado só no setup, antes de
+// o bot subir: os dois leem getUpdates e não podem rodar juntos.
+func (c *Client) FirstPrivate(ctx context.Context, offset int64) (*Sender, int64, error) {
+	updates, err := c.getUpdates(ctx, offset, 0)
+	if err != nil {
+		return nil, offset, err
+	}
+	next := offset
+	for _, u := range updates {
+		next = u.UpdateID + 1
+		if m := u.Message; m != nil && m.Chat.Type == "private" && m.From != nil {
+			name := strings.TrimSpace(m.From.FirstName + " " + m.From.LastName)
+			return &Sender{ID: m.From.ID, Name: name, Username: m.From.Username}, next, nil
+		}
+	}
+	return nil, next, nil
 }

@@ -36,8 +36,12 @@ func (f *SecondFactor) Active() bool {
 // SetSecondFactor liga o segundo fator à API (chame antes de MountAPI; Send pode ser preenchido depois, antes de Start).
 func (s *Server) SetSecondFactor(f *SecondFactor) { s.factor = f }
 
-// sendCode cria o desafio e manda o código ao chat. Se o envio falhar, o desafio é descartado e ninguém entra (falha fechada).
-func (a *api) sendCode(w http.ResponseWriter, r *http.Request, kind auth.Kind, bind string, message func(code string) string) bool {
+// sendCode cria o desafio e manda o código ao chat (send; nil = o do segundo fator). Se o envio falhar, o desafio é
+// descartado e ninguém entra (falha fechada).
+func (a *api) sendCode(w http.ResponseWriter, r *http.Request, kind auth.Kind, bind string, message func(code string) string, send func(ctx context.Context, text string) error) bool {
+	if send == nil {
+		send = a.factor.Send
+	}
 	code, err := a.challenges.Start(kind, bind)
 	switch {
 	case errors.Is(err, auth.ErrTooSoon), errors.Is(err, auth.ErrSendLimitReached):
@@ -49,7 +53,7 @@ func (a *api) sendCode(w http.ResponseWriter, r *http.Request, kind auth.Kind, b
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), sendCodeTimeout)
 	defer cancel()
-	if err := a.factor.Send(ctx, message(code)); err != nil {
+	if err := send(ctx, message(code)); err != nil {
 		a.challenges.Cancel(kind)
 		a.logger.Error("erro ao enviar o código ao chat", "error", err)
 		writeError(w, http.StatusServiceUnavailable, "não foi possível enviar o código ao chat")

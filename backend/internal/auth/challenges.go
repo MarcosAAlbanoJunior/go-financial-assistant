@@ -12,12 +12,14 @@ import (
 	"time"
 )
 
-// Kind separa os desafios do login dos de confirmação nas Configurações: um código de um não vale no outro.
+// Kind separa os desafios do login, da confirmação nas Configurações e do setup: um código de um não vale no outro.
 type Kind string
 
 const (
 	Login   Kind = "login"
 	Confirm Kind = "confirm"
+	// Setup confirma, no setup, que o chat que mandou /start é da pessoa.
+	Setup Kind = "setup"
 )
 
 const (

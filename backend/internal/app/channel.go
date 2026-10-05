@@ -30,9 +30,14 @@ var errChannelStarted = errors.New("o canal de conversa já foi ligado")
 // startChannel liga o canal configurado (no ambiente ou pelo setup). Sem canal configurado não liga nada: quem
 // configura é o setup, que liga o canal ao concluir, sem reiniciar.
 func (a *app) startChannel() error {
-	a.channelConfigured.Store(a.cfg.ChannelConfigured())
 	if !a.cfg.ChannelConfigured() {
 		a.logger.Warn("sem canal de conversa: conclua o setup no dashboard para ligar o Telegram")
+		return nil
+	}
+	// Reaberto, a pessoa pode trocar o bot: o canal de antes só sobe se ela escolher mantê-lo (dois bots com o mesmo
+	// token brigariam pelas mensagens).
+	if a.setup.Reopen() {
+		a.logger.Warn("setup reaberto (SETUP_REOPEN): o canal fica desligado até o setup terminar")
 		return nil
 	}
 	return a.launchChannel()

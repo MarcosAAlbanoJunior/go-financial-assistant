@@ -52,7 +52,7 @@ func newCoachAPI(t *testing.T, r *fakeReader, coach ports.Coach, paid bool) *Ser
 	s := newTestAPI(t, r)
 	s.SetCoach(coach, paid)
 	s.mux = http.NewServeMux()
-	if err := s.mountAPI(testPassword, r, func() time.Time { return time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC) }); err != nil {
+	if err := s.mountAPI(StaticPassword(testPassword), r, func() time.Time { return time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC) }); err != nil {
 		t.Fatal(err)
 	}
 	return s
