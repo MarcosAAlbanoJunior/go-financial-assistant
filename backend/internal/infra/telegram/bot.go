@@ -28,14 +28,22 @@ type Bot struct {
 	ownerID int64
 	handler messageHandler
 	logger  *slog.Logger
+	offset  int64
 }
 
 func NewBot(client *Client, ownerID int64, handler messageHandler, logger *slog.Logger) *Bot {
 	return &Bot{client: client, ownerID: ownerID, handler: handler, logger: logger}
 }
 
+// StartFrom faz o bot começar no update offset: depois do setup, o /start e o que chegou durante a espera não são
+// reprocessados.
+func (b *Bot) StartFrom(offset int64) *Bot {
+	b.offset = offset
+	return b
+}
+
 func (b *Bot) Run(ctx context.Context) {
-	var offset int64
+	offset := b.offset
 	for ctx.Err() == nil {
 		updates, err := b.client.getUpdates(ctx, offset, pollTimeoutSec)
 		if err != nil {

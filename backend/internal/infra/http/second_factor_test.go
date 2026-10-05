@@ -191,3 +191,24 @@ func TestSecondFactor_ConfirmWithoutFactor(t *testing.T) {
 		t.Fatalf("sem 2FA, confirmar é com a senha = %d", rec.Code)
 	}
 }
+
+// Com canal configurado mas fora do ar (token errado, Telegram fora no boot), o login não cai para "só a senha":
+// responde 503 e não abre sessão.
+func TestSecondFactor_ConfiguredChannelDownFailsClosed(t *testing.T) {
+	down := func(context.Context, string) error { return errors.New("canal de conversa fora do ar") }
+	_, s := newSettingsAPIWith(t, goodKey, &SecondFactor{Enabled: true, Send: down, Configured: func() bool { return true }})
+	rec := do(s, "POST", "/api/login", `{"password":"`+testPassword+`"}`, jsonHdr)
+	if rec.Code != 503 || cookieNamed(rec, sessionCookie) != nil {
+		t.Fatalf("canal configurado e fora do ar = %d %s", rec.Code, rec.Body)
+	}
+}
+
+// Sem canal configurado não há para onde mandar o código: vale só a senha (e o setup é quem exige o canal).
+func TestSecondFactor_InactiveWithoutConfiguredChannel(t *testing.T) {
+	box := &chatBox{}
+	_, s := newSettingsAPIWith(t, goodKey, &SecondFactor{Enabled: true, Send: box.send, Configured: func() bool { return false }})
+	login(t, s)
+	if len(box.sent) != 0 {
+		t.Fatalf("sem canal configurado não manda código: %v", box.sent)
+	}
+}
