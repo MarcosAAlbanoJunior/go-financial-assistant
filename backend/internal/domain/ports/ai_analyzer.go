@@ -2,8 +2,12 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrAIUnavailable é a IA desligada (sem chave do Gemini). O resto do app segue normal; quem chama explica como ligar.
+var ErrAIUnavailable = errors.New("IA desligada: configure a chave do Gemini nas Configurações do dashboard")
 
 type ExpenseType string
 
