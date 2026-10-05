@@ -1,16 +1,16 @@
 # Spec: Setup inicial pelo navegador
 
-- **Status:** proposta, aguardando revisão.
+- **Status:** aprovada para implementar (decisões na seção 12).
 - **Origem:** conversa de 05/10/2026. Hoje subir o app exige preencher um `.env` longo (senha, canal, Gemini, Pluggy...) sem guia, e o app nem sobe se faltar algo obrigatório.
 - **Depende de:** [autenticacao-otp.md](autenticacao-otp.md) (código no chat), já implementada.
 
 ## 1. Objetivo
 
-Trocar o `.env` longo por um **assistente no navegador**, prático, rápido e didático, que leva a pessoa do zero até o dashboard funcionando, mostrando passo a passo o que fazer fora do app (criar o bot no Telegram, conectar o WhatsApp).
+Trocar o `.env` longo por um **assistente no navegador**, prático, rápido e didático, que leva a pessoa do zero até o dashboard funcionando, mostrando passo a passo o que fazer fora do app (criar o bot no Telegram, mandar o primeiro /start).
 
 - O `.env` fica só com o que **não pode** sair dele (seção 3).
 - O setup é protegido por um **token definido no `.env`**: só quem tem acesso ao servidor consegue fazê-lo.
-- O setup só termina com um **canal (Telegram ou WhatsApp) configurado e confirmado**. O resto (Gemini, Open Finance, nomes, resumo) fica para a página de Configurações, que já existe.
+- O setup só termina com um **canal configurado e confirmado**. Na primeira versão, **só Telegram**; o WhatsApp continua pelo `.env` como hoje. O resto (Gemini, Open Finance, nomes, resumo) fica para a página de Configurações, que já existe.
 - Sair no meio não perde nada nem deixa brecha (seção 6).
 - Quem já usa o app com `.env` completo **não vê o setup** e nada quebra.
 
@@ -31,7 +31,7 @@ Com `SETUP_TOKEN` no `.env`, a prova de dono é a mesma de hoje (acesso ao servi
 | `SETUP_TOKEN` | libera o setup (e a reabertura, seção 8) |
 | `PORT`, `WEB_PORT` | infraestrutura |
 | `DASHBOARD_2FA` | saída de emergência (`off`), precisa funcionar com o canal quebrado |
-| `COMPOSE_PROFILES` | só para WhatsApp: decide se o Docker sobe a Evolution API (o app não liga containers) |
+| `COMPOSE_PROFILES` e as variáveis da Evolution | só para quem usa WhatsApp, que nesta versão continua pelo `.env` |
 
 Todo o resto passa a ser **opcional no ambiente** e configurável no banco: senha (hash), canal, Telegram, WhatsApp, Gemini, Pluggy, nomes, resumo. A precedência continua a da ADR 0004 (salvo > ambiente > padrão), então um `.env` completo continua valendo.
 
@@ -75,7 +75,7 @@ Uma tela por passo, com barra de progresso ("Passo 2 de 4"), linguagem simples e
 
 ### Passo 2: Canal
 
-Escolha com uma frase de cada: **Telegram (recomendado)**: só precisa criar um bot, leva 2 minutos. **WhatsApp**: usa a Evolution API num container a mais e um número conectado por QR code.
+Nesta versão, só Telegram. A tela diz em uma linha que quem prefere WhatsApp configura pelo `.env` (com link para o README), e segue.
 
 #### Telegram
 
@@ -85,19 +85,12 @@ Escolha com uma frase de cada: **Telegram (recomendado)**: só precisa criar um 
    - Se outra pessoa mandar `/start` antes, o "Não, não sou eu" descarta e continua esperando.
 3. **Confirmar.** O app manda ao chat um código de 6 dígitos (mesmas regras do OTP) e a pessoa digita na tela. Confirmado, o canal está provado: funciona **e** é dela.
 
-#### WhatsApp
-
-1. **Subir a Evolution API.** A tela testa se ela responde. Se não: instruções para pôr `COMPOSE_PROFILES=whatsapp` e `EVOLUTION_API_KEY` no `.env` e rodar `docker compose up -d`, com botão "Verificar de novo". (A chave da Evolution fica no ambiente porque o container dela também a lê.)
-2. **Seu número.** Campo com máscara e exemplo (`55 11 99999-9999`).
-3. **Conectar.** A tela mostra o **QR code** (o mesmo de `/admin/qrcode`, agora dentro do setup) com as instruções do WhatsApp (Aparelhos conectados → Conectar um aparelho), atualizando sozinho até a conexão abrir.
-4. **Confirmar.** Código de 6 dígitos enviado por WhatsApp ao número, digitado na tela.
-
 ### Passo 3: Pronto
 
 - Grava o canal (incluindo `CHANNEL`, que passa a ser uma configuração), marca o setup como concluído e **abre a sessão** do dashboard direto (a pessoa acabou de provar senha, token e chat).
-- **Liga o canal sem reiniciar.** Se isso for complexo demais, a alternativa aceitável é reiniciar sozinho (o Docker sobe de novo) com uma tela "Ligando o seu assistente…" que espera e entra.
+- **Liga o canal na hora, sem reiniciar** (seção 7.1).
 - Mostra **próximos passos opcionais**, cada um com link para o grupo certo de Configurações e uma frase do que ganha:
-  - **Gemini** (entender mensagens livres no chat, ler recibos e o Coach): onde pegar a chave;
+  - **Gemini** (opcional): entender mensagens livres no chat, ler recibos, Coach e sugestões de categoria. Sem ele, o chat funciona com os comandos e caminhos sem IA;
   - **Open Finance (Meu Pluggy)**: sincronizar bancos e cartões;
   - **Seus nomes** (`OWN_NAMES`): ignorar transferências entre contas suas;
   - **Resumo semanal**: dia e hora.
@@ -114,8 +107,6 @@ O estado fica no banco a cada passo; nada importante fica só no navegador.
 | Senha salva, canal não escolhido | Token de novo; o passo 1 aparece como feito ("Senha definida ✓", com "trocar"); segue no passo 2 |
 | Bot do Telegram validado, sem `/start` | O token do bot fica salvo (cifrado); volta no "mande /start" |
 | `/start` recebido, código não digitado | O código expira em 5 min; a tela oferece "mandar outro código" (ou "não sou eu") |
-| WhatsApp sem Evolution no ar | Volta no "subir a Evolution API" com as instruções |
-| QR code não lido | Volta no QR code, que é gerado de novo |
 | Fechou na tela "Pronto" | Já está configurado: abre o login normal (senha + código) |
 
 Regras que valem em todos os casos:
@@ -123,7 +114,7 @@ Regras que valem em todos os casos:
 - **Sem canal confirmado, não está pronto.** Senha salva sozinha não libera o dashboard nem o login.
 - **Voltar sempre exige o token**, mesmo com senha salva: a senha só passa a valer para entrar quando o setup termina. Assim, quem descobrir uma senha salva no meio não entra por ela.
 - **Nenhum dado de passo incompleto vira configuração ativa.** O token do bot e o ID ficam como rascunho do setup até a confirmação do código; só então são gravados como `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/`CHANNEL`.
-- Trocar de canal no meio (começou Telegram, quer WhatsApp) descarta o rascunho do outro.
+- Trocar o bot no meio (colar outro token) descarta o ID recebido e recomeça a espera do `/start`.
 
 ## 7. Segurança
 
@@ -134,6 +125,19 @@ Regras que valem em todos os casos:
 - No Telegram, só o chat que mandou `/start` **e** confirmou o código vira dono; o bot ignora qualquer outro, como hoje.
 - Cada passo concluído vai para o histórico de alterações (sem valores).
 
+### 7.1 Ligar o canal sem reiniciar
+
+Tudo o que usa o chat (resumo semanal, relatório mensal, avisos de segurança, código do segundo fator) já recebe um `ports.Messenger`. Em vez de passar o cliente do Telegram, o app passa um **canal trocável**: um `ports.Messenger` que guarda o cliente num `atomic.Pointer` e responde `ErrNoChannel` enquanto não há canal. Ele é criado no boot (vazio, se não há canal) e, ao concluir o setup, recebe o cliente já validado e sobe o bot. Ninguém mais precisa saber se o canal subiu agora ou no boot.
+
+Cuidados (cada um vira teste):
+
+1. **Nada meio pronto à vista.** O cliente, o dono e o bot são montados por inteiro e só então publicados no ponteiro (troca atômica). Sem leitura de `func` ou campo sendo escrito por outra goroutine (`go test -race` no pacote).
+2. **Liga uma vez só.** Concluir é idempotente: um `sync.Mutex` + a marca "concluído" gravada **na mesma transação** que o canal. Duas requisições de "concluir" ao mesmo tempo: uma liga, a outra recebe "já concluído". Nunca dois bots fazendo polling com o mesmo token (o Telegram devolve 409 e um dos dois perde mensagens).
+3. **Ordem segura.** Confirma o código → grava canal + "concluído" (transação) → para a espera do `/start` do setup → publica o canal → sobe o bot → abre a sessão. Se gravar falhar, nada liga. Se o bot falhar ao subir depois de gravado, o setup está concluído e o app tenta de novo em segundo plano (item 5); não volta a abrir o setup.
+4. **O bot começa depois do `/start` do setup.** A espera do setup e o bot usam `getUpdates`; o bot recebe o offset seguinte ao último update visto pelo setup, para não reprocessar o `/start` nem mensagens de terceiros que chegaram durante o setup. Só o ID confirmado é dono (como hoje).
+5. **Canal que não sobe não rebaixa a segurança.** Hoje, se o Telegram falha ao subir (token errado ou a API fora no momento do boot), o `DASHBOARD_2FA=auto` passa a aceitar **só a senha** até o próximo reinício. Com o canal trocável, isso muda: o segundo fator fica ativo sempre que **há canal configurado**, mesmo que ele não tenha subido ainda. Login sem canal no ar responde `503` (falha fechada) e o app tenta ligar o canal de novo em segundo plano (com espera crescente, até 5 min). Quem ficou trancado por um token errado usa `DASHBOARD_2FA=off` ou `SETUP_REOPEN` (seção 8). Isso fecha uma brecha da implementação atual do OTP e precisa ser registrado na ADR 0007.
+6. **Os valores vêm do banco, não da requisição.** Ao concluir, o canal é montado a partir do rascunho já gravado e confirmado (token cifrado, ID do `/start` confirmado), nunca de campos enviados na requisição de "concluir".
+
 ## 8. Reabrir o setup (recuperação)
 
 Para quem perdeu a senha ou o chat: `SETUP_REOPEN=true` no `.env` + reiniciar reabre o setup (com o mesmo `SETUP_TOKEN`) para **redefinir a senha e/ou o canal**, mantendo todos os dados. Ao concluir, o app avisa no log para remover o `SETUP_REOPEN`; enquanto ele estiver ligado e o setup concluído, nada acontece (não reabre em loop). Isso substitui, para a senha, o "editar o `.env`"; o `DASHBOARD_2FA=off` continua existindo para emergências.
@@ -142,16 +146,15 @@ Para quem perdeu a senha ou o chat: `SETUP_REOPEN=true` no `.env` + reiniciar re
 
 **Backend**
 - `config`: `GEMINI_API_KEY` e as variáveis do canal deixam de ser obrigatórias; `CHANNEL` vira configuração registrada (só gravada pelo setup); novos `SETUP_TOKEN` e `SETUP_REOPEN`.
-- App sobe sem Gemini: o que depende dele (interpretar mensagens livres e recibos, Coach, sugestões de categoria) responde "configure o Gemini" em vez de falhar. **Levantar todos os pontos** que hoje assumem o cliente do Gemini.
+- **Gemini opcional**: o app sobe sem ele. O que depende dele (interpretar mensagens livres e recibos, Coach, sugestões de categoria) responde "configure o Gemini nas Configurações" em vez de falhar, e os caminhos sem IA (comandos, resumo, saldos, sincronização, dashboard) seguem normais. **Levantar todos os pontos** que hoje assumem o cliente do Gemini. Salvar a chave nas Configurações passa a ligá-lo sem reiniciar, se for simples (o modelo do Coach já muda a quente); senão, pede reinício como hoje.
 - `internal/setup`: estado do setup (passos, rascunhos), regras de "configurado", sem HTTP.
 - Migration nova: `dashboard_owner` (hash da senha, quando o setup terminou) e o rascunho do setup.
 - Senha no banco com argon2id; `checkPassword` passa a aceitar o hash do banco ou a variável.
 - Telegram: método para esperar o `/start` (getUpdates com offset), usado só no setup, antes de o bot subir.
-- WhatsApp: QR code servido pela API do setup (reaproveitando o `qrcode_handler`).
-- Ligar o canal depois do setup sem reiniciar, ou reinício automático (seção 5, passo 3).
+- Canal trocável (seção 7.1) no lugar do `messenger` passado em `startJobs`; `SecondFactor.Active` passa a olhar "há canal configurado", e `Send` usa o canal trocável.
 
 **Frontend**
-- `features/setup`: as telas, a barra de progresso, a espera do `/start` e do QR code, e a tela final com os próximos passos.
+- `features/setup`: as telas, a barra de progresso, a espera do `/start` e a tela final com os próximos passos.
 - Redirecionamento para `/setup` quando a API responde `{"setup": "required"}`.
 
 **Outros**
@@ -164,18 +167,21 @@ Para quem perdeu a senha ou o chat: `SETUP_REOPEN=true` no `.env` + reiniciar re
 ## 10. Plano
 
 1. App sobe sem Gemini e sem canal (config opcional + o que depende avisa). Testes.
-2. `internal/setup` + migration + senha com argon2id. Testes.
-3. API do setup: token, passos, rascunho, telegram (`getMe`, espera do `/start`, código), regras de "configurado". Testes de handler para cada linha da tabela da seção 6.
-4. Front do setup (Telegram primeiro).
-5. WhatsApp no setup (Evolution, QR code, código).
-6. Concluir sem reiniciar (ou reinício automático), próximos passos, `SETUP_REOPEN`.
-7. `make init`, `.env.example`, README, ADR, CHANGELOG.
+2. Canal trocável + segundo fator com falha fechada e nova tentativa em segundo plano (seção 7.1, itens 1 e 5). Testes com `-race`.
+3. `internal/setup` + migration + senha com argon2id. Testes.
+4. API do setup: token, passos, rascunho, Telegram (`getMe`, espera do `/start`, código), concluir ligando o canal, regras de "configurado". Testes de handler para cada linha da tabela da seção 6 e para os itens 2, 3, 4 e 6 da seção 7.1.
+5. Front do setup.
+6. Próximos passos e `SETUP_REOPEN`.
+7. `make init`, `.env.example`, README, ADRs (nova e 0007), CHANGELOG.
 
 Cada passo com `go test ./...`, `go vet ./...`, golangci-lint, `npx tsc -b`, `npx oxlint` e `npx vitest run` verdes.
 
 ## 11. Testes de aceitação
 
-- Instalação nova com `make init`: do `docker compose up -d` ao dashboard só pelo navegador, sem editar o `.env` à mão (Telegram).
+- Instalação nova com `make init`: do `docker compose up -d` ao dashboard só pelo navegador, sem editar o `.env` à mão e sem reiniciar; o bot responde no Telegram logo depois de concluir.
+- Instalação sem `GEMINI_API_KEY`: sobe, o dashboard funciona, e no chat o que precisa de IA explica como ligar.
+- Duas requisições de concluir ao mesmo tempo: um bot só.
+- Telegram fora do ar no boot com canal configurado: login responde 503 (não aceita só a senha) e o canal liga sozinho quando o Telegram volta.
 - Instalação atual com `.env` completo: nenhuma tela de setup; login como antes.
 - Sem `SETUP_TOKEN`: a tela só explica como definir.
 - Token errado 6 vezes num minuto: 429.
@@ -184,8 +190,8 @@ Cada passo com `go test ./...`, `go vet ./...`, golangci-lint, `npx tsc -b`, `np
 - Concluído: `/api/setup/*` responde 404; o login pede senha e código.
 - `SETUP_REOPEN=true`: permite trocar a senha e o canal, mantém os dados.
 
-## 12. Pontos a confirmar
+## 12. Decisões (revisão de 05/10/2026)
 
-1. **Concluir sem reiniciar ou com reinício automático.** Ligar o canal a quente é mais elegante, mas mexe na montagem do app (hoje o canal sobe uma vez em `startChannel`). O reinício automático é simples e já existe o botão de reiniciar nas Configurações.
-2. **Gemini como passo opcional dentro do setup** (em vez de só nos próximos passos). Sem ele o chat não entende mensagens livres, que é o uso principal; talvez mereça um passo "pular por agora".
-3. **WhatsApp no setup já na primeira versão** ou só Telegram primeiro (o WhatsApp exige mexer no `.env` de qualquer forma, por causa do container da Evolution).
+1. **Concluir liga o canal na hora, sem reiniciar** (seção 7.1). O custo é um passo a mais no plano (o canal trocável), que também fecha a brecha do "canal não subiu, entra só com senha".
+2. **Gemini é opcional**, fora do setup: aparece só nos próximos passos. Há caminhos sem IA.
+3. **Só Telegram** na primeira versão. WhatsApp continua pelo `.env`; entra no setup numa versão futura (Evolution, QR code na tela, código pelo WhatsApp).
