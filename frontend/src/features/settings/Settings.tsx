@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { OwnTransfersDialog } from './components/OwnTransfersDialog'
 import { QueryState } from '../../shared/components/QueryState'
 import { SettingInput } from './components/SettingInput'
-import { PasswordDialog } from './components/PasswordDialog'
+import { ConfirmDialog } from './components/ConfirmDialog'
 import { SettingsAudit } from './components/SettingsAudit'
-import { TEST_TARGET, changedValues, currentValue, needsPassword } from './lib/settings'
-import { applyOwnTransfers, resetSetting, restartApp, saveSettings, testConnection, useSettings } from './api'
+import { TEST_TARGET, changedValues, currentValue, needsConfirmation } from './lib/settings'
+import { applyOwnTransfers, requestConfirmCode, resetSetting, restartApp, saveSettings, testConnection, useSettings } from './api'
 import { ApiError } from '../../shared/api/request'
-import type { OwnTransfers, SettingGroup } from './api'
+import type { OwnTransfers, Proof, SettingGroup } from './api'
 
 const errorMessage = (e: unknown) => (e instanceof ApiError ? e.message : 'Não foi possível concluir. Tente de novo.')
 
@@ -20,14 +20,15 @@ export default function Settings() {
   const [notice, setNotice] = useState<{ group: string; ok: boolean; text: string } | null>(null)
   const [own, setOwn] = useState<OwnTransfers | null>(null)
   const [restarting, setRestarting] = useState(false)
-  // Ação sensível à espera da confirmação da senha.
+  // Ação sensível à espera da confirmação (código no chat ou senha).
   const [pending, setPending] = useState<
     { kind: 'save'; group: SettingGroup; values: Record<string, string> } | { kind: 'reset'; key: string; label: string } | null
   >(null)
   const [pwError, setPwError] = useState<string | null>(null)
+  const secondFactor = query.data?.secondFactor ?? false
 
   const save = useMutation({
-    mutationFn: ({ values, password }: { values: Record<string, string>; password?: string }) => saveSettings(values, password),
+    mutationFn: ({ values, proof }: { values: Record<string, string>; proof?: Proof }) => saveSettings(values, proof),
     onSuccess: (res, { values }) => {
       setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !(k in values))))
       queryClient.invalidateQueries({ queryKey: ['settings'] })
@@ -36,7 +37,7 @@ export default function Settings() {
     },
   })
   const reset = useMutation({
-    mutationFn: ({ key, password }: { key: string; password?: string }) => resetSetting(key, password),
+    mutationFn: ({ key, proof }: { key: string; proof?: Proof }) => resetSetting(key, proof),
     onSuccess: (_, { key }) => {
       setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== key)))
       queryClient.invalidateQueries({ queryKey: ['settings'] })
@@ -56,21 +57,20 @@ export default function Settings() {
     setNotice(null)
     const values = changedValues(group, drafts)
     if (Object.keys(values).length === 0) return
-    if (needsPassword(group, Object.keys(values))) {
-      setPwError(null)
-      setPending({ kind: 'save', group, values })
+    if (needsConfirmation(group, Object.keys(values))) {
+      openConfirm({ kind: 'save', group, values })
       return
     }
     await doSave(group, values)
   }
 
-  async function doSave(group: SettingGroup, values: Record<string, string>, password?: string) {
+  async function doSave(group: SettingGroup, values: Record<string, string>, proof?: Proof) {
     try {
-      await save.mutateAsync({ values, password })
+      await save.mutateAsync({ values, proof })
       setPending(null)
       setNotice({ group: group.id, ok: true, text: 'Salvo.' })
     } catch (e) {
-      if (password !== undefined) setPwError(errorMessage(e))
+      if (proof) setPwError(errorMessage(e))
       else setNotice({ group: group.id, ok: false, text: errorMessage(e) })
     }
   }
@@ -78,21 +78,37 @@ export default function Settings() {
   function onReset(group: SettingGroup, key: string) {
     const field = group.fields.find((f) => f.key === key)
     if (field?.sensitive) {
-      setPwError(null)
-      setPending({ kind: 'reset', key, label: field.label })
+      openConfirm({ kind: 'reset', key, label: field.label })
       return
     }
     reset.mutate({ key })
   }
 
-  async function confirmPending(password: string) {
+  // Com o segundo fator, abrir a confirmação já pede o código ao chat.
+  function openConfirm(p: NonNullable<typeof pending>) {
+    setPwError(null)
+    setPending(p)
+    if (secondFactor) sendCode()
+  }
+
+  async function sendCode() {
+    try {
+      await requestConfirmCode()
+      setPwError(null)
+    } catch (e) {
+      setPwError(errorMessage(e))
+    }
+  }
+
+  async function confirmPending(secret: string) {
     if (!pending) return
+    const proof: Proof = secondFactor ? { code: secret } : { password: secret }
     if (pending.kind === 'save') {
-      await doSave(pending.group, pending.values, password)
+      await doSave(pending.group, pending.values, proof)
       return
     }
     try {
-      await reset.mutateAsync({ key: pending.key, password })
+      await reset.mutateAsync({ key: pending.key, proof })
       setPending(null)
     } catch (e) {
       setPwError(errorMessage(e))
@@ -151,6 +167,12 @@ export default function Settings() {
                 </button>
               </div>
             )}
+            {!data.secondFactor && (
+              <p className="notice" role="note">
+                Segundo fator desligado: o login e as alterações sensíveis pedem só a senha. Ele liga sozinho quando o canal (Telegram ou WhatsApp) está no ar e{' '}
+                <code>DASHBOARD_2FA</code> não é <code>off</code>.
+              </p>
+            )}
             {!data.encryption && (
               <p className="notice" role="note">
                 Para guardar chaves e tokens aqui, defina <code>APP_SECRET_KEY</code> (mínimo 16 caracteres) no ambiente e reinicie. Ela cifra os segredos no banco e nunca é salva nele.
@@ -204,7 +226,9 @@ export default function Settings() {
       <SettingsAudit />
 
       {pending && (
-        <PasswordDialog
+        <ConfirmDialog
+          mode={secondFactor ? 'code' : 'password'}
+          onResend={sendCode}
           action={pending.kind === 'save' ? `Salvar ${Object.keys(pending.values).map((k) => pending.group.fields.find((f) => f.key === k)?.label ?? k).join(', ')}` : `Restaurar ${pending.label} ao valor do ambiente`}
           busy={save.isPending || reset.isPending}
           error={pwError}

@@ -74,8 +74,10 @@ func TestSecondFactor_LoginNeedsCode(t *testing.T) {
 	if !strings.Contains(box.sent[0], "Código de acesso") {
 		t.Errorf("mensagem do código: %q", box.sent[0])
 	}
-	if rec := do(s, "GET", "/api/me", "", nil, c); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"secondFactor":true`) {
-		t.Fatalf("/api/me = %d %s", rec.Code, rec.Body)
+	for _, path := range []string{"/api/me", "/api/settings"} {
+		if rec := do(s, "GET", path, "", nil, c); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"secondFactor":true`) {
+			t.Fatalf("%s = %d %s", path, rec.Code, rec.Body)
+		}
 	}
 }
 

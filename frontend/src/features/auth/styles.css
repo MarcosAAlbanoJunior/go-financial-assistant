@@ -11,3 +11,5 @@
 
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
 .grid-2 .chart-title { margin-bottom: 12px; }
+.login-hint { margin: 0; font-size: 0.875rem; color: var(--text-secondary); }
+.login-links { display: flex; gap: 8px; flex-wrap: wrap; }

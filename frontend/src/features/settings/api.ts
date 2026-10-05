@@ -36,7 +36,12 @@ export interface SettingsData {
   encryption: boolean
   restartPending: boolean
   groups: SettingGroup[]
+  /** Com o segundo fator, o que é sensível se confirma com um código no chat; sem ele, com a senha. */
+  secondFactor: boolean
 }
+
+/** A prova pedida para mudar o que é sensível. */
+export type Proof = { password: string } | { code: string }
 
 export interface TransferExample {
   description: string
@@ -69,16 +74,18 @@ export interface SettingsAuditEntry {
 export const useSettings = () => useQuery({ queryKey: ['settings'], queryFn: () => request<SettingsData>('/api/settings') })
 
 /** Salva só o que mudou. Ao mudar OWN_NAMES, a resposta traz as transferências antigas que parecem ser suas. */
-export const saveSettings = (values: Record<string, string>, password?: string) =>
+export const saveSettings = (values: Record<string, string>, proof?: Proof) =>
   request<SaveSettingsResult>('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values, password }),
+    body: JSON.stringify({ values, ...proof }),
   })
 
 /** Apaga o valor salvo aqui: volta a valer o ambiente (ou o padrão). */
-export const resetSetting = (key: string, password?: string) =>
-  postJSON(`/api/settings/reset/${encodeURIComponent(key)}`, { password })
+export const resetSetting = (key: string, proof?: Proof) => postJSON(`/api/settings/reset/${encodeURIComponent(key)}`, { ...proof })
+
+/** Manda ao chat o código que confirma a próxima alteração sensível. */
+export const requestConfirmCode = () => postJSON<{ step: 'code' }>('/api/settings/confirm')
 
 /** Últimas alterações de configuração (sem valores). */
 export const useSettingsAudit = () => useQuery({ queryKey: ['settings-audit'], queryFn: () => request<SettingsAuditEntry[]>('/api/settings/audit') })
