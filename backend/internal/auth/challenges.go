@@ -21,7 +21,7 @@ const (
 )
 
 const (
-	CodeDigits  = 8
+	CodeDigits  = 6
 	CodeTTL     = 5 * time.Minute
 	MaxAttempts = 3
 	// ResendAfter é o intervalo mínimo entre dois envios do mesmo tipo.
