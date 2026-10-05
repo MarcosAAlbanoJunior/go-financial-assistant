@@ -3,12 +3,14 @@ package chat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/openfinance"
@@ -403,5 +405,31 @@ func TestHandle_BalanceQuestionStillGoesToAssistant(t *testing.T) {
 	h.Handle(context.Background(), Message{Text: "qual o saldo do itau?"})
 	if b.n != 0 || a.textSeen != "qual o saldo do itau?" {
 		t.Errorf("chamadas=%d texto=%q", b.n, a.textSeen)
+	}
+}
+
+// Sem o Gemini, o que precisa de IA explica como ligar (e não vira erro de registro); os comandos seguem funcionando.
+func TestHandle_AIOff_ExplainsHowToEnable(t *testing.T) {
+	off := fmt.Errorf("erro ao analisar texto: %w", ports.ErrAIUnavailable)
+	a := &mockAnalyzer{
+		textFn:  func(ledger.TextInput) (*ledger.ExpenseOutput, error) { return nil, off },
+		imageFn: func(ledger.ImageInput) (*ledger.ExpenseOutput, error) { return nil, off },
+		statFn:  func() (*ledger.StatementOutput, error) { return nil, off },
+	}
+	h, msgr := newTestHandler(a, &mockExporter{})
+	ctx := context.Background()
+	for _, m := range []Message{
+		{Text: "gastei 50 no almoço"},
+		{Image: &Attachment{MimeType: "image/jpeg", Load: loadOf([]byte{1}, nil)}},
+		{Document: &Attachment{Load: loadOf([]byte("pdf"), nil)}},
+	} {
+		msgr.texts = nil
+		if _, err := h.Handle(ctx, m); err != nil {
+			t.Fatalf("IA desligada não é erro: %v", err)
+		}
+		last := msgr.texts[len(msgr.texts)-1]
+		if !strings.Contains(last, "Configurações → IA (Gemini)") || strings.Contains(last, "Não consegui registrar") {
+			t.Fatalf("resposta sem IA: %q", last)
+		}
 	}
 }

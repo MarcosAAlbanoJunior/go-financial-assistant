@@ -104,14 +104,59 @@ func TestLoad_MissingDatabaseURL(t *testing.T) {
 	}
 }
 
-func TestLoad_MissingGeminiAPIKey(t *testing.T) {
+// O app sobe sem o Gemini: o que depende de IA avisa como ligar.
+func TestLoad_GeminiIsOptional(t *testing.T) {
 	env := validEnv()
 	delete(env, "GEMINI_API_KEY")
 	setEnv(t, env)
 
-	_, err := Load(nil)
-	if err == nil {
-		t.Fatal("esperava erro de GEMINI_API_KEY obrigatória")
+	cfg, err := Load(nil)
+	if err != nil || cfg.GeminiAPIKey != "" {
+		t.Fatalf("sem GEMINI_API_KEY: %v %+v", err, cfg)
+	}
+}
+
+// Sem nenhuma variável do canal o app sobe sem canal (o setup configura um); com parte delas, avisa o que falta.
+func TestLoad_ChannelIsOptional(t *testing.T) {
+	setEnv(t, map[string]string{"DATABASE_URL": "postgres://x"})
+	for _, ch := range []string{"", "whatsapp", "telegram"} {
+		t.Setenv("CHANNEL", ch)
+		cfg, err := Load(nil)
+		if err != nil || cfg.ChannelConfigured() {
+			t.Fatalf("CHANNEL=%q sem variáveis: %v configured=%v", ch, err, cfg != nil && cfg.ChannelConfigured())
+		}
+	}
+	setEnv(t, telegramEnv())
+	if cfg, err := Load(nil); err != nil || !cfg.ChannelConfigured() {
+		t.Fatalf("telegram completo: %v", err)
+	}
+	setEnv(t, validEnv())
+	t.Setenv("CHANNEL", "")
+	if cfg, err := Load(nil); err != nil || !cfg.ChannelConfigured() || cfg.Channel != ChannelWhatsApp {
+		t.Fatalf("whatsapp completo: %v", err)
+	}
+}
+
+// O canal salvo pelo setup (override) vale mais que o ambiente vazio.
+func TestLoad_ChannelFromOverrides(t *testing.T) {
+	setEnv(t, map[string]string{"DATABASE_URL": "postgres://x", "CHANNEL": ""})
+	cfg, err := Load(map[string]string{"CHANNEL": "telegram", "TELEGRAM_BOT_TOKEN": "1:a", "TELEGRAM_CHAT_ID": "42"})
+	if err != nil || cfg.Channel != ChannelTelegram || !cfg.ChannelConfigured() || cfg.TelegramChatID != 42 {
+		t.Fatalf("override do canal: %v %+v", err, cfg)
+	}
+}
+
+func TestLoad_SetupVars(t *testing.T) {
+	setEnv(t, validEnv())
+	t.Setenv("SETUP_TOKEN", "  abc  ")
+	t.Setenv("SETUP_REOPEN", "true")
+	cfg, err := Load(map[string]string{"SETUP_TOKEN": "do-banco-nunca"})
+	if err != nil || cfg.SetupToken != "abc" || !cfg.SetupReopen {
+		t.Fatalf("setup: %v %+v", err, cfg)
+	}
+	t.Setenv("SETUP_REOPEN", "talvez")
+	if _, err := Load(nil); err == nil {
+		t.Fatal("SETUP_REOPEN inválida deveria falhar")
 	}
 }
 

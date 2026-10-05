@@ -58,14 +58,18 @@ type Def struct {
 	Min, Max int // KindInt
 	Channel  string
 	Validate func(string) error
+	// Internal: só o setup grava; não aparece na página nem pode ser alterado ou restaurado por ela.
+	Internal bool
 }
 
 const maxValueLen = 500
 
 var weekdays = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
 
-// Defs é o catálogo. Fora dele (porta, banco, senha do dashboard, canal, backup) só o ambiente manda.
+// Defs é o catálogo. Fora dele (porta, banco, senha do dashboard, backup) só o ambiente manda.
 var Defs = []Def{
+	{Key: "CHANNEL", Label: "Canal de conversa", Kind: KindEnum, Options: []string{"whatsapp", "telegram"}, Default: "whatsapp", Internal: true},
+
 	{Key: "DIGEST_ENABLED", Group: GroupDigest, Label: "Enviar o resumo semanal", Kind: KindBool, Default: "true", Live: true},
 	{Key: "DIGEST_WEEKDAY", Group: GroupDigest, Label: "Dia da semana", Kind: KindEnum, Options: weekdays, Default: "monday", Live: true},
 	{Key: "DIGEST_HOUR", Group: GroupDigest, Label: "Hora do envio (0 a 23)", Kind: KindInt, Min: 0, Max: 23, Default: "9", Live: true},
@@ -79,7 +83,7 @@ var Defs = []Def{
 	{Key: "PLUGGY_CLIENT_SECRET", Group: GroupPluggy, Label: "Client Secret", Help: "Trate como senha.", Kind: KindSecret, Live: true, Validate: validToken},
 	{Key: "PLUGGY_ITEM_IDS", Group: GroupPluggy, Label: "Item IDs dos bancos", Help: "Um UUID por banco conectado no Meu Pluggy, separados por vírgula.", Kind: KindList, Live: true, Validate: validUUIDs},
 
-	{Key: "GEMINI_API_KEY", Group: GroupAI, Label: "Chave da API do Gemini", Kind: KindSecret, Live: false, Validate: validToken},
+	{Key: "GEMINI_API_KEY", Group: GroupAI, Label: "Chave da API do Gemini", Help: "Opcional. Sem ela, o chat funciona com os comandos e o dashboard inteiro; o que precisa de IA (mensagens livres, recibos, extratos, Coach) avisa como ligar.", Kind: KindSecret, Live: true, Validate: validToken},
 	{Key: "GEMINI_PAID_PLAN", Group: GroupAI, Label: "O projeto da chave tem faturamento (plano pago)", Help: "O Coach envia valores e nomes de estabelecimentos ao Gemini. No plano gratuito o Google pode usar esse conteúdo, então só marque se a chave é de um projeto pago. Sem isso, o Coach fica bloqueado.", Kind: KindBool, Default: "false", Live: true},
 	{Key: "COACH_GEMINI_MODEL", Group: GroupAI, Label: "Modelo do Coach", Help: "Vazio usa o padrão do app.", Kind: KindText, Live: true, Validate: validToken},
 

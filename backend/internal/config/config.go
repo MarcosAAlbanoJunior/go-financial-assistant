@@ -22,11 +22,13 @@ const minDashboardPasswordLen = 12
 type Config struct {
 	Port int
 
-	// Channel define por onde o usuário conversa com o assistente: whatsapp (padrão) ou telegram.
+	// Channel define por onde o usuário conversa com o assistente: whatsapp (padrão) ou telegram. Sem as variáveis do
+	// canal, não há canal (ChannelConfigured): o setup pelo navegador configura um.
 	Channel string
 
 	DatabaseURL string
 
+	// GeminiAPIKey é opcional: sem ela, o que depende de IA fica desligado com aviso e o resto funciona.
 	GeminiAPIKey string
 	// GeminiPaidPlan é a declaração de que o projeto da chave tem faturamento (serviços pagos). O Coach, que
 	// envia dados financeiros ao Gemini, só funciona com ela: no plano grátis o Google pode usar e revisar o conteúdo.
@@ -57,6 +59,11 @@ type Config struct {
 	TelegramBotToken string
 	TelegramChatID   int64
 
+	// SetupToken libera o setup pelo navegador (só vem do ambiente). SetupReopen reabre o setup para recuperar a senha
+	// ou o canal.
+	SetupToken  string
+	SetupReopen bool
+
 	// Open Finance (Meu Pluggy) é opcional: sem PLUGGY_CLIENT_ID só o registro manual fica ativo.
 	PluggyClientID          string
 	PluggyClientSecret      string
@@ -67,6 +74,14 @@ type Config struct {
 }
 
 func (c *Config) OpenFinanceEnabled() bool { return c.PluggyClientID != "" }
+
+// ChannelConfigured diz se o canal escolhido tem tudo o que precisa (no ambiente ou salvo pelo setup).
+func (c *Config) ChannelConfigured() bool {
+	if c.Channel == ChannelTelegram {
+		return c.TelegramBotToken != "" && c.TelegramChatID > 0
+	}
+	return c.EvolutionInstance != "" && c.EvolutionAPIKey != "" && c.OwnerPhone != ""
+}
 
 // Load lê a configuração. Os valores de overrides (salvos na página de configurações) valem mais que o ambiente;
 // nil usa só o ambiente (e o .env, se existir).
@@ -142,10 +157,7 @@ func (l *loader) app(cfg *Config) {
 	if cfg.DatabaseURL == "" {
 		l.fail("DATABASE_URL é obrigatória")
 	}
-	cfg.GeminiAPIKey = l.get("GEMINI_API_KEY", "")
-	if cfg.GeminiAPIKey == "" {
-		l.fail("GEMINI_API_KEY é obrigatória")
-	}
+	cfg.GeminiAPIKey = strings.TrimSpace(l.get("GEMINI_API_KEY", ""))
 	cfg.GeminiPaidPlan = l.boolean("GEMINI_PAID_PLAN", false)
 	cfg.CoachModel = strings.TrimSpace(l.get("COACH_GEMINI_MODEL", ""))
 
@@ -161,20 +173,39 @@ func (l *loader) app(cfg *Config) {
 	default:
 		l.fail("DASHBOARD_2FA inválida: %q — use auto ou off", mode)
 	}
+	// Só do ambiente: é a prova de acesso ao servidor, então nada salvo no banco pode trocá-la.
+	cfg.SetupToken = strings.TrimSpace(os.Getenv("SETUP_TOKEN"))
+	if raw := strings.TrimSpace(os.Getenv("SETUP_REOPEN")); raw != "" {
+		reopen, err := strconv.ParseBool(raw)
+		if err != nil {
+			l.fail("SETUP_REOPEN inválida: %q — use true ou false", raw)
+		}
+		cfg.SetupReopen = reopen
+	}
 }
 
-// channel lê o canal de conversa (WhatsApp ou Telegram) e exige só o que o canal escolhido usa.
+// channel lê o canal de conversa (WhatsApp ou Telegram). Sem nenhuma variável do canal escolhido não há canal (o setup
+// configura um); com parte delas, é erro de digitação e o app avisa o que falta.
 func (l *loader) channel(cfg *Config) {
-	cfg.Channel = strings.ToLower(strings.TrimSpace(l.get("CHANNEL", ChannelWhatsApp)))
+	cfg.Channel = strings.ToLower(strings.TrimSpace(l.get("CHANNEL", "")))
+	if cfg.Channel == "" {
+		cfg.Channel = ChannelWhatsApp
+	}
 	cfg.AllowedNumbers = parseAllowedNumbers(l.get("ALLOWED_NUMBERS", ""))
 
 	switch cfg.Channel {
 	case ChannelWhatsApp:
 		cfg.EvolutionAPIURL = l.get("EVOLUTION_API_URL", "http://evolution:8082")
+		if l.allEmpty("EVOLUTION_INSTANCE", "EVOLUTION_API_KEY", "OWNER_PHONE") {
+			return
+		}
 		cfg.EvolutionInstance = l.require("EVOLUTION_INSTANCE")
 		cfg.EvolutionAPIKey = l.require("EVOLUTION_API_KEY")
 		cfg.OwnerPhone = l.require("OWNER_PHONE")
 	case ChannelTelegram:
+		if l.allEmpty("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID") {
+			return
+		}
 		cfg.TelegramBotToken = l.require("TELEGRAM_BOT_TOKEN")
 		if raw := l.require("TELEGRAM_CHAT_ID"); raw != "" {
 			chatID, err := strconv.ParseInt(raw, 10, 64)
@@ -186,6 +217,15 @@ func (l *loader) channel(cfg *Config) {
 	default:
 		l.fail("CHANNEL inválido: %q — use %q ou %q", cfg.Channel, ChannelWhatsApp, ChannelTelegram)
 	}
+}
+
+func (l *loader) allEmpty(keys ...string) bool {
+	for _, k := range keys {
+		if strings.TrimSpace(l.get(k, "")) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 var weekdays = map[string]time.Weekday{
