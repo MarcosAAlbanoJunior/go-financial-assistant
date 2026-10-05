@@ -20,12 +20,18 @@ const (
 // SecondFactor liga o código no chat ao login e à confirmação das configurações sensíveis.
 type SecondFactor struct {
 	Enabled bool // DASHBOARD_2FA (auto = true)
-	// Send manda o código ao chat da pessoa e diz se conseguiu. Fica nil enquanto não há canal; sem ele, vale só a senha.
+	// Send manda o código ao chat da pessoa e diz se conseguiu. Nil = sem canal; vale só a senha.
 	Send func(ctx context.Context, text string) error
+	// Configured diz se há canal configurado, no ar ou não. Com canal configurado o código é sempre pedido: se o canal
+	// não subiu (token errado, Telegram fora), Send falha e o login responde 503, em vez de aceitar só a senha.
+	// Nil = configurado sempre que há Send.
+	Configured func() bool
 }
 
 // Active diz se o login e as confirmações pedem o código.
-func (f *SecondFactor) Active() bool { return f != nil && f.Enabled && f.Send != nil }
+func (f *SecondFactor) Active() bool {
+	return f != nil && f.Enabled && f.Send != nil && (f.Configured == nil || f.Configured())
+}
 
 // SetSecondFactor liga o segundo fator à API (chame antes de MountAPI; Send pode ser preenchido depois, antes de Start).
 func (s *Server) SetSecondFactor(f *SecondFactor) { s.factor = f }

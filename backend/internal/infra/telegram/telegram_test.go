@@ -225,3 +225,23 @@ func TestToHTML_BalancesText(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+// Depois do setup o bot começa no offset seguinte ao /start: nada da espera é reprocessado.
+func TestRun_StartsFromGivenOffset(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var first float64 = -1
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var params map[string]any
+		json.NewDecoder(r.Body).Decode(&params)
+		if first < 0 {
+			first = params["offset"].(float64)
+		}
+		cancel()
+		reply(w, `[]`)
+	})
+	NewBot(c, 42, &fakeHandler{}, slog.New(slog.NewTextHandler(io.Discard, nil))).StartFrom(77).Run(ctx)
+	if first != 77 {
+		t.Fatalf("primeiro offset = %v, queria 77", first)
+	}
+}
