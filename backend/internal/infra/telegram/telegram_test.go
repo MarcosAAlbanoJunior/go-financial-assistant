@@ -245,3 +245,43 @@ func TestRun_StartsFromGivenOffset(t *testing.T) {
 		t.Fatalf("primeiro offset = %v, queria 77", first)
 	}
 }
+
+func TestLatestOffset(t *testing.T) {
+	var asked float64
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var params map[string]any
+		json.NewDecoder(r.Body).Decode(&params)
+		asked = params["offset"].(float64)
+		reply(w, `[{"update_id":41}]`)
+	})
+	got, err := c.LatestOffset(context.Background())
+	if err != nil || got != 42 || asked != -1 {
+		t.Fatalf("offset = %d %v (pediu %v)", got, err, asked)
+	}
+	empty := newTestClient(t, func(w http.ResponseWriter, r *http.Request) { reply(w, `[]`) })
+	if got, err := empty.LatestOffset(context.Background()); err != nil || got != 0 {
+		t.Fatalf("sem updates = %d %v", got, err)
+	}
+}
+
+// Só a primeira conversa privada conta; mensagens de grupo passam e o offset avança até ela.
+func TestFirstPrivate(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		reply(w, `[
+			{"update_id":10,"message":{"text":"oi","chat":{"type":"group"},"from":{"id":7,"first_name":"Grupo"}}},
+			{"update_id":11,"message":{"text":"/start","chat":{"type":"private"},"from":{"id":42,"first_name":"Maria","last_name":"Silva","username":"maria"}}},
+			{"update_id":12,"message":{"text":"/start","chat":{"type":"private"},"from":{"id":43,"first_name":"Outro"}}}
+		]`)
+	})
+	s, next, err := c.FirstPrivate(context.Background(), 10)
+	if err != nil || s == nil || s.ID != 42 || s.Name != "Maria Silva" || s.Username != "maria" || next != 12 {
+		t.Fatalf("got %+v next=%d err=%v", s, next, err)
+	}
+
+	groups := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		reply(w, `[{"update_id":20,"message":{"chat":{"type":"supergroup"},"from":{"id":7}}}]`)
+	})
+	if s, next, err := groups.FirstPrivate(context.Background(), 20); err != nil || s != nil || next != 21 {
+		t.Fatalf("só grupo: %+v next=%d err=%v", s, next, err)
+	}
+}

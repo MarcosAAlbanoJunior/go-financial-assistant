@@ -41,6 +41,11 @@ var (
 	ErrChannelInEnv    = errors.New("o canal já está definido no .env; para trocar, use SETUP_REOPEN")
 	ErrAlreadyComplete = errors.New("o setup já foi concluído")
 	ErrClosed          = errors.New("setup indisponível")
+
+	// Erros do Telegram durante o setup, já na língua da tela.
+	ErrBotTokenInvalid = errors.New("token inválido: confira se copiou inteiro (formato 123456789:ABC...)")
+	ErrBotBusy         = errors.New("outro programa está lendo as mensagens deste bot (um webhook ou outro app): desligue-o e tente de novo")
+	ErrTelegramDown    = errors.New("não foi possível falar com o Telegram agora; tente de novo em instantes")
 )
 
 // Owner é o dono do dashboard como está no banco.
@@ -356,12 +361,15 @@ func (s *Service) channelInEnvUnlessReopen() bool {
 	return !s.reopenLocked() && s.channelLocked()
 }
 
-// SetCandidate guarda quem mandou a primeira mensagem privada e avança o offset para depois dela. Se já há alguém
-// esperando confirmação, não troca.
-func (s *Service) SetCandidate(ctx context.Context, c Candidate, offset int64) (Draft, error) {
+// SetCandidate guarda quem mandou a primeira mensagem privada ao bot do token e avança o offset para depois dela. Se já
+// há alguém esperando confirmação, não troca. Se o bot do rascunho mudou enquanto o Telegram respondia, não grava nada.
+func (s *Service) SetCandidate(ctx context.Context, token string, c Candidate, offset int64) (Draft, error) {
 	return s.update(ctx, func(d *Draft) error {
 		if d.TelegramToken == "" {
 			return ErrNoBot
+		}
+		if d.TelegramToken != token {
+			return nil
 		}
 		if d.Candidate == nil {
 			d.Candidate, d.CandidateAccepted = &c, false
@@ -372,9 +380,11 @@ func (s *Service) SetCandidate(ctx context.Context, c Candidate, offset int64) (
 }
 
 // AdvanceOffset avança a leitura do Telegram sem candidato (só mensagens de grupo ou de canal).
-func (s *Service) AdvanceOffset(ctx context.Context, offset int64) error {
+func (s *Service) AdvanceOffset(ctx context.Context, token string, offset int64) error {
 	_, err := s.update(ctx, func(d *Draft) error {
-		d.TelegramOffset = max(d.TelegramOffset, offset)
+		if d.TelegramToken == token {
+			d.TelegramOffset = max(d.TelegramOffset, offset)
+		}
 		return nil
 	})
 	return err

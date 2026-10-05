@@ -200,7 +200,7 @@ func (f *fakeReader) InstitutionLogo(_ context.Context, id uuid.UUID) ([]byte, s
 func newTestAPI(t *testing.T, reader *fakeReader) *Server {
 	t.Helper()
 	s := NewServer(0, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	if err := s.MountAPI(testPassword, reader); err != nil {
+	if err := s.MountAPI(StaticPassword(testPassword), reader); err != nil {
 		t.Fatal(err)
 	}
 	return s
@@ -216,7 +216,7 @@ func do(s *Server, method, path, body string, hdr map[string]string, cookies ...
 		req.AddCookie(c)
 	}
 	rec := httptest.NewRecorder()
-	s.mux.ServeHTTP(rec, req)
+	s.http.Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -452,7 +452,7 @@ func TestClientIP(t *testing.T) {
 }
 
 func TestSessions_ExpiredCookieRejected(t *testing.T) {
-	sess, _ := newSessions(testPassword)
+	sess, _ := newSessions(StaticPassword(testPassword))
 	expired := "1000"
 	r := httptest.NewRequest("GET", "/", nil)
 	r.AddCookie(&http.Cookie{Name: sessionCookie, Value: expired + "." + sess.sign(expired)})
@@ -694,7 +694,7 @@ func TestAPI_Projection(t *testing.T) {
 	r := &fakeReader{}
 	s := newTestAPI(t, r)
 	s.mux = http.NewServeMux() // monta de novo com relógio fixo
-	if err := s.mountAPI("senha-de-teste-123", r, func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC) }); err != nil {
+	if err := s.mountAPI(StaticPassword("senha-de-teste-123"), r, func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC) }); err != nil {
 		t.Fatal(err)
 	}
 	c := login(t, s)
@@ -725,7 +725,7 @@ func newGoalsAPI(t *testing.T, r *fakeReader) *Server {
 	t.Helper()
 	s := newTestAPI(t, r)
 	s.mux = http.NewServeMux()
-	if err := s.mountAPI(testPassword, r, func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC) }); err != nil {
+	if err := s.mountAPI(StaticPassword(testPassword), r, func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC) }); err != nil {
 		t.Fatal(err)
 	}
 	return s

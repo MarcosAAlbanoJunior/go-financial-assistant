@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -21,7 +22,8 @@ const (
 // SettingsDeps é o que a página de configurações precisa. Os testes de conexão recebem as credenciais por parâmetro
 // (as que estão salvas), para ficarem fora do pacote HTTP.
 type SettingsDeps struct {
-	Service      *settings.Service
+	Service *settings.Service
+	// Channel fixa o canal da página; vazio usa a configuração CHANNEL (que o setup pode mudar com o app rodando).
 	Channel      string
 	Cleaner      ports.TransferCleaner
 	PluggyCheck  func(ctx context.Context, clientID, clientSecret string, itemIDs []string) ([]pluggy.ItemCheck, error)
@@ -31,6 +33,13 @@ type SettingsDeps struct {
 	Audit        settings.AuditLog
 	// Notify avisa a pessoa no chat (Telegram/WhatsApp) de logins, de algo sensível que mudou e de senha ou código errados. Pode ser nil.
 	Notify func(ctx context.Context, text string)
+}
+
+func (d *SettingsDeps) channel() string {
+	if d.Channel != "" {
+		return d.Channel
+	}
+	return strings.ToLower(d.Service.Get("CHANNEL"))
 }
 
 // SetSettings liga a página de configurações à API (chame antes de MountAPI).
@@ -64,7 +73,7 @@ type groupJSON struct {
 func (a *api) getSettings(w http.ResponseWriter, _ *http.Request) {
 	d := a.settings
 	byGroup := map[string][]fieldJSON{}
-	for _, f := range d.Service.Fields(d.Channel) {
+	for _, f := range d.Service.Fields(d.channel()) {
 		byGroup[f.Group] = append(byGroup[f.Group], fieldJSON{
 			Key: f.Key, Label: f.Label, Help: f.Help, Kind: string(f.Kind), Options: f.Options, Min: f.Min, Max: f.Max,
 			Live: f.Live, Value: f.Value, IsSet: f.IsSet, Source: string(f.Source), PendingRestart: f.PendingRestart, Default: f.Default, Sensitive: f.Sensitive(),
@@ -77,7 +86,7 @@ func (a *api) getSettings(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"channel": d.Channel, "encryption": d.Service.EncryptionEnabled(), "restartPending": d.Service.NeedsRestart(d.Channel), "groups": groups,
+		"channel": d.channel(), "encryption": d.Service.EncryptionEnabled(), "restartPending": d.Service.NeedsRestart(d.channel()), "groups": groups,
 		"secondFactor": a.factor.Active(),
 	})
 }
@@ -127,7 +136,7 @@ func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
 	a.logger.Info("configurações salvas pelo dashboard", "keys", changed)
 	a.record(r, "set", changed)
 
-	resp := map[string]any{"changed": changed, "restartPending": d.Service.NeedsRestart(d.Channel)}
+	resp := map[string]any{"changed": changed, "restartPending": d.Service.NeedsRestart(d.channel())}
 	if _, ok := body.Values["OWN_NAMES"]; ok && d.Cleaner != nil {
 		found, _, err := a.findOwnTransfers(r.Context())
 		if err != nil {
@@ -165,7 +174,7 @@ func (a *api) resetSetting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.record(r, "reset", []string{key})
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restartPending": a.settings.Service.NeedsRestart(a.settings.Channel)})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restartPending": a.settings.Service.NeedsRestart(a.settings.channel())})
 }
 
 func (a *api) registerSettings(rt routes, deps *SettingsDeps) {

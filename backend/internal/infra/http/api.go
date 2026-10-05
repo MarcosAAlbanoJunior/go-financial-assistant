@@ -3,6 +3,7 @@ package httpserver
 import (
 	"log/slog"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -29,19 +30,26 @@ type api struct {
 
 	confirmLimiter *ipRateLimiter // tentativas de confirmar (senha ou código) as configurações sensíveis
 	lastFailNotice atomic.Int64
+
+	setup       *SetupDeps // nil sem o setup pelo navegador
+	setupSess   *setupSessions
+	setupPollMu sync.RWMutex // consultas ao /start (leitura) x conclusão (escrita)
 }
 
-// MountAPI registra a API do dashboard. Tudo, exceto o login, exige sessão.
-func (s *Server) MountAPI(password string, reader ports.DashboardReader) error {
+// MountAPI registra a API do dashboard. Tudo, exceto o login (e o setup, que tem a sua sessão), exige sessão.
+func (s *Server) MountAPI(password PasswordCheck, reader ports.DashboardReader) error {
 	return s.mountAPI(password, reader, time.Now)
 }
 
-func (s *Server) mountAPI(password string, reader ports.DashboardReader, now func() time.Time) error {
+func (s *Server) mountAPI(password PasswordCheck, reader ports.DashboardReader, now func() time.Time) error {
 	sess, err := newSessions(password)
 	if err != nil {
 		return err
 	}
-	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: insights.NewInsights(reader), syncer: s.syncer, settings: s.settings, factor: s.factor, challenges: auth.NewChallenges()}
+	a := &api{reader: reader, sessions: sess, logger: s.logger, now: now, coach: newCoachService(s.coach, s.coachPaid), insights: insights.NewInsights(reader), syncer: s.syncer, settings: s.settings, factor: s.factor, challenges: auth.NewChallenges(), setup: s.setup}
+	if a.setupSess, err = newSetupSessions(); err != nil {
+		return err
+	}
 
 	// Login com limite apertado contra tentativa de força bruta; o restante, mais folgado.
 	loginLimiter := newIPRateLimiter(5, time.Minute)
@@ -67,6 +75,9 @@ func (s *Server) mountAPI(password string, reader ports.DashboardReader, now fun
 	a.registerBalances(rt)
 	if s.settings != nil {
 		a.registerSettings(rt, s.settings)
+	}
+	if s.setup != nil {
+		a.registerSetup(rt)
 	}
 	return nil
 }
