@@ -10,12 +10,31 @@ services:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d:ro
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U finassist -d finassist"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Backup diário do banco para ./backups (veja o README, seção "Backup e restauração").
+  backup:
+    image: postgres:16-alpine
+    container_name: finassist-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Roda com o seu usuário do host (padrão 1000:1000) para os arquivos não ficarem presos ao root.
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    environment:
+      PGPASSWORD: finassist
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    entrypoint: ["sh", "/backup.sh"]
 
   # Canal WhatsApp: só sobe com COMPOSE_PROFILES=whatsapp (ver .env.example).
   evolution:
@@ -80,15 +99,21 @@ services:
 
   app:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: finassist-app
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       PORT: 3000
       DATABASE_URL: postgres://finassist:finassist@postgres:5432/finassist?sslmode=disable
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_PAID_PLAN: ${GEMINI_PAID_PLAN:-false}
+      COACH_GEMINI_MODEL: ${COACH_GEMINI_MODEL:-}
+      DIGEST_ENABLED: ${DIGEST_ENABLED:-true}
+      DIGEST_WEEKDAY: ${DIGEST_WEEKDAY:-monday}
+      DIGEST_HOUR: ${DIGEST_HOUR:-9}
+      DIGEST_TIMEZONE: ${DIGEST_TIMEZONE:-America/Sao_Paulo}
       CHANNEL: ${CHANNEL:-whatsapp}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
       EVOLUTION_API_URL: http://evolution:8080
@@ -96,8 +121,24 @@ services:
       ALLOWED_NUMBERS: ${ALLOWED_NUMBERS:-}
       OWNER_PHONE: ${OWNER_PHONE:-}
       ADMIN_SECRET: ${ADMIN_SECRET:-}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      DASHBOARD_2FA: ${DASHBOARD_2FA:-auto}
+      # Setup pelo navegador (make init gera o token). SETUP_REOPEN=true reabre o setup para recuperar senha ou canal.
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      SETUP_REOPEN: ${SETUP_REOPEN:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
+      PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
+      PLUGGY_ITEM_IDS: ${PLUGGY_ITEM_IDS:-}
+      SYNC_INTERVAL_HOURS: ${SYNC_INTERVAL_HOURS:-6}
+      SYNC_LOOKBACK_DAYS: ${SYNC_LOOKBACK_DAYS:-60}
+      OWN_NAMES: ${OWN_NAMES:-}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-}
+      # Preferível à variável: o arquivo (em ./secrets, montado só leitura) não aparece em `docker inspect`. Ex.: /run/secrets/app_secret_key
+      APP_SECRET_KEY_FILE: ${APP_SECRET_KEY_FILE:-}
+    volumes:
+      - ./secrets:/run/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,6 +151,25 @@ services:
       timeout: 3s
       retries: 15
       start_period: 20s
+    restart: unless-stopped
+
+  # Dashboard: nginx serve o front e repassa /api ao app (mesma origem, sem CORS).
+  # Escuta só em 127.0.0.1; para expor na rede, coloque um proxy com HTTPS na frente (ver README).
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: finassist-web
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
 volumes:

@@ -1,0 +1,191 @@
+package pluggy
+
+import (
+	"fmt"
+	"math"
+	"strings"
+	"time"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain"
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+)
+
+// A categoria do Pluggy chega como texto em inglês (ex.: "Groceries", "Same person
+// transfer - PIX"). Casamos por trechos, em ordem; a primeira regra que bater vence.
+// Categorias novas ou não mapeadas caem em OTHER sem quebrar nada.
+var (
+	// Não são gasto nem renda: a fatura já é contada pelas compras do cartão, e
+	// transferência entre contas do mesmo titular só move dinheiro de lugar.
+	ignoredCategories = []string{"same person transfer"}
+
+	// O Pluggy classifica como "credit card payment" todo boleto pago e até Pix QR Code de parcelamento, não só pagamento de
+	// fatura (ex.: "Pagamento de boleto BANCO C6 S.A." era a parcela de um financiamento e sumia do app). Só é pagamento de
+	// fatura, e portanto ignorado, o que na descrição se parece com um: fatura, cartão, bandeira, pagamento recebido.
+	cardPaymentCategory = "credit card payment"
+	cardPaymentKeywords = []string{"fatura", "cartao", "cartão", "pagamento recebido", "pagamento com saldo", " mc", "visa", "mastercard", "elo ", "amex", "hipercard"}
+
+	// Aplicação (saída) e resgate (entrada) de investimentos viram TRANSFER.
+	investmentCategories = []string{"investment", "fixed income", "variable income", "mutual fund"}
+
+	// Aplicação e resgate automáticos do Itaú ("APLIC AUT MAIS") só varrem o saldo da conta
+	// para um CDB e de volta: não são aportes seus e inflariam o fluxo de investimentos.
+	// Os rendimentos pagos por essa aplicação são renda e continuam entrando.
+	autoSweepDescriptions = []string{"aplic aut mais"}
+
+	// Quando o Pluggy não classifica a despesa (OTHER), a descrição decide. Vale a primeira regra
+	// que bater; nomes de pessoas e o que não for óbvio ficam em OTHER de propósito.
+	descriptionRules = []struct {
+		keywords []string
+		category domain.Category
+	}{
+		{[]string{"ifood", "99 food", "rappi", "uber eats"}, domain.CategoryFood},
+		{[]string{"supermercado", "atacadao", "assai"}, domain.CategoryMarket},
+		{[]string{"auto posto", " posto ", "combustivel", "uber", "99 pop", "sem parar"}, domain.CategoryTransport},
+		{[]string{"rd saude", "drogaria", "drogasil", "farmacia", "pague menos", "santa casa", "clinica", "clínica", "hospital"}, domain.CategoryHealth},
+		{[]string{"kalunga", "magalupay", "magazine luiza", "mercadolivre", "mercado livre"}, domain.CategoryShopping},
+		{[]string{"anthropic", "hostinger", "ionos", "spotify", "netflix", "apple.com"}, domain.CategoryEntertainment},
+	}
+
+	// Receitas cuja descrição indica salário (o Pluggy nem sempre classifica como "salary").
+	salaryDescriptions = []string{"salário", "salario", "folha de pagamento"}
+
+	expenseCategories = []struct {
+		keywords []string
+		category domain.Category
+	}{
+		{[]string{"groceries", "supermarket"}, domain.CategoryMarket},
+		{[]string{"food", "restaurant", "eating", "delivery", "bakery"}, domain.CategoryFood},
+		{[]string{"transport", "automotive", "fuel", "taxi", "ride", "parking", "vehicle"}, domain.CategoryTransport},
+		{[]string{"health", "pharmacy", "medical", "dental"}, domain.CategoryHealth},
+		{[]string{"leisure", "entertainment", "digital services", "travel", "streaming", "gaming"}, domain.CategoryEntertainment},
+		{[]string{"shopping", "clothing", "electronics"}, domain.CategoryShopping},
+	}
+)
+
+func containsAny(s string, keywords []string) bool {
+	for _, k := range keywords {
+		if strings.Contains(s, k) {
+			return true
+		}
+	}
+	return false
+}
+
+// toExternal converte a transação do Pluggy para o vocabulário do app. Devolve false
+// quando ela não deve virar lançamento. O sentido (entrada/saída) vem do campo "type",
+// não do sinal do valor, porque o sinal é invertido nos cartões de crédito.
+func toExternal(accountType domain.AccountType, t transaction) (ports.ExternalTransaction, bool) {
+	date, err := time.Parse(time.RFC3339, t.Date)
+	amount := math.Abs(t.Amount)
+	if err != nil || amount == 0 || t.ID == "" {
+		return ports.ExternalTransaction{}, false
+	}
+	date = date.UTC().Truncate(24 * time.Hour)
+
+	category := strings.ToLower(t.Category)
+	isCard := accountType == domain.AccountCredit
+	inflow := t.Type == "CREDIT"
+
+	// Em cartão, crédito é pagamento de fatura ou estorno: não é renda.
+	if containsAny(category, ignoredCategories) || (isCard && inflow) || isCardPayment(category, t.Description+" "+t.DescriptionRaw) {
+		return ports.ExternalTransaction{}, false
+	}
+
+	description := t.Description
+	if description == "" {
+		description = t.DescriptionRaw
+	}
+	installment := false
+	if m := t.CreditCardMetadata; m != nil && m.TotalInstallments > 1 {
+		description = fmt.Sprintf("%s (%d/%d)", description, m.InstallmentNumber, m.TotalInstallments)
+		installment = true
+		date = installmentDate(date, m.BillForecastDate)
+	}
+
+	ext := ports.ExternalTransaction{
+		ID:            t.ID,
+		Date:          date,
+		Description:   description,
+		RawInput:      fmt.Sprintf("[open finance: %s | %s]", t.Category, t.DescriptionRaw),
+		Amount:        amount,
+		Category:      domain.CategoryOther,
+		PaymentMethod: paymentMethod(isCard, t),
+		Pending:       t.Status == "PENDING",
+		Installment:   installment,
+	}
+
+	switch {
+	case containsAny(category, investmentCategories):
+		if containsAny(strings.ToLower(description), autoSweepDescriptions) {
+			return ports.ExternalTransaction{}, false
+		}
+		ext.Kind, ext.Category = domain.KindTransfer, domain.CategoryInvestment
+		ext.Direction = domain.TransferDirectionOut
+		if inflow {
+			ext.Direction = domain.TransferDirectionIn
+		}
+	case inflow:
+		ext.Kind = domain.KindIncome
+		if strings.Contains(category, "salary") || containsAny(strings.ToLower(description), salaryDescriptions) {
+			ext.Category = domain.CategorySalary
+		}
+	default:
+		ext.Kind = domain.KindExpense
+		for _, rule := range expenseCategories {
+			if containsAny(category, rule.keywords) {
+				ext.Category = rule.category
+				break
+			}
+		}
+		if ext.Category == domain.CategoryOther {
+			ext.Category = categoryFromDescription(description + " " + t.DescriptionRaw)
+		}
+	}
+	return ext, true
+}
+
+// installmentDate leva a parcela para o mês da fatura em que ela cai (billForecastDate, "AAAA-MM"), mantendo o dia da
+// compra. O Pluggy datava todas as parcelas no dia da compra: o gasto de 12 meses caía inteiro no mês da compra e os
+// meses seguintes ficavam sem a parcela. Sem a previsão da fatura, a data da compra fica como está.
+func installmentDate(purchase time.Time, forecast string) time.Time {
+	m, err := time.Parse("2006-01", forecast)
+	if err != nil {
+		return purchase
+	}
+	last := time.Date(m.Year(), m.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	return time.Date(m.Year(), m.Month(), min(purchase.Day(), last), 0, 0, 0, 0, time.UTC)
+}
+
+// isCardPayment diz se a transação é pagamento de fatura de cartão: categoria "credit card payment" do Pluggy e a descrição
+// com cara de fatura. Boleto para um banco (financiamento) e Pix QR Code com essa categoria são gasto de verdade.
+func isCardPayment(category, description string) bool {
+	if !strings.Contains(category, cardPaymentCategory) {
+		return false
+	}
+	d := " " + strings.ToLower(description) + " "
+	if strings.Contains(d, "pix") {
+		return false
+	}
+	return containsAny(d, cardPaymentKeywords)
+}
+
+// categoryFromDescription aplica descriptionRules; sem correspondência devolve OTHER.
+func categoryFromDescription(text string) domain.Category {
+	text = " " + strings.ToLower(text) + " "
+	for _, rule := range descriptionRules {
+		if containsAny(text, rule.keywords) {
+			return rule.category
+		}
+	}
+	return domain.CategoryOther
+}
+
+func paymentMethod(isCard bool, t transaction) domain.PaymentMethod {
+	if isCard {
+		return domain.PaymentMethodCreditCard
+	}
+	if t.PaymentData != nil && strings.EqualFold(t.PaymentData.PaymentMethod, "PIX") {
+		return domain.PaymentMethodPix
+	}
+	return domain.PaymentMethodOther
+}

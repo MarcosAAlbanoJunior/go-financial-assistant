@@ -1,0 +1,15 @@
+/* Login */
+.login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.login form { width: min(360px, 100%); display: grid; gap: 12px; }
+.login label { display: grid; gap: 4px; font-size: 0.875rem; color: var(--text-secondary); }
+.login input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 640px) {
+}
+
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.grid-2 .chart-title { margin-bottom: 12px; }
+.login-hint { margin: 0; font-size: 0.875rem; color: var(--text-secondary); }
+.login-links { display: flex; gap: 8px; flex-wrap: wrap; }

@@ -1,0 +1,391 @@
+package gemini
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
+	"google.golang.org/genai"
+)
+
+const modelName = "gemini-2.5-flash-lite"
+
+// Client fala com o Gemini. A chave é opcional e pode ser trocada com o app rodando (SetAPIKey): sem ela, toda chamada
+// devolve ports.ErrAIUnavailable e quem chama explica como ligar.
+type Client struct {
+	config *genai.GenerateContentConfig
+
+	mu         sync.RWMutex
+	client     *genai.Client // nil sem chave
+	apiKey     string
+	coachModel string // troca o modelo do Coach; vazio usa defaultCoachModel
+}
+
+// SetAPIKey liga, troca ou (vazia) desliga a chave em uso. Não chama a API: a chave é testada na primeira chamada.
+func (c *Client) SetAPIKey(ctx context.Context, apiKey string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if apiKey == c.apiKey && (apiKey == "") == (c.client == nil) {
+		return nil
+	}
+	if apiKey == "" {
+		c.client, c.apiKey = nil, ""
+		return nil
+	}
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
+	if err != nil {
+		return fmt.Errorf("erro ao criar cliente gemini: %w", err)
+	}
+	c.client, c.apiKey = client, apiKey
+	return nil
+}
+
+// Ready diz se há chave configurada.
+func (c *Client) Ready() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.client != nil
+}
+
+func (c *Client) generate(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	c.mu.RLock()
+	client := c.client
+	c.mu.RUnlock()
+	if client == nil {
+		return nil, ports.ErrAIUnavailable
+	}
+	return client.Models.GenerateContent(ctx, model, contents, config)
+}
+
+// SetCoachModel troca o modelo do Coach com o app rodando.
+func (c *Client) SetCoachModel(model string) {
+	c.mu.Lock()
+	c.coachModel = model
+	c.mu.Unlock()
+}
+
+func (c *Client) coachModelName() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.coachModel == "" {
+		return defaultCoachModel
+	}
+	return c.coachModel
+}
+
+// Ping confere uma chave da API com uma chamada mínima (usa a chave dada, não a do cliente em uso).
+func Ping(ctx context.Context, apiKey string) error {
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
+	if err != nil {
+		return fmt.Errorf("erro ao criar cliente gemini: %w", err)
+	}
+	_, err = client.Models.GenerateContent(ctx, modelName, genai.Text("Responda apenas: ok"), &genai.GenerateContentConfig{MaxOutputTokens: 5})
+	return err
+}
+
+// NewClient cria o cliente; apiKey vazia deixa a IA desligada até SetAPIKey.
+func NewClient(ctx context.Context, apiKey string) (*Client, error) {
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{
+				{Text: systemPrompt},
+			},
+		},
+		ResponseMIMEType: "application/json",
+	}
+
+	c := &Client{config: config}
+	if err := c.SetAPIKey(ctx, apiKey); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (c *Client) Close() error {
+	return nil
+}
+
+func (c *Client) AnalyzeText(ctx context.Context, text string) (*ports.ExpenseAnalysis, error) {
+	prompt := fmt.Sprintf("Analise esta entrada financeira e extraia as informações:\n\n%s", text)
+
+	resp, err := c.generate(ctx, modelName, genai.Text(prompt), c.config)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao chamar gemini: %w", err)
+	}
+
+	return parseResponse(resp)
+}
+
+func (c *Client) AnalyzeImage(ctx context.Context, imageData []byte, mimeType string) (*ports.ExpenseAnalysis, error) {
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{InlineData: &genai.Blob{MIMEType: mimeType, Data: imageData}},
+				{Text: "Analise esta nota fiscal ou recibo e extraia as informações da despesa."},
+			},
+		},
+	}
+
+	resp, err := c.generate(ctx, modelName, contents, c.config)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao analisar imagem com gemini: %w", err)
+	}
+
+	return parseResponse(resp)
+}
+
+func (c *Client) AnalyzeDocument(ctx context.Context, data []byte, mimeType string) (*ports.StatementAnalysis, error) {
+	statementConfig := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{
+				{Text: statementPrompt},
+			},
+		},
+		ResponseMIMEType: "application/json",
+	}
+
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{InlineData: &genai.Blob{MIMEType: mimeType, Data: data}},
+				{Text: "Extraia todas as transações deste extrato bancário."},
+			},
+		},
+	}
+
+	resp, err := c.generate(ctx, modelName, contents, statementConfig)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao analisar extrato com gemini: %w", err)
+	}
+
+	return parseStatementResponse(resp)
+}
+
+func parseResponse(resp *genai.GenerateContentResponse) (*ports.ExpenseAnalysis, error) {
+	if resp == nil || len(resp.Candidates) == 0 {
+		return nil, fmt.Errorf("gemini retornou resposta vazia")
+	}
+
+	candidate := resp.Candidates[0]
+	if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
+		return nil, fmt.Errorf("gemini retornou conteúdo vazio")
+	}
+
+	rawJSON := candidate.Content.Parts[0].Text
+
+	var geminiResp geminiResponse
+	if err := json.Unmarshal([]byte(rawJSON), &geminiResp); err != nil {
+		return nil, fmt.Errorf("erro ao deserializar resposta gemini: %w", err)
+	}
+
+	return geminiResp.toAnalysis(rawJSON), nil
+}
+
+type geminiInstallments struct {
+	Total                int     `json:"total"`
+	AmountPerInstallment float64 `json:"amount_per_installment"`
+}
+
+type geminiRecurring struct {
+	DayOfMonth int `json:"day_of_month"`
+}
+
+type geminiCancelRecurring struct {
+	Description string `json:"description"`
+}
+
+type geminiQuery struct {
+	Month *int `json:"month"`
+	Year  *int `json:"year"`
+}
+
+type geminiResponse struct {
+	Type              string                 `json:"type"`
+	Amount            *float64               `json:"amount"`
+	Description       *string                `json:"description"`
+	Category          *string                `json:"category"`
+	PaymentMethod     *string                `json:"payment_method"`
+	TransferDirection *string                `json:"transfer_direction"`
+	Confidence        float64                `json:"confidence"`
+	Installments      *geminiInstallments    `json:"installments"`
+	Recurring         *geminiRecurring       `json:"recurring"`
+	CancelRecurring   *geminiCancelRecurring `json:"cancel_recurring"`
+	Query             *geminiQuery           `json:"query"`
+	Export            *geminiQuery           `json:"export"`
+}
+
+func (g *geminiResponse) toAnalysis(rawJSON string) *ports.ExpenseAnalysis {
+	transferDirection := ""
+	if g.TransferDirection != nil && (*g.TransferDirection == "IN" || *g.TransferDirection == "OUT") {
+		transferDirection = *g.TransferDirection
+	}
+
+	analysis := &ports.ExpenseAnalysis{
+		Amount:            g.Amount,
+		Description:       g.Description,
+		Category:          g.Category,
+		PaymentMethod:     g.PaymentMethod,
+		TransferDirection: transferDirection,
+		Confidence:        g.Confidence,
+		RawResponse:       rawJSON,
+		Type:              toExpenseType(g.Type),
+	}
+
+	if g.Installments != nil {
+		analysis.Installments = &ports.InstallmentInfo{
+			Total:                g.Installments.Total,
+			AmountPerInstallment: g.Installments.AmountPerInstallment,
+		}
+	}
+
+	if g.Recurring != nil {
+		analysis.RecurringInfo = &ports.RecurringInfo{
+			DayOfMonth: g.Recurring.DayOfMonth,
+		}
+	}
+
+	if g.CancelRecurring != nil {
+		analysis.CancelInfo = &ports.CancelInfo{
+			Description: g.CancelRecurring.Description,
+		}
+	}
+
+	if g.Query != nil {
+		info := &ports.QueryInfo{}
+		if g.Query.Month != nil {
+			info.Month = *g.Query.Month
+		}
+		if g.Query.Year != nil {
+			info.Year = *g.Query.Year
+		}
+		analysis.QueryInfo = info
+	}
+
+	if g.Export != nil {
+		info := &ports.QueryInfo{}
+		if g.Export.Month != nil {
+			info.Month = *g.Export.Month
+		}
+		if g.Export.Year != nil {
+			info.Year = *g.Export.Year
+		}
+		analysis.ExportInfo = info
+	}
+
+	return analysis
+}
+
+type geminiStatementTransaction struct {
+	Date           string  `json:"date"`
+	RawDescription string  `json:"raw_description"`
+	Description    string  `json:"description"`
+	Amount         float64 `json:"amount"`
+	Kind           string  `json:"kind"`
+	Direction      string  `json:"direction"`
+	Category       string  `json:"category"`
+	PaymentMethod  string  `json:"payment_method"`
+}
+
+type geminiStatementResponse struct {
+	Transactions []geminiStatementTransaction `json:"transactions"`
+}
+
+func parseStatementResponse(resp *genai.GenerateContentResponse) (*ports.StatementAnalysis, error) {
+	if resp == nil || len(resp.Candidates) == 0 {
+		return nil, fmt.Errorf("gemini retornou resposta vazia")
+	}
+
+	candidate := resp.Candidates[0]
+	if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
+		return nil, fmt.Errorf("gemini retornou conteúdo vazio")
+	}
+
+	var raw geminiStatementResponse
+	if err := json.Unmarshal([]byte(candidate.Content.Parts[0].Text), &raw); err != nil {
+		return nil, fmt.Errorf("erro ao deserializar extrato gemini: %w", err)
+	}
+
+	analysis := &ports.StatementAnalysis{
+		Transactions: make([]ports.StatementTransaction, 0, len(raw.Transactions)),
+	}
+
+	for _, t := range raw.Transactions {
+		parsed, err := parseStatementDate(t.Date)
+		if err != nil {
+			continue // ignora linha com data inválida
+		}
+		kind := t.Kind
+		if kind != "INCOME" && kind != "TRANSFER" {
+			kind = "EXPENSE"
+		}
+		direction := ""
+		if kind == "TRANSFER" {
+			if t.Direction == "IN" || t.Direction == "OUT" {
+				direction = t.Direction
+			} else if t.Amount > 0 {
+				// fallback heurístico: RESGATE tem "RESGATE" na descrição
+				if len(t.RawDescription) >= 6 && t.RawDescription[:6] == "RESGAT" {
+					direction = "IN"
+				} else {
+					direction = "OUT"
+				}
+			}
+		}
+		analysis.Transactions = append(analysis.Transactions, ports.StatementTransaction{
+			Date:              parsed,
+			RawDescription:    t.RawDescription,
+			Description:       t.Description,
+			Amount:            t.Amount,
+			Kind:              kind,
+			Category:          t.Category,
+			PaymentMethod:     t.PaymentMethod,
+			TransferDirection: direction,
+		})
+	}
+
+	return analysis, nil
+}
+
+var statementDateFormats = []string{
+	"2006-01-02",
+	"02/01/2006",
+	"2006/01/02",
+	"01/02/2006",
+}
+
+func parseStatementDate(s string) (time.Time, error) {
+	for _, f := range statementDateFormats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("formato de data não reconhecido: %s", s)
+}
+
+func toExpenseType(s string) ports.ExpenseType {
+	switch s {
+	case "INSTALLMENT":
+		return ports.ExpenseTypeInstallment
+	case "RECURRING":
+		return ports.ExpenseTypeRecurring
+	case "CANCEL_RECURRING":
+		return ports.ExpenseTypeCancelRecurring
+	case "QUERY":
+		return ports.ExpenseTypeQuery
+	case "EXPORT_CSV":
+		return ports.ExpenseTypeExportCSV
+	case "INCOME":
+		return ports.ExpenseTypeIncome
+	case "INCOME_RECURRING":
+		return ports.ExpenseTypeIncomeRecurring
+	case "TRANSFER":
+		return ports.ExpenseTypeTransfer
+	default:
+		return ports.ExpenseTypeSingle
+	}
+}
