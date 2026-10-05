@@ -37,7 +37,7 @@ POST /api/login/code   { code }                → código certo: emite o cookie
 
 | Regra | Valor |
 | --- | --- |
-| Formato | 8 dígitos, de `crypto/rand` |
+| Formato | 6 dígitos, de `crypto/rand` |
 | Validade | 5 minutos |
 | Uso | único; depois de usado ou expirado o desafio some |
 | Tentativas erradas | 3 por desafio; na terceira o desafio morre e é preciso errar/acertar a senha de novo |
@@ -46,7 +46,7 @@ POST /api/login/code   { code }                → código certo: emite o cookie
 | Guarda | só o hash (SHA-256) do código, em memória; comparação em tempo constante |
 | Estado | em memória do processo. Reiniciar o app derruba os desafios, como já derruba as sessões |
 
-Com 8 dígitos (100 milhões de combinações), 3 tentativas por código e 10 códigos por hora, adivinhar o código é inviável.
+Com 6 dígitos (1 milhão de combinações), 3 tentativas por código e 10 códigos por hora, são no máximo 30 chutes por hora, e só para quem já sabe a senha. Cada código pedido chega ao seu chat com o aviso "se não foi você, troque a senha", então um ataque assim aparece na primeira mensagem.
 
 ### Falha ao enviar
 
@@ -80,7 +80,7 @@ PUT  /api/settings           { ..., code }       → confere o código (uso úni
 POST /api/settings/reset/{key} { code }          → idem
 ```
 
-- Mesmas regras de código da seção 3 (8 dígitos, 5 min, 3 tentativas, uso único), com **desafio próprio** (cookie `fa_confirm`), preso à sessão atual.
+- Mesmas regras de código da seção 3 (6 dígitos, 5 min, 3 tentativas, uso único), com **desafio próprio** (cookie `fa_confirm`), preso à sessão atual.
 - Quando a mudança é o **próprio canal** (ID do Telegram, número do WhatsApp, token do bot), o código vai para o **canal que está salvo antes da mudança**, nunca para o novo. Senão, quem está com a sessão roubada trocaria o canal para o seu e receberia o código.
 - O código **substitui** a senha nessa confirmação: com a sessão já aberta, a senha de novo adiciona pouco, e o código no chat é o que uma sessão roubada não tem.
 - O aviso de "tentativa errada" no chat e o histórico de alterações continuam como estão.
@@ -126,12 +126,12 @@ Cada passo termina com `go test ./...`, `go vet ./...`, `npx tsc -b`, `npx oxlin
 ## 9. Pontos a confirmar
 
 1. **Confirmação sem senha.** A seção 5 troca a senha pelo código. Se preferir os dois (senha **e** código), é só somar; o custo é um passo a mais a cada mudança sensível.
-2. **Tamanho do código.** 8 dígitos por padrão; 6 é mais cômodo de digitar e ainda seguro com 3 tentativas.
+2. **Tamanho do código.** Decidido: 6 dígitos, mais cômodo de digitar e ainda seguro com 3 tentativas e o teto de envios.
 3. **Duração da sessão.** Os 7 dias atuais continuam. Com o 2FA, dá para ser mais generoso (30 dias) ou mais curto (1 dia), conforme o quanto a pessoa quer digitar o código.
 
 ## 10. Resultado
 
-Implementada como descrita, com os padrões da seção 9 (só código na confirmação, 8 dígitos, sessão de 7 dias). Diferenças e descobertas:
+Implementada como descrita, com os padrões da seção 9 (só código na confirmação, sessão de 7 dias) e 6 dígitos, escolhidos na revisão. Diferenças e descobertas:
 
 - **Teto de 10 envios por hora** em vez de 5: login e confirmações dividem o teto, e configurar vários segredos seguidos esgotaria 5 rápido.
 - **Sem cookie `fa_confirm`:** o desafio de confirmação é preso ao próprio cookie de sessão, então não precisa de outro. Há no máximo um desafio vivo por tipo (login, confirmação); pedir de novo substitui o anterior.

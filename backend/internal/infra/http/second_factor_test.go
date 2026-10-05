@@ -23,7 +23,7 @@ func (c *chatBox) send(_ context.Context, text string) error {
 	return nil
 }
 
-var codeRe = regexp.MustCompile(`\d{8}`)
+var codeRe = regexp.MustCompile(`\b\d{6}\b`)
 
 func (c *chatBox) lastCode(t *testing.T) string {
 	t.Helper()
@@ -107,9 +107,9 @@ func TestSecondFactor_WrongCodesKillChallengeAndNotify(t *testing.T) {
 	rec := do(s, "POST", "/api/login", `{"password":"`+testPassword+`"}`, jsonHdr)
 	ch := cookieNamed(rec, challengeCookie)
 	code := box.lastCode(t)
-	wrong := "00000000"
+	wrong := "000000"
 	if code == wrong {
-		wrong = "11111111"
+		wrong = "111111"
 	}
 	for range 3 {
 		do(s, "POST", "/api/login/code", `{"code":"`+wrong+`"}`, jsonHdr, ch)
