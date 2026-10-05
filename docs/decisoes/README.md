@@ -9,3 +9,4 @@ Registro curto das decisões que não são óbvias pelo código (contexto, decis
 - [0005 — Transferências entre contas próprias são ignoradas](0005-transferencias-proprias.md)
 - [0006 — Boleto não é pagamento de fatura só pela categoria](0006-boleto-nao-e-fatura.md)
 - [0007 — Segundo fator por código no chat](0007-segundo-fator-no-chat.md)
+- [0008 — Setup pelo navegador, liberado por token no ambiente](0008-setup-pelo-navegador.md)

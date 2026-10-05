@@ -107,7 +107,7 @@ services:
     environment:
       PORT: 3000
       DATABASE_URL: postgres://finassist:finassist@postgres:5432/finassist?sslmode=disable
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_PAID_PLAN: ${GEMINI_PAID_PLAN:-false}
       COACH_GEMINI_MODEL: ${COACH_GEMINI_MODEL:-}
       DIGEST_ENABLED: ${DIGEST_ENABLED:-true}
@@ -123,6 +123,9 @@ services:
       ADMIN_SECRET: ${ADMIN_SECRET:-}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
       DASHBOARD_2FA: ${DASHBOARD_2FA:-auto}
+      # Setup pelo navegador (make init gera o token). SETUP_REOPEN=true reabre o setup para recuperar senha ou canal.
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      SETUP_REOPEN: ${SETUP_REOPEN:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
