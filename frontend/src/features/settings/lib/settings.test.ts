@@ -46,5 +46,6 @@ describe('settings', () => {
   it('descreve o histórico sem valores', () => {
     expect(auditText('set', 'Token do bot')).toBe('Token do bot alterado')
     expect(auditText('reset', 'Token do bot')).toContain('restaurado')
+    expect(auditText('setup', 'Setup concluído')).toBe('Setup concluído')
   })
 })
