@@ -78,6 +78,7 @@ func (a *api) getSettings(w http.ResponseWriter, _ *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"channel": d.Channel, "encryption": d.Service.EncryptionEnabled(), "restartPending": d.Service.NeedsRestart(d.Channel), "groups": groups,
+		"secondFactor": a.factor.Active(),
 	})
 }
 

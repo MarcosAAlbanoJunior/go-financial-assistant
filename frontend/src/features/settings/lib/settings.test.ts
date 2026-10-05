@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { auditText, changedValues, currentValue, fieldStatus, needsPassword } from './settings'
+import { auditText, changedValues, currentValue, fieldStatus, needsConfirmation } from './settings'
 import type { SettingField, SettingGroup } from '../api'
 
 const f = (key: string, kind: SettingField['kind'], value = '', isSet = value !== ''): SettingField => ({
@@ -38,9 +38,9 @@ describe('settings', () => {
   })
 
   it('só pede a senha quando uma chave sensível mudou', () => {
-    expect(needsPassword(group, ['DIGEST_HOUR', 'OWN_NAMES'])).toBe(false)
-    expect(needsPassword(group, ['DIGEST_HOUR', 'PLUGGY_CLIENT_SECRET'])).toBe(true)
-    expect(needsPassword(group, [])).toBe(false)
+    expect(needsConfirmation(group, ['DIGEST_HOUR', 'OWN_NAMES'])).toBe(false)
+    expect(needsConfirmation(group, ['DIGEST_HOUR', 'PLUGGY_CLIENT_SECRET'])).toBe(true)
+    expect(needsConfirmation(group, [])).toBe(false)
   })
 
   it('descreve o histórico sem valores', () => {
