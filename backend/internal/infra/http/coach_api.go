@@ -27,6 +27,7 @@ const (
 	coachTimeout     = 45 * time.Second
 	coachBlockedText = "O Coach envia valores e nomes de serviços ao Google Gemini. No plano gratuito o Google pode usar e revisar esse conteúdo, " +
 		"então ele só funciona com o plano pago: ative o faturamento do projeto da chave, defina GEMINI_PAID_PLAN=true no .env e reinicie o app."
+	aiOffText = "A IA está desligada: coloque a chave do Gemini em Configurações → IA (Gemini). Vale na hora, sem reiniciar."
 )
 
 // coachService guarda o estado do Coach: uma análise por vez (a quantidade de análises é problema de quem hospeda).
@@ -42,12 +43,25 @@ func newCoachService(advisor ports.Coach, paid bool) *coachService {
 	return &coachService{advisor: advisor, paid: paid}
 }
 
-func (c *coachService) enabled() bool {
+func (c *coachService) enabled() bool { return c.blockedReason() == "" }
+
+// blockedReason diz por que o Coach (e as sugestões de categoria) não pode rodar agora; vazio = pode.
+func (c *coachService) blockedReason() string {
+	if c.advisor == nil {
+		return coachBlockedText
+	}
+	// O cliente do Gemini sabe se tem chave; sem ela, o caminho é configurar, não o plano pago.
+	if r, ok := c.advisor.(interface{ Ready() bool }); ok && !r.Ready() {
+		return aiOffText
+	}
 	paid := c.paid
 	if c.paidFn != nil {
 		paid = c.paidFn()
 	}
-	return c.advisor != nil && paid
+	if !paid {
+		return coachBlockedText
+	}
+	return ""
 }
 
 // begin reserva a análise; recusa se já há uma em andamento (clique duplo, aba aberta em dois lugares).
@@ -105,10 +119,7 @@ func (a *api) coachPreview(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, "coach", err)
 		return
 	}
-	blocked := ""
-	if !a.coach.enabled() {
-		blocked = coachBlockedText
-	}
+	blocked := a.coach.blockedReason()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"enabled": a.coach.enabled(), "blockedReason": blocked, "provider": "Google Gemini", "month": formatMonth(month),
 		"bytes": len(in.payload), "hash": in.hash, "context": json.RawMessage(in.payload),
@@ -130,8 +141,8 @@ func (a *api) coachAnalyze(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "month deve estar no formato AAAA-MM")
 		return
 	}
-	if !a.coach.enabled() {
-		writeError(w, http.StatusForbidden, coachBlockedText)
+	if blocked := a.coach.blockedReason(); blocked != "" {
+		writeError(w, http.StatusForbidden, blocked)
 		return
 	}
 	if !a.coach.begin() {

@@ -98,7 +98,7 @@ func (c *Client) Advise(ctx context.Context, contextJSON []byte) (ports.CoachAdv
 		Temperature:       &temperature,
 		MaxOutputTokens:   maxCoachOutputTokens,
 	}
-	resp, err := c.client.Models.GenerateContent(ctx, model, genai.Text("Dados:\n"+string(contextJSON)), config)
+	resp, err := c.generate(ctx, model, genai.Text("Dados:\n"+string(contextJSON)), config)
 	if err != nil {
 		return ports.CoachAdvice{}, fmt.Errorf("erro ao chamar gemini (coach): %w", err)
 	}
@@ -165,7 +165,7 @@ func (c *Client) Categorize(ctx context.Context, contextJSON []byte) ([]ports.Ca
 		Temperature:       &temperature,
 		MaxOutputTokens:   maxCoachOutputTokens,
 	}
-	resp, err := c.client.Models.GenerateContent(ctx, model, genai.Text("Dados:\n"+string(contextJSON)), config)
+	resp, err := c.generate(ctx, model, genai.Text("Dados:\n"+string(contextJSON)), config)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao chamar gemini (categorias): %w", err)
 	}

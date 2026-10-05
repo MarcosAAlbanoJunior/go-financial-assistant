@@ -160,7 +160,7 @@ func (s *Service) Set(ctx context.Context, values map[string]string) ([]string, 
 	defs := make(map[string]Def, len(values))
 	for k, v := range values {
 		d, ok := Lookup(k)
-		if !ok {
+		if !ok || d.Internal {
 			return nil, fmt.Errorf("%w: %s", ErrUnknownKey, k)
 		}
 		if d.Kind == KindSecret && s.cipher == nil {
@@ -197,7 +197,7 @@ func (s *Service) Set(ctx context.Context, values map[string]string) ([]string, 
 
 // Reset apaga o valor salvo: volta a valer o ambiente (ou o padrão).
 func (s *Service) Reset(ctx context.Context, key string) error {
-	if _, ok := Lookup(key); !ok {
+	if d, ok := Lookup(key); !ok || d.Internal {
 		return fmt.Errorf("%w: %s", ErrUnknownKey, key)
 	}
 	if err := s.store.DeleteSetting(ctx, key); err != nil {
@@ -208,6 +208,18 @@ func (s *Service) Reset(ctx context.Context, key string) error {
 	s.mu.Unlock()
 	s.notify()
 	return nil
+}
+
+// Adopt registra valores que outro caminho já gravou no banco (o setup, numa transação) e que já estão valendo: não
+// pedem reinício. Avisa quem escuta, como Set.
+func (s *Service) Adopt(values map[string]string) {
+	s.mu.Lock()
+	for k, v := range values {
+		s.db[k] = v
+		s.startup[k] = v
+	}
+	s.mu.Unlock()
+	s.notify()
 }
 
 // Field é uma configuração para a tela. Segredo nunca leva o valor: só se está configurado.
@@ -225,7 +237,7 @@ func (s *Service) Fields(channel string) []Field {
 	defer s.mu.RUnlock()
 	var out []Field
 	for _, d := range Defs {
-		if d.Channel != "" && d.Channel != channel {
+		if d.Internal || (d.Channel != "" && d.Channel != channel) {
 			continue
 		}
 		v := s.resolveLocked(d)

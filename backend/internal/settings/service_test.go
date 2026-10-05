@@ -261,3 +261,34 @@ func TestSensitiveCoversSecretsAndAccessControl(t *testing.T) {
 		}
 	}
 }
+
+// O canal só é gravado pelo setup: a página não mostra, não altera nem restaura.
+func TestInternal_ChannelOnlyBySetup(t *testing.T) {
+	s, st := newSvc(t, nil, key16)
+	for _, f := range s.Fields("telegram") {
+		if f.Key == "CHANNEL" {
+			t.Fatal("CHANNEL apareceu na página")
+		}
+	}
+	if _, err := s.Set(context.Background(), map[string]string{"CHANNEL": "telegram"}); err == nil {
+		t.Fatal("a página não pode trocar o canal")
+	}
+	if err := s.Reset(context.Background(), "CHANNEL"); err == nil {
+		t.Fatal("a página não pode restaurar o canal")
+	}
+	st.rows["CHANNEL"] = Row{Key: "CHANNEL", Value: "telegram"}
+	if err := s.Load(context.Background()); err != nil || s.Get("CHANNEL") != "telegram" {
+		t.Fatalf("o canal salvo pelo setup vale: %q %v", s.Get("CHANNEL"), err)
+	}
+}
+
+// Adopt registra o que o setup já ligou: vale na hora, sem pedir reinício, e avisa quem escuta.
+func TestAdopt_NoRestartAndNotifies(t *testing.T) {
+	s, _ := newSvc(t, nil, key16)
+	called := 0
+	s.OnChange(func() { called++ })
+	s.Adopt(map[string]string{"CHANNEL": "telegram", "TELEGRAM_BOT_TOKEN": "1:a", "TELEGRAM_CHAT_ID": "42"})
+	if s.Get("TELEGRAM_CHAT_ID") != "42" || s.NeedsRestart("telegram") || called != 1 {
+		t.Fatalf("adopt: id=%q restart=%v called=%d", s.Get("TELEGRAM_CHAT_ID"), s.NeedsRestart("telegram"), called)
+	}
+}

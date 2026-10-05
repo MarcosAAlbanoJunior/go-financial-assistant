@@ -69,13 +69,10 @@ func (a *api) categorize(w http.ResponseWriter, r *http.Request) {
 	for i, c := range ruleCategories {
 		options[i] = option{string(c), c.Label()}
 	}
-	blocked := ""
-	if !a.coach.enabled() {
-		blocked = coachBlockedText
-	}
+	blocked := a.coach.blockedReason()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"categories": options, "groups": out,
-		"ai": map[string]any{"enabled": a.coach.enabled(), "blockedReason": blocked, "provider": "Google Gemini", "hash": hash, "bytes": len(payload), "context": json.RawMessage(payload)},
+		"ai": map[string]any{"enabled": blocked == "", "blockedReason": blocked, "provider": "Google Gemini", "hash": hash, "bytes": len(payload), "context": json.RawMessage(payload)},
 	})
 }
 
@@ -113,8 +110,8 @@ func (a *api) suggestCategories(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, maxCoachBody, &body) {
 		return
 	}
-	if !a.coach.enabled() {
-		writeError(w, http.StatusForbidden, coachBlockedText)
+	if blocked := a.coach.blockedReason(); blocked != "" {
+		writeError(w, http.StatusForbidden, blocked)
 		return
 	}
 	if !a.coach.begin() {
