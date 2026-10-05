@@ -13,12 +13,51 @@ import (
 
 const modelName = "gemini-2.5-flash-lite"
 
+// Client fala com o Gemini. A chave é opcional e pode ser trocada com o app rodando (SetAPIKey): sem ela, toda chamada
+// devolve ports.ErrAIUnavailable e quem chama explica como ligar.
 type Client struct {
-	client *genai.Client
 	config *genai.GenerateContentConfig
 
 	mu         sync.RWMutex
+	client     *genai.Client // nil sem chave
+	apiKey     string
 	coachModel string // troca o modelo do Coach; vazio usa defaultCoachModel
+}
+
+// SetAPIKey liga, troca ou (vazia) desliga a chave em uso. Não chama a API: a chave é testada na primeira chamada.
+func (c *Client) SetAPIKey(ctx context.Context, apiKey string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if apiKey == c.apiKey && (apiKey == "") == (c.client == nil) {
+		return nil
+	}
+	if apiKey == "" {
+		c.client, c.apiKey = nil, ""
+		return nil
+	}
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
+	if err != nil {
+		return fmt.Errorf("erro ao criar cliente gemini: %w", err)
+	}
+	c.client, c.apiKey = client, apiKey
+	return nil
+}
+
+// Ready diz se há chave configurada.
+func (c *Client) Ready() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.client != nil
+}
+
+func (c *Client) generate(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	c.mu.RLock()
+	client := c.client
+	c.mu.RUnlock()
+	if client == nil {
+		return nil, ports.ErrAIUnavailable
+	}
+	return client.Models.GenerateContent(ctx, model, contents, config)
 }
 
 // SetCoachModel troca o modelo do Coach com o app rodando.
@@ -47,15 +86,8 @@ func Ping(ctx context.Context, apiKey string) error {
 	return err
 }
 
+// NewClient cria o cliente; apiKey vazia deixa a IA desligada até SetAPIKey.
 func NewClient(ctx context.Context, apiKey string) (*Client, error) {
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("erro ao criar cliente gemini: %w", err)
-	}
-
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{
@@ -65,7 +97,11 @@ func NewClient(ctx context.Context, apiKey string) (*Client, error) {
 		ResponseMIMEType: "application/json",
 	}
 
-	return &Client{client: client, config: config}, nil
+	c := &Client{config: config}
+	if err := c.SetAPIKey(ctx, apiKey); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 func (c *Client) Close() error {
@@ -75,7 +111,7 @@ func (c *Client) Close() error {
 func (c *Client) AnalyzeText(ctx context.Context, text string) (*ports.ExpenseAnalysis, error) {
 	prompt := fmt.Sprintf("Analise esta entrada financeira e extraia as informações:\n\n%s", text)
 
-	resp, err := c.client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), c.config)
+	resp, err := c.generate(ctx, modelName, genai.Text(prompt), c.config)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao chamar gemini: %w", err)
 	}
@@ -94,7 +130,7 @@ func (c *Client) AnalyzeImage(ctx context.Context, imageData []byte, mimeType st
 		},
 	}
 
-	resp, err := c.client.Models.GenerateContent(ctx, modelName, contents, c.config)
+	resp, err := c.generate(ctx, modelName, contents, c.config)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao analisar imagem com gemini: %w", err)
 	}
@@ -122,7 +158,7 @@ func (c *Client) AnalyzeDocument(ctx context.Context, data []byte, mimeType stri
 		},
 	}
 
-	resp, err := c.client.Models.GenerateContent(ctx, modelName, contents, statementConfig)
+	resp, err := c.generate(ctx, modelName, contents, statementConfig)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao analisar extrato com gemini: %w", err)
 	}

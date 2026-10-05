@@ -313,3 +313,23 @@ func TestAPI_CoachHistoryAnswersAndMemory(t *testing.T) {
 		t.Errorf("apagar de novo = %d", code)
 	}
 }
+
+// readyCoach é um Coach que sabe se tem chave (como o cliente do Gemini).
+type readyCoach struct {
+	fakeCoach
+	ready bool
+}
+
+func (r *readyCoach) Ready() bool { return r.ready }
+
+// Sem a chave do Gemini, o motivo do bloqueio é configurar a chave (não o plano pago).
+func TestCoachService_AIOffExplainsHowToEnable(t *testing.T) {
+	c := newCoachService(&readyCoach{}, true)
+	if c.enabled() || c.blockedReason() != aiOffText {
+		t.Fatalf("sem chave: enabled=%v reason=%q", c.enabled(), c.blockedReason())
+	}
+	c.advisor = &readyCoach{ready: true}
+	if !c.enabled() {
+		t.Fatal("com chave e plano pago deveria liberar")
+	}
+}
