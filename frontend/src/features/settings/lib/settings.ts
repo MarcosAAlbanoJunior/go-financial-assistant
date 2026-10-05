@@ -31,8 +31,8 @@ export function changedValues(group: SettingGroup, drafts: Record<string, string
   return out
 }
 
-/** Alguma das chaves exige confirmar a senha? */
-export const needsPassword = (group: SettingGroup, keys: string[]) => group.fields.some((f) => f.sensitive && keys.includes(f.key))
+/** Alguma das chaves exige confirmação (código no chat ou senha)? */
+export const needsConfirmation = (group: SettingGroup, keys: string[]) => group.fields.some((f) => f.sensitive && keys.includes(f.key))
 
 /** O que o histórico mostra: "Token do bot alterado". */
 export const auditText = (action: 'set' | 'reset', label: string) => `${label} ${action === 'set' ? 'alterado' : 'restaurado ao padrão do ambiente'}`
