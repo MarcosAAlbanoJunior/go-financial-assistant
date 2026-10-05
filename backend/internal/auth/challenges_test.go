@@ -14,7 +14,7 @@ func (c *clock) advance(d time.Duration) { c.t = c.t.Add(d) }
 
 func setup() (*Challenges, *clock) {
 	clk := &clock{t: time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)}
-	return newChallenges(clk.now, func() (string, error) { return "12345678", nil }), clk
+	return newChallenges(clk.now, func() (string, error) { return "123456", nil }), clk
 }
 
 func TestVerifyAcceptsOnceOnly(t *testing.T) {
@@ -55,11 +55,11 @@ func TestVerifyKillsAfterMaxAttempts(t *testing.T) {
 	c, _ := setup()
 	code, _ := c.Start(Login, "b")
 	for i := 1; i < MaxAttempts; i++ {
-		if err := c.Verify(Login, "b", "00000000"); !errors.Is(err, ErrWrongCode) {
+		if err := c.Verify(Login, "b", "000000"); !errors.Is(err, ErrWrongCode) {
 			t.Fatalf("tentativa %d: %v", i, err)
 		}
 	}
-	if err := c.Verify(Login, "b", "00000000"); !errors.Is(err, ErrTooManyAttempts) {
+	if err := c.Verify(Login, "b", "000000"); !errors.Is(err, ErrTooManyAttempts) {
 		t.Fatalf("última tentativa: %v", err)
 	}
 	if err := c.Verify(Login, "b", code); !errors.Is(err, ErrNoChallenge) {
@@ -105,7 +105,7 @@ func TestCancelDropsChallenge(t *testing.T) {
 }
 
 func TestRandomCodeFormat(t *testing.T) {
-	re := regexp.MustCompile(`^\d{8}$`)
+	re := regexp.MustCompile(`^\d{6}$`)
 	for range 50 {
 		code, err := randomCode()
 		if err != nil || !re.MatchString(code) {

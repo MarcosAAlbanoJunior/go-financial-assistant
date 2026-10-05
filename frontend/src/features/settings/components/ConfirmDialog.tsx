@@ -43,7 +43,7 @@ export function ConfirmDialog({ action, mode, busy, error, onConfirm, onResend, 
             <input
               inputMode="numeric"
               autoComplete="one-time-code"
-              maxLength={8}
+              maxLength={6}
               autoFocus
               value={secret}
               disabled={busy}
