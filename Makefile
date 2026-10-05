@@ -1,4 +1,9 @@
-.PHONY: run build test lint front-dev front-test front-build compose-up compose-down compose-logs db-shell backup restore secret-key
+.PHONY: init run build test lint front-dev front-test front-build compose-up compose-down compose-logs db-shell backup restore secret-key
+
+# Instalação nova: cria o .env, a chave mestra e o SETUP_TOKEN (sem sobrescrever nada). Depois: docker compose up -d
+# e abra o dashboard para o setup pelo navegador.
+init:
+	@sh scripts/init.sh
 
 run:
 	docker compose up postgres redis -d
@@ -56,6 +61,7 @@ deps:
 help:
 	@echo ""
 	@echo "Comandos disponíveis:"
+	@echo "  make init             Prepara uma instalação nova (.env, chave mestra e SETUP_TOKEN)"
 	@echo "  make run              Sobe infra local + roda app Go direto"
 	@echo "  make build            Compila o binário"
 	@echo "  make test             Roda os testes"
