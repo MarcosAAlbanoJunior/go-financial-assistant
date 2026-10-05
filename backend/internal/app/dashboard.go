@@ -29,6 +29,9 @@ func (a *app) mountDashboard() error {
 		Restart:      a.cancel, // o Docker (restart: unless-stopped) sobe o app de novo com as configurações novas
 	}
 	a.server.SetSettings(a.settingsDeps)
+	// O envio do código é ligado em startJobs, quando o canal sobe.
+	a.secondFactor = &httpserver.SecondFactor{Enabled: a.cfg.DashboardTwoFactor}
+	a.server.SetSecondFactor(a.secondFactor)
 
 	if a.cfg.DashboardPassword == "" {
 		return nil

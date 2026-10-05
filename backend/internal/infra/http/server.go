@@ -39,6 +39,9 @@ type Server struct {
 
 	// settings liga a página de configurações (nil = desligada).
 	settings *SettingsDeps
+
+	// factor liga o código no chat ao login e às confirmações (nil = só senha).
+	factor *SecondFactor
 }
 
 // SetSyncer liga a sincronização do Open Finance à API do dashboard (chame antes de MountAPI).
