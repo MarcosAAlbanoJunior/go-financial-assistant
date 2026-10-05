@@ -11,11 +11,18 @@ import (
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/domain/ports"
 )
 
-// startJobs liga o que roda em segundo plano: aviso de segurança das configurações, resumo semanal e a rotina diária.
-// Sem canal de conversa (messenger nil) só a rotina diária de despesas recorrentes roda.
+// startJobs liga o que usa o chat (avisos de segurança, código do segundo fator, resumo semanal) e a rotina diária.
+// Sem canal de conversa (messenger nil) só a rotina diária de despesas recorrentes roda, e o dashboard pede só a senha.
 func (a *app) startJobs(messenger ports.Messenger, owner string) {
+	defer a.warnWithoutSecondFactor()
 	var monthlyReport *ledger.MonthlyReport
 	if messenger != nil {
+		// O código do segundo fator vai ao mesmo chat. Diferente dos avisos, o envio precisa dizer se deu certo: sem o
+		// código ninguém entra.
+		a.secondFactor.Send = func(ctx context.Context, text string) error {
+			_, err := messenger.SendText(ctx, owner, text)
+			return err
+		}
 		// Avisos de segurança das configurações (senha errada, segredo trocado) vão para o mesmo chat.
 		a.settingsDeps.Notify = func(ctx context.Context, text string) {
 			if _, err := messenger.SendText(ctx, owner, text); err != nil {
@@ -26,6 +33,18 @@ func (a *app) startJobs(messenger ports.Messenger, owner string) {
 		monthlyReport = ledger.NewMonthlyReport(a.exportCSV, messenger, owner, a.logger)
 	}
 	go a.runDaily(monthlyReport)
+}
+
+// warnWithoutSecondFactor registra no log quando o dashboard está no ar só com a senha.
+func (a *app) warnWithoutSecondFactor() {
+	if a.cfg.DashboardPassword == "" || a.secondFactor.Active() {
+		return
+	}
+	reason := "DASHBOARD_2FA=off"
+	if a.cfg.DashboardTwoFactor {
+		reason = "o canal de conversa não subiu"
+	}
+	a.logger.Warn("dashboard sem segundo fator: o login pede só a senha", "motivo", reason)
 }
 
 // runDaily gera as despesas recorrentes à meia-noite (UTC) e, no dia 1, envia o relatório mensal.

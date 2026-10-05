@@ -446,3 +446,27 @@ func TestLoad_OverridesBeatEnvironment(t *testing.T) {
 		t.Error("override inválido deveria dar erro")
 	}
 }
+
+func TestLoad_DashboardTwoFactor(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  bool
+		fails bool
+	}{{"", true, false}, {"auto", true, false}, {"OFF", false, false}, {"talvez", false, true}} {
+		env := validEnv()
+		if tc.value != "" {
+			env["DASHBOARD_2FA"] = tc.value
+		}
+		setEnv(t, env)
+		cfg, err := Load(nil)
+		if tc.fails {
+			if err == nil {
+				t.Errorf("%q: esperava erro", tc.value)
+			}
+			continue
+		}
+		if err != nil || cfg.DashboardTwoFactor != tc.want {
+			t.Errorf("%q: got %v, erro %v", tc.value, cfg.DashboardTwoFactor, err)
+		}
+	}
+}

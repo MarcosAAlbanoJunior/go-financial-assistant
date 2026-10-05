@@ -6,32 +6,51 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/auth"
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/settings"
 )
 
-// confirmPassword exige a senha do dashboard de novo para mexer no que é sensível (segredos, bancos conectados, quem
-// manda no bot). Uma sessão roubada não basta. Tentativas têm limite próprio e a senha errada avisa a pessoa no chat.
-func (a *api) confirmPassword(w http.ResponseWriter, r *http.Request, password string) bool {
+// confirmSensitive exige uma prova a mais para mexer no que é sensível (segredos, bancos conectados, quem manda no bot):
+// com o segundo fator, um código novo enviado ao chat (pedido em /api/settings/confirm); sem ele, a senha do dashboard de
+// novo. Uma sessão roubada não basta. Tentativas erradas têm limite próprio e avisam a pessoa no chat.
+func (a *api) confirmSensitive(w http.ResponseWriter, r *http.Request, password, code string) bool {
 	ip := clientIP(r)
 	if a.confirmLimiter.blocked(ip) {
 		writeError(w, http.StatusTooManyRequests, "muitas tentativas; espere um minuto")
+		return false
+	}
+	if a.factor.Active() {
+		err := a.challenges.Verify(auth.Confirm, a.sessions.id(r), strings.TrimSpace(code))
+		if err == nil {
+			return true
+		}
+		a.confirmLimiter.record(ip)
+		a.codeRejected(w, r, err, http.StatusForbidden, "ao confirmar uma configuração sensível")
 		return false
 	}
 	if a.sessions.checkPassword(password) {
 		return true
 	}
 	a.confirmLimiter.record(ip)
-	a.logger.Warn("confirmação de senha recusada nas configurações", "ip", clientIP(r))
-	if n := time.Now().UnixNano(); n-a.lastFailNotice.Load() > int64(failedNoticeEvery) {
-		a.lastFailNotice.Store(n)
-		a.notify(r.Context(), "⚠️ Alguém errou a senha ao tentar alterar uma configuração sensível do dashboard ("+time.Now().Format("02/01 15:04")+"). Se não foi você, troque a senha do dashboard.")
-	}
+	a.logger.Warn("confirmação de senha recusada nas configurações", "ip", ip)
+	a.noticeOnce("⚠️ Alguém errou a senha ao tentar alterar uma configuração sensível do dashboard (" + time.Now().Format("02/01 15:04") + "). Se não foi você, troque a senha do dashboard.")
 	writeError(w, http.StatusForbidden, "senha incorreta")
 	return false
 }
 
+// requestConfirmCode manda ao chat o código que confirma a próxima alteração sensível desta sessão.
+func (a *api) requestConfirmCode(w http.ResponseWriter, r *http.Request) {
+	if !a.factor.Active() {
+		writeError(w, http.StatusConflict, "segundo fator desligado: confirme com a senha")
+		return
+	}
+	if a.sendCode(w, r, auth.Confirm, a.sessions.id(r), confirmCodeMessage) {
+		writeJSON(w, http.StatusOK, map[string]string{"step": "code"})
+	}
+}
+
 func (a *api) notify(ctx context.Context, text string) {
-	if a.settings.Notify != nil {
+	if a.settings != nil && a.settings.Notify != nil {
 		a.settings.Notify(ctx, text)
 	}
 }
