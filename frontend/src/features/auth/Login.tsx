@@ -1,7 +1,8 @@
 import './styles.css'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
+import { isSetupRequired } from '../../shared/api/request'
 import { login, loginCode } from './api'
 import { loginErrorMessage } from './lib/login'
 
@@ -49,6 +50,12 @@ export default function Login() {
     setStep('password')
     setResent(false)
   }
+
+  // Login aberto com o app ainda não configurado (ou reaberto por SETUP_REOPEN): o caminho é o setup.
+  const setupRequired = isSetupRequired(passwordStep.error)
+  useEffect(() => {
+    if (setupRequired) navigate('/setup', { replace: true })
+  }, [setupRequired, navigate])
 
   const message = loginErrorMessage(step === 'password' ? passwordStep.error : (codeStep.error ?? passwordStep.error), step)
   const busy = passwordStep.isPending || codeStep.isPending
