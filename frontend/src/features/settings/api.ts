@@ -64,7 +64,7 @@ export interface SaveSettingsResult {
 
 export interface SettingsAuditEntry {
   at: string
-  action: 'set' | 'reset'
+  action: 'set' | 'reset' | 'setup'
   key: string
   label: string
   sensitive: boolean

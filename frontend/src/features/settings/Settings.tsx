@@ -1,6 +1,6 @@
 import './styles.css'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { OwnTransfersDialog } from './components/OwnTransfersDialog'
 import { QueryState } from '../../shared/components/QueryState'
 import { SettingInput } from './components/SettingInput'
@@ -26,6 +26,12 @@ export default function Settings() {
   >(null)
   const [pwError, setPwError] = useState<string | null>(null)
   const secondFactor = query.data?.secondFactor ?? false
+  const loaded = query.data !== undefined
+
+  // Links como /configuracoes#g-ai (os próximos passos do setup) caem no grupo certo depois que a página carrega.
+  useEffect(() => {
+    if (loaded && window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView()
+  }, [loaded])
 
   const save = useMutation({
     mutationFn: ({ values, proof }: { values: Record<string, string>; proof?: Proof }) => saveSettings(values, proof),

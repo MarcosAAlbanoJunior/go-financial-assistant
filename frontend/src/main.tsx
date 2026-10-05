@@ -14,7 +14,8 @@ const queryClient: QueryClient = new QueryClient({
   // /api/me é o resultado esperado de "sem sessão" e não pode se reinvalidar (loop de requisições).
   queryCache: new QueryCache({
     onError: (error, query) => {
-      if (error instanceof ApiError && error.status === 401 && query.queryKey[0] !== 'me') {
+      // O mesmo vale para {"setup": "required"} (setup reaberto): /api/me leva à tela do setup.
+      if (error instanceof ApiError && (error.status === 401 || error.setupRequired) && query.queryKey[0] !== 'me') {
         void queryClient.invalidateQueries({ queryKey: ['me'] })
       }
     },

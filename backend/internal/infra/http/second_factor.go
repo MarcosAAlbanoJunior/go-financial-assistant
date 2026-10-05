@@ -66,7 +66,7 @@ func (a *api) sendCode(w http.ResponseWriter, r *http.Request, kind auth.Kind, b
 func (a *api) codeRejected(w http.ResponseWriter, r *http.Request, err error, status int, where string) {
 	a.logger.Warn("código recusado", "onde", where, "ip", clientIP(r))
 	if errors.Is(err, auth.ErrTooManyAttempts) {
-		a.noticeOnce("⚠️ " + strconv.Itoa(auth.MaxAttempts) + " códigos errados " + where + " do dashboard (" + time.Now().Format("02/01 15:04") + "). Se não foi você, troque a DASHBOARD_PASSWORD e reinicie o app.")
+		a.noticeOnce("⚠️ " + strconv.Itoa(auth.MaxAttempts) + " códigos errados " + where + " do dashboard (" + time.Now().Format("02/01 15:04") + "). Se não foi você, troque a senha do dashboard (SETUP_REOPEN no .env, veja o README) e reinicie o app.")
 	}
 	writeError(w, status, err.Error())
 }
@@ -95,9 +95,9 @@ func randomToken() (string, error) {
 }
 
 func loginCodeMessage(code string) string {
-	return "🔑 Código de acesso ao dashboard: " + code + "\nVale 5 minutos. Se não foi você que tentou entrar, alguém sabe a sua senha: troque a DASHBOARD_PASSWORD."
+	return "🔑 Código de acesso ao dashboard: " + code + "\nVale 5 minutos. Se não foi você que tentou entrar, alguém sabe a sua senha: troque a senha do dashboard (SETUP_REOPEN no .env, veja o README)."
 }
 
 func confirmCodeMessage(code string) string {
-	return "🔑 Código para confirmar a alteração nas Configurações: " + code + "\nVale 5 minutos. Se não foi você, alguém está com uma sessão aberta no seu dashboard: troque a DASHBOARD_PASSWORD e reinicie o app."
+	return "🔑 Código para confirmar a alteração nas Configurações: " + code + "\nVale 5 minutos. Se não foi você, alguém está com uma sessão aberta no seu dashboard: troque a senha do dashboard (SETUP_REOPEN no .env, veja o README) e reinicie o app."
 }

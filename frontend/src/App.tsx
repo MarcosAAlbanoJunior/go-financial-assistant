@@ -12,6 +12,7 @@ import Panel from './features/balances/Panel'
 import Projection from './features/projection/Projection'
 import Review from './features/review/Review'
 import Settings from './features/settings/Settings'
+import Setup from './features/setup/Setup'
 import Spending from './features/spending/Spending'
 import Transactions from './features/transactions/Transactions'
 
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/setup" element={<Setup />} />
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Panel />} />
         <Route path="/visao-geral" element={<Overview />} />

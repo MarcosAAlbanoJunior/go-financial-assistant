@@ -35,7 +35,9 @@ export function changedValues(group: SettingGroup, drafts: Record<string, string
 export const needsConfirmation = (group: SettingGroup, keys: string[]) => group.fields.some((f) => f.sensitive && keys.includes(f.key))
 
 /** O que o histórico mostra: "Token do bot alterado". */
-export const auditText = (action: 'set' | 'reset', label: string) => `${label} ${action === 'set' ? 'alterado' : 'restaurado ao padrão do ambiente'}`
+/** Os passos do setup já vêm com o nome pronto ("Setup: senha do dashboard definida"). */
+export const auditText = (action: 'set' | 'reset' | 'setup', label: string) =>
+  action === 'setup' ? label : `${label} ${action === 'set' ? 'alterado' : 'restaurado ao padrão do ambiente'}`
 
 /** O teste de conexão de cada grupo, quando existe. */
 export const TEST_TARGET: Record<string, 'pluggy' | 'gemini' | 'telegram' | undefined> = {
