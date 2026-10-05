@@ -16,18 +16,19 @@ Conecte seus bancos pelo **Open Finance**, converse com o seu próprio **bot no 
 ## Sumário
 
 1. [O que dá para fazer](#o-que-dá-para-fazer)
-2. [Instalação](#instalação)
-3. [Passo 1: o setup no navegador (senha e Telegram)](#passo-1-o-setup-no-navegador-senha-e-telegram)
-4. [Passo 2: conectar os seus bancos (Open Finance)](#passo-2-conectar-os-seus-bancos-open-finance)
-5. [Passo 3: ligar a IA (opcional)](#passo-3-ligar-a-ia-opcional)
-6. [Passo 4: ajustes finos](#passo-4-ajustes-finos)
-7. [Usando no dia a dia](#usando-no-dia-a-dia)
-8. [A página Configurações](#a-página-configurações)
-9. [Segurança](#segurança)
-10. [Recuperar o acesso](#recuperar-o-acesso)
-11. [Backup e restauração](#backup-e-restauração)
-12. [Atualizando uma instalação existente](#atualizando-uma-instalação-existente)
-13. [Comandos úteis e documentação](#comandos-úteis-e-documentação)
+2. [Antes de começar: crie o seu bot no Telegram](#antes-de-começar-crie-o-seu-bot-no-telegram)
+3. [Instalação](#instalação)
+4. [Passo 1: o setup no navegador (senha e Telegram)](#passo-1-o-setup-no-navegador-senha-e-telegram)
+5. [Passo 2: conectar os seus bancos (Open Finance)](#passo-2-conectar-os-seus-bancos-open-finance)
+6. [Passo 3: ligar a IA (opcional)](#passo-3-ligar-a-ia-opcional)
+7. [Passo 4: ajustes finos](#passo-4-ajustes-finos)
+8. [Usando no dia a dia](#usando-no-dia-a-dia)
+9. [A página Configurações](#a-página-configurações)
+10. [Segurança](#segurança)
+11. [Recuperar o acesso](#recuperar-o-acesso)
+12. [Backup e restauração](#backup-e-restauração)
+13. [Atualizando uma instalação existente](#atualizando-uma-instalação-existente)
+14. [Comandos úteis e documentação](#comandos-úteis-e-documentação)
 
 ## O que dá para fazer
 
@@ -55,6 +56,30 @@ Conecte seus bancos pelo **Open Finance**, converse com o seu próprio **bot no 
 | Foto de recibo ou PDF do extrato | Lê e registra as transações (precisa da IA) |
 | Toda segunda às 9h | O resumo semanal chega sozinho (dia e hora configuráveis) |
 | Dia 1 de cada mês | A planilha CSV do mês anterior chega sozinha |
+
+## Antes de começar: crie o seu bot no Telegram
+
+O FinAssist conversa com você por um bot que é só seu: é por ele que chegam o código de confirmação do setup, o código de cada login, os saldos e os resumos. Crie o bot primeiro (leva 1 minuto) e deixe o token à mão.
+
+1. No Telegram, abra o [@BotFather](https://t.me/BotFather) (o bot oficial que cria bots) e toque em **Iniciar**.
+2. Mande `/newbot`.
+3. Ele pede um **nome** (aparece nas conversas, ex.: `Minhas Finanças`) e depois um **usuário** terminado em `bot` (ex.: `minhas_financas_bot`).
+4. Ele responde com o **token** do bot:
+
+```
+Você:      /newbot
+BotFather: Alright, a new bot. How are we going to call it? Please choose a name for your bot.
+Você:      Minhas Finanças
+BotFather: Good. Now let's choose a username for your bot. It must end in `bot`.
+Você:      minhas_financas_bot
+BotFather: Done! Congratulations on your new bot. You will find it at t.me/minhas_financas_bot.
+           Use this token to access the HTTP API:
+           123456789:AAH4r9xYzExemploDeTokenNaoUseEste
+```
+
+Guarde o token (a linha `123456789:AA...`): você vai colar no setup.
+
+> **Trate o token como uma senha:** quem tem o token controla o bot. Ele fica guardado cifrado no banco.
 
 ## Instalação
 
@@ -101,7 +126,7 @@ Ao abrir http://localhost:8080 pela primeira vez, aparece **Configurar o FinAssi
 
 ### 1.1 Token de setup
 
-Abra o arquivo `.env` na pasta do projeto e copie o valor da linha `SETUP_TOKEN=` (só o que vem depois do `=`). Cole na tela.
+Abra o arquivo `.env` na pasta do projeto e copie o valor da linha `SETUP_TOKEN=` (só o que vem depois do `=`). Cole na tela. Aqui ainda não há login nem código no Telegram: o setup só pede esse token.
 
 > **Por que isso?** Só quem tem acesso ao servidor tem o token. Assim, ninguém que encontre a página antes de você consegue virar dono do app.
 
@@ -109,29 +134,9 @@ Abra o arquivo `.env` na pasta do projeto e copie o valor da linha `SETUP_TOKEN=
 
 Escolha uma senha com pelo menos 12 caracteres (uma frase com espaços é ótima). O login vai pedir essa senha **e** um código que chega no seu Telegram.
 
-### 1.3 Criar o seu bot no Telegram
+### 1.3 Colar o token do bot
 
-O FinAssist conversa com você por um bot que é só seu. Para criar o bot:
-
-1. No Telegram, abra o [@BotFather](https://t.me/BotFather) (o bot oficial que cria bots) e toque em **Iniciar**.
-2. Mande `/newbot`.
-3. Ele pede um **nome** (aparece nas conversas, ex.: `Minhas Finanças`) e depois um **usuário** terminado em `bot` (ex.: `minhas_financas_bot`).
-4. Ele responde com o **token** do bot:
-
-```
-Você:      /newbot
-BotFather: Alright, a new bot. How are we going to call it? Please choose a name for your bot.
-Você:      Minhas Finanças
-BotFather: Good. Now let's choose a username for your bot. It must end in `bot`.
-Você:      minhas_financas_bot
-BotFather: Done! Congratulations on your new bot. You will find it at t.me/minhas_financas_bot.
-           Use this token to access the HTTP API:
-           123456789:AAH4r9xYzExemploDeTokenNaoUseEste
-```
-
-Copie o token (a linha `123456789:AA...`) e cole na tela do setup. O app confere na hora e mostra **Bot @minhas_financas_bot encontrado ✓**.
-
-> **Trate o token como uma senha:** quem tem o token controla o bot. Ele fica guardado cifrado no banco.
+Cole o token do bot que você criou em [Antes de começar](#antes-de-começar-crie-o-seu-bot-no-telegram). O app confere na hora e mostra **Bot @minhas_financas_bot encontrado ✓**. Se ainda não criou, faça agora: a tela espera.
 
 ### 1.4 Mandar /start (o app descobre quem é você)
 
@@ -339,7 +344,7 @@ for f in backend/migrations/01[0-9]_*.sql; do docker compose exec -T postgres ps
 <details>
 <summary>Configurar o Telegram pelo <code>.env</code>, sem o setup</summary>
 
-1. Crie o bot no [@BotFather](https://t.me/BotFather) como no [passo 1.3](#13-criar-o-seu-bot-no-telegram).
+1. Crie o bot no [@BotFather](https://t.me/BotFather) como em [Antes de começar](#antes-de-começar-crie-o-seu-bot-no-telegram).
 2. Descubra o seu ID numérico: abra o [@userinfobot](https://t.me/userinfobot), toque em **Iniciar** e copie o número da linha `Id`.
 3. No `.env`:
 
