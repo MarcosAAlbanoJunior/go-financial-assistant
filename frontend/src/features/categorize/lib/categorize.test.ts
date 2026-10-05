@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupSummary, pendingChoices, totalOf, withSuggestions } from './categorize'
+import { groupSummary, pageOf, pendingChoices, totalOf, withSuggestions } from './categorize'
 import type { UncategorizedGroup } from '../api'
 
 const g = (key: string, over: Partial<UncategorizedGroup> = {}): UncategorizedGroup => ({
@@ -42,5 +42,19 @@ describe('pendingChoices e withSuggestions', () => {
   it('soma o total', () => {
     expect(totalOf(groups)).toBe(1200)
     expect(totalOf([])).toBe(0)
+  })
+})
+
+describe('pageOf', () => {
+  const items = Array.from({ length: 25 }, (_, i) => i)
+  it('fatia a página pedida', () => {
+    expect(pageOf(items, 2, 10)).toEqual({ items: items.slice(10, 20), page: 2 })
+  })
+  it('ajusta a página quando a lista encolhe', () => {
+    expect(pageOf(items.slice(0, 10), 3, 10).page).toBe(1)
+    expect(pageOf(items, 99, 10).items).toHaveLength(5)
+  })
+  it('lista vazia fica na página 1', () => {
+    expect(pageOf([], 1, 10)).toEqual({ items: [], page: 1 })
   })
 })

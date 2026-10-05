@@ -20,3 +20,10 @@ export function withSuggestions(choice: Record<string, string>, suggestions: { k
 
 /** Total das despesas em Outros que a lista cobre. */
 export const totalOf = (groups: UncategorizedGroup[]) => groups.reduce((sum, g) => sum + g.total, 0)
+
+/** Fatia da página pedida; a página é ajustada ao intervalo válido (a lista encolhe ao aplicar). */
+export function pageOf<T>(items: T[], page: number, size: number): { items: T[]; page: number } {
+  const pages = Math.max(1, Math.ceil(items.length / size))
+  const current = Math.min(Math.max(1, page), pages)
+  return { items: items.slice((current - 1) * size, current * size), page: current }
+}
