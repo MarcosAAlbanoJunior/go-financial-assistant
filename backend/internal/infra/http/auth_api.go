@@ -32,7 +32,7 @@ func (a *api) login(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, "gerar desafio", err)
 		return
 	}
-	if !a.sendCode(w, r, auth.Login, bind, loginCodeMessage) {
+	if !a.sendCode(w, r, auth.Login, bind, loginCodeMessage, nil) {
 		return
 	}
 	setChallengeCookie(w, r, bind, int(auth.CodeTTL.Seconds()))

@@ -137,7 +137,7 @@ func newSyncAPI(t *testing.T, syncer *fakeSyncer) *Server {
 	if syncer != nil {
 		s.SetSyncer(syncer)
 	}
-	if err := s.MountAPI(testPassword, &fakeReader{}); err != nil {
+	if err := s.MountAPI(StaticPassword(testPassword), &fakeReader{}); err != nil {
 		t.Fatal(err)
 	}
 	return s
@@ -201,7 +201,7 @@ func TestAPI_SyncNowReportsDataAge(t *testing.T) {
 	s := NewServer(0, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	s.SetSyncer(&fakeSyncer{})
 	reader := &fakeReader{institutions: []domain.Institution{{ID: uuid.New(), Name: "A", SourceUpdatedAt: &at}, {ID: uuid.New(), Name: "B", SourceUpdatedAt: &older}, {ID: uuid.New(), Name: "C"}}}
-	if err := s.MountAPI(testPassword, reader); err != nil {
+	if err := s.MountAPI(StaticPassword(testPassword), reader); err != nil {
 		t.Fatal(err)
 	}
 	rec := do(s, "POST", "/api/sync", "{}", jsonHdr, login(t, s))

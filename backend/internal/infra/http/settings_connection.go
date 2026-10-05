@@ -65,7 +65,7 @@ func (a *api) testGemini(ctx context.Context) (bool, string) {
 
 func (a *api) testTelegram(ctx context.Context) (bool, string) {
 	token := a.settings.Service.Get("TELEGRAM_BOT_TOKEN")
-	if a.settings.Channel != "telegram" || token == "" {
+	if a.settings.channel() != "telegram" || token == "" {
 		return false, "Preencha o token do bot e salve."
 	}
 	name, err := a.settings.TelegramPing(ctx, token)

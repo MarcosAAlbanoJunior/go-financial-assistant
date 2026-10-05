@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/MarcosAAlbanoJunior/go-financial-assistant/internal/usecase/ledger"
@@ -42,6 +43,12 @@ type Server struct {
 
 	// factor liga o código no chat ao login e às confirmações (nil = só senha).
 	factor *SecondFactor
+
+	// setup liga o setup pelo navegador (nil = desligado).
+	setup *SetupDeps
+
+	mu     sync.Mutex
+	runCtx context.Context // definido em Start: rotas montadas depois (canal ligado pelo setup) já sobem as limpezas
 }
 
 // SetSyncer liga a sincronização do Open Finance à API do dashboard (chame antes de MountAPI).
@@ -61,11 +68,16 @@ func NewServer(port int, logger *slog.Logger) *Server {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	return &Server{
-		http:   &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux},
-		mux:    mux,
-		logger: logger,
+	s := &Server{mux: mux, logger: logger}
+	s.http = &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: http.HandlerFunc(s.serve)}
+	return s
+}
+
+func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
+	if s.setupGate(w, r) {
+		return
 	}
+	s.mux.ServeHTTP(w, r)
 }
 
 // MountWhatsApp registra o webhook da Evolution API e o endpoint de QR code.
@@ -78,13 +90,22 @@ func (s *Server) MountWhatsApp(cfg WhatsAppConfig, client EvolutionClient, analy
 
 	s.mux.Handle("/webhook", webhookSourceMiddleware(extractHost(cfg.EvolutionAPIURL), s.logger, http.HandlerFunc(handler.Handle)))
 	s.mux.Handle("/admin/qrcode", adminRateLimitMiddleware(qrLimiter, http.HandlerFunc(qrHandler.Handle)))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runCtx != nil {
+		go handler.startCleanup(s.runCtx)
+		return
+	}
 	s.cleanups = append(s.cleanups, handler.startCleanup)
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	s.mu.Lock()
+	s.runCtx = ctx
 	for _, cleanup := range s.cleanups {
 		go cleanup(ctx)
 	}
+	s.mu.Unlock()
 
 	errCh := make(chan error, 1)
 

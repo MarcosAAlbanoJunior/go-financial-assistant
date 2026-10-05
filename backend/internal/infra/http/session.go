@@ -23,23 +23,31 @@ const (
 // sessions emite e valida o cookie de sessão do dashboard. O cookie é "<expira>.<hmac>",
 // sem estado no servidor. A chave é aleatória a cada boot: reiniciar o app encerra as sessões.
 type sessions struct {
-	key      []byte
-	password [sha256.Size]byte
+	key   []byte
+	check PasswordCheck
 }
 
-func newSessions(password string) (*sessions, error) {
+// PasswordCheck confere a senha do dashboard (a do setup, com hash, ou a do ambiente) em tempo constante.
+type PasswordCheck func(candidate string) bool
+
+// StaticPassword confere contra uma senha fixa, em tempo constante (via hash, para não vazar nem o tamanho).
+func StaticPassword(password string) PasswordCheck {
+	want := sha256.Sum256([]byte(password))
+	return func(candidate string) bool {
+		h := sha256.Sum256([]byte(candidate))
+		return password != "" && subtle.ConstantTimeCompare(h[:], want[:]) == 1
+	}
+}
+
+func newSessions(check PasswordCheck) (*sessions, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return nil, fmt.Errorf("erro ao gerar chave de sessão: %w", err)
 	}
-	return &sessions{key: key, password: sha256.Sum256([]byte(password))}, nil
+	return &sessions{key: key, check: check}, nil
 }
 
-// checkPassword compara em tempo constante (via hash, para não vazar nem o tamanho da senha).
-func (s *sessions) checkPassword(candidate string) bool {
-	h := sha256.Sum256([]byte(candidate))
-	return subtle.ConstantTimeCompare(h[:], s.password[:]) == 1
-}
+func (s *sessions) checkPassword(candidate string) bool { return s.check(candidate) }
 
 func (s *sessions) sign(expiry string) string {
 	mac := hmac.New(sha256.New, s.key)
